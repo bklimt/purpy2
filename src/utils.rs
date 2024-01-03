@@ -83,53 +83,63 @@ fn try_move_to_bounds(actor: &Rect, target: &Rect, direction: &Direction) -> i32
 }
 
 /*
-def try_move_to_slope_bounds(
-        actor: pygame.Rect,
-        target: pygame.Rect,
-        left_y: int,
-        right_y: int,
-        direction: Direction) -> int:
-    """Try to move the actor rect in direction by delta and see if it intersects target.
+ * Try to move the actor rect in direction by delta and see if it intersects target.
+ *
+ * Returns the maximum distance the actor can move.
+ */
+fn try_move_to_slope_bounds(
+    actor: &Rect,
+    target: &Rect,
+    left_y: i32,
+    right_y: i32,
+    direction: &Direction,
+) -> i32 {
+    if actor.bottom() <= target.top() {
+        return 0;
+    }
+    if actor.top() >= target.bottom() {
+        return 0;
+    }
+    if actor.right() <= target.left() {
+        return 0;
+    }
+    if actor.left() >= target.right() {
+        return 0;
+    }
 
-    Returns the maximum distance the actor can move.
-    """
+    if let Direction::Down = direction {
+        return 0;
+    }
 
-    if actor.bottom <= target.top:
-        return 0
-    if actor.top >= target.bottom:
-        return 0
-    if actor.right <= target.left:
-        return 0
-    if actor.left >= target.right:
-        return 0
+    let mut target_y = actor.bottom();
+    let actor_center_x = (actor.left() + actor.right()) / 2;
 
-    if direction != Direction.DOWN:
-        return 0
+    if actor_center_x < target.left() {
+        target_y = target.top() + left_y;
+    } else if actor_center_x > target.right() {
+        target_y = target.top() + right_y;
+    } else {
+        let x_offset = actor_center_x - target.x;
+        let slope = (right_y - left_y) / target.w;
+        target_y = target.y + slope * x_offset + left_y;
 
-    target_y: int = actor.bottom
-    actor_center_x = (actor.left + actor.right) // 2
+        if false {
+            println!("center_x = {actor_center_x}");
+            println!("x_offset = {x_offset}");
+            println!("slope = {slope}");
+            println!("target_y = {target_y}");
+            println!("actor_bottom = {}", actor.bottom());
+        }
+    }
 
-    if actor_center_x < target.left:
-        target_y = target.top + left_y
-    elif actor_center_x > target.right:
-        target_y = target.top + right_y
-    else:
-        x_offset = actor_center_x - target.x
-        slope = (right_y - left_y) / target.w
-        target_y = int(target.y + slope * x_offset + left_y)
+    if target_y < actor.bottom() {
+        target_y - actor.bottom()
+    } else {
+        0
+    }
+}
 
-        if False:
-            print(f'center_x = {actor_center_x}')
-            print(f'x_offset = {x_offset}')
-            print(f'slope = {slope}')
-            print(f'target_y = {target_y}')
-            print(f'actor_bottom = {actor.bottom}')
-
-    if target_y < actor.bottom:
-        return target_y - actor.bottom
-    else:
-        return 0
-
+/*
 
 def intersect(rect1: pygame.Rect, rect2: pygame.Rect) -> bool:
     if rect1.right < rect2.left:
