@@ -1,4 +1,11 @@
-enum Direction {
+use std::collections::HashMap;
+
+pub type Subpixels = i32;
+
+pub struct Point(Subpixels, Subpixels);
+
+#[derive(Debug)]
+pub enum Direction {
     None,
     Up,
     Down,
@@ -18,7 +25,7 @@ impl Direction {
     }
 }
 
-fn sign(n: i32) -> i32 {
+fn sign(n: Subpixels) -> Subpixels {
     if n < 0 {
         -1
     } else if n > 0 {
@@ -28,31 +35,31 @@ fn sign(n: i32) -> i32 {
     }
 }
 
-fn cmp_in_direction(a: i32, b: i32, direction: &Direction) -> i32 {
+fn cmp_in_direction(a: Subpixels, b: Subpixels, direction: Direction) -> Subpixels {
     match direction {
         Direction::Up | Direction::Left => sign(b - a),
         _ => sign(a - b),
     }
 }
 
-struct Rect {
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
+pub struct Rect {
+    pub x: Subpixels,
+    pub y: Subpixels,
+    pub w: Subpixels,
+    pub h: Subpixels,
 }
 
 impl Rect {
-    fn top(&self) -> i32 {
+    pub fn top(&self) -> Subpixels {
         self.y
     }
-    fn bottom(&self) -> i32 {
+    pub fn bottom(&self) -> Subpixels {
         self.y + self.h
     }
-    fn left(&self) -> i32 {
+    pub fn left(&self) -> Subpixels {
         self.x
     }
-    fn right(&self) -> i32 {
+    pub fn right(&self) -> Subpixels {
         self.x + self.w
     }
 }
@@ -62,7 +69,7 @@ impl Rect {
  *
  * Returns the maximum distance the actor can move.
  */
-fn try_move_to_bounds(actor: &Rect, target: &Rect, direction: &Direction) -> i32 {
+fn try_move_to_bounds(actor: Rect, target: Rect, direction: Direction) -> Subpixels {
     if actor.bottom() <= target.top() {
         0
     } else if actor.top() >= target.bottom() {
@@ -90,10 +97,10 @@ fn try_move_to_bounds(actor: &Rect, target: &Rect, direction: &Direction) -> i32
 fn try_move_to_slope_bounds(
     actor: &Rect,
     target: &Rect,
-    left_y: i32,
-    right_y: i32,
+    left_y: Subpixels,
+    right_y: Subpixels,
     direction: &Direction,
-) -> i32 {
+) -> Subpixels {
     if actor.bottom() <= target.top() {
         return 0;
     }
@@ -139,28 +146,39 @@ fn try_move_to_slope_bounds(
     }
 }
 
+fn intersect(rect1: Rect, rect2: Rect) -> bool {
+    if rect1.right() < rect2.left() {
+        false
+    } else if rect1.left() > rect2.right() {
+        false
+    } else if rect1.bottom() < rect2.top() {
+        false
+    } else if rect1.top() > rect2.bottom() {
+        false
+    } else {
+        true
+    }
+}
+
+fn inside(rect: Rect, point: Point) -> bool {
+    if point.0 < rect.left() || point.0 > rect.right() {
+        false
+    } else if point.1 < rect.top() || point.1 > rect.bottom() {
+        false
+    } else {
+        true
+    }
+}
+
+pub enum PropertyValue {
+    StringValue(String),
+    IntValue(i32),
+    BoolValue(bool),
+}
+
+pub type PropertyMap = HashMap<String, PropertyValue>;
+
 /*
-
-def intersect(rect1: pygame.Rect, rect2: pygame.Rect) -> bool:
-    if rect1.right < rect2.left:
-        return False
-    if rect1.left > rect2.right:
-        return False
-    if rect1.bottom < rect2.top:
-        return False
-    if rect1.top > rect2.bottom:
-        return False
-    return True
-
-
-def inside(rect: pygame.Rect, point: tuple[int, int]) -> bool:
-    if point[0] < rect.left or point[0] > rect.right:
-        return False
-    if point[1] < rect.top or point[1] > rect.bottom:
-        return False
-    return True
-
-
 def load_properties(
         node: xml.etree.ElementTree.Element,
         properties: dict[str, str | int | bool] | None = None
