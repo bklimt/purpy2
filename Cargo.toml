@@ -9,4 +9,5 @@ edition = "2021"
 anyhow = "1.0"
 clap = {version="4.4.12", features=["derive"]}
 quick-xml = {version="0.31.0", features=["serialize"]}
+sdl2 = "0.36.0"
 serde = {version="1.0.194", features=["derive"]}

@@ -1,6 +1,7 @@
 mod constants;
 mod properties;
 mod slope;
+mod sprite;
 mod tilemap;
 mod tileset;
 mod utils;

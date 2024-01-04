@@ -5,6 +5,10 @@ use serde::Deserialize;
 struct ImageXml {
     #[serde(rename = "@source")]
     source: String,
+    #[serde(rename = "@width")]
+    width: i32,
+    #[serde(rename = "@height")]
+    height: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,4 +56,13 @@ pub struct TileSetXml {
 
     #[serde(rename = "$value")]
     fields: Vec<TileSetXmlField>,
+}
+
+pub struct TileSet {
+    name: String,
+    tilewidth: i32,
+    tileheight: i32,
+    tilecount: i32,
+    columns: i32,
+    image: ImageXml,
 }
