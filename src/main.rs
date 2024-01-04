@@ -2,9 +2,10 @@ mod constants;
 mod properties;
 mod slope;
 mod tilemap;
+mod tileset;
 mod utils;
 
-use crate::tilemap::TileMapXml;
+use crate::tileset::TileSetXml;
 use anyhow::Result;
 use clap::Parser;
 use std::fs;
@@ -18,7 +19,7 @@ struct Args {
 
 fn test_xml(path: &str) -> Result<()> {
     let text = fs::read_to_string(path)?;
-    let xml = quick_xml::de::from_str::<TileMapXml>(&text)?;
+    let xml = quick_xml::de::from_str::<TileSetXml>(&text)?;
     println!("{:?}", xml);
     Ok(())
 }
