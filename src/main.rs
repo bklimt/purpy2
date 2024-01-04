@@ -1,4 +1,5 @@
 mod constants;
+mod properties;
 mod slope;
 mod tilemap;
 mod utils;
