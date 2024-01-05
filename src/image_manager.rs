@@ -1,16 +1,22 @@
 use anyhow::{anyhow, Result};
 use sdl2::image::LoadSurface;
-use sdl2::render::{Canvas, TextureCreator};
+use sdl2::render::TextureCreator;
 use sdl2::surface::Surface;
-use sdl2::video::{Window, WindowContext};
+use sdl2::video::WindowContext;
 
 use crate::sprite::Sprite;
 
-pub struct ImageManager {
-    texture_creator: &'static TextureCreator<WindowContext>,
+pub struct ImageManager<'a> {
+    texture_creator: &'a TextureCreator<WindowContext>,
 }
 
-impl ImageManager {
+impl<'a> ImageManager<'a> {
+    pub fn new<'b>(canvas: &'b TextureCreator<WindowContext>) -> ImageManager<'b> {
+        ImageManager {
+            texture_creator: canvas,
+        }
+    }
+
     fn load_surface(&self, path: &str) -> Result<Surface<'static>> {
         Surface::from_file(path).map_err(|s: String| anyhow!("{}", s))
     }

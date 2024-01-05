@@ -7,28 +7,77 @@ mod tilemap;
 mod tileset;
 mod utils;
 
-use crate::tileset::TileSetXml;
+use std::time::Duration;
+
 use anyhow::Result;
 use clap::Parser;
-use std::fs;
+use image_manager::ImageManager;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::pixels::{Color, PixelFormatEnum};
+use sdl2::render::Canvas;
+use sdl2::surface::Surface;
+use sdl2::video::Window;
+use sprite::SpriteBatch;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {
-    #[arg(long)]
-    path: String,
-}
+struct Args {}
 
-fn test_xml(path: &str) -> Result<()> {
-    let text = fs::read_to_string(path)?;
-    let xml = quick_xml::de::from_str::<TileSetXml>(&text)?;
-    println!("{:?}", xml);
+fn run_game(_args: Args) -> Result<()> {
+    let sdl_context = sdl2::init().expect("failed to init SDL");
+    let video_subsystem = sdl_context.video().expect("failed to get video context");
+
+    // We create a window.
+    let window = video_subsystem
+        .window("sdl2 demo", 800, 600)
+        .build()
+        .expect("failed to build window");
+
+    // We get the canvas from which we can get the `TextureCreator`.
+    let mut canvas: Canvas<Window> = window
+        .into_canvas()
+        .build()
+        .expect("failed to build window's canvas");
+    let texture_creator = canvas.texture_creator();
+
+    let image_manager = ImageManager::new(&texture_creator);
+    let sprite = image_manager.load_sprite("../purpy/assets/space.png")?;
+
+    canvas.set_logical_size(sprite.width(), sprite.height())?;
+    canvas.set_draw_color(Color::RGB(40, 40, 40));
+    canvas.clear();
+    canvas.present();
+
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    'running: loop {
+        canvas.set_draw_color(Color::RGB(40, 40, 40));
+        canvas.clear();
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
+                _ => {}
+            }
+        }
+
+        let mut batch = SpriteBatch::new(&mut canvas);
+        batch.draw(&sprite, None, None);
+
+        canvas.present();
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+    }
+
     Ok(())
 }
 
 fn main() {
     let args = Args::parse();
-    match test_xml(&args.path) {
+    match run_game(args) {
         Ok(_) => {}
         Err(e) => panic!("{}", e),
     }

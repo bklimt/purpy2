@@ -1,38 +1,55 @@
 use anyhow::{anyhow, Result};
-use sdl2::render::{Canvas, RenderTarget, RendererContext, Texture, TextureCreator};
-use sdl2::surface::{Surface, SurfaceRef};
+use sdl2::render::{Canvas, RenderTarget, Texture, TextureCreator};
+use sdl2::surface::Surface;
 use sdl2::video::Window;
 
 use crate::utils::Rect;
 
-pub struct Sprite {
-    surface: Surface<'static>,
-    texture: Texture<'static>,
+pub struct Sprite<'a> {
+    surface: Surface<'a>,
+    texture: Texture<'a>,
 }
 
-impl Sprite {
-    pub fn new<T>(
-        surface: Surface<'static>,
-        texture_creator: &'static TextureCreator<T>,
-    ) -> Result<Sprite> {
+impl<'a> Sprite<'a> {
+    pub fn new<'b, 'c, T>(
+        surface: Surface<'b>,
+        texture_creator: &'c TextureCreator<T>,
+    ) -> Result<Sprite<'b>>
+    where
+        'c: 'b,
+    {
         let texture = surface.as_texture(texture_creator)?;
         Ok(Sprite { surface, texture })
     }
+
+    pub fn width(&self) -> u32 {
+        self.surface.width()
+    }
+
+    pub fn height(&self) -> u32 {
+        self.surface.width()
+    }
 }
 
-struct SpriteBatch {
-    canvas: Canvas<Window>,
+pub struct SpriteBatch<'a> {
+    canvas: &'a mut Canvas<Window>,
 }
 
-impl SpriteBatch {
-    fn draw(&mut self, sprite: &Sprite, dst: Rect, src: Rect) {
+impl<'a> SpriteBatch<'a> {
+    pub fn new<'b>(canvas: &'b mut Canvas<Window>) -> SpriteBatch<'b> {
+        SpriteBatch { canvas }
+    }
+
+    pub fn draw(&mut self, sprite: &Sprite, dst: Option<Rect>, src: Option<Rect>) {
+        let src = src.map(|r| r.into());
+        let dst = dst.map(|r| r.into());
         self.canvas.copy(&sprite.texture, src, dst);
     }
 }
 
-struct SpriteSheet {
-    surface: Sprite,
-    reverse: Sprite,
+struct SpriteSheet<'a> {
+    surface: Sprite<'a>,
+    reverse: Sprite<'a>,
     sprite_width: i32,
     sprite_height: i32,
     columns: i32,
@@ -67,13 +84,16 @@ fn reverse_surface(surface: &Surface) -> Result<Surface<'static>> {
     Ok(reverse)
 }
 
-impl<'a> SpriteSheet {
-    fn new(
-        surface: Surface<'static>,
+impl<'a> SpriteSheet<'a> {
+    fn new<'b, 'c>(
+        surface: Surface<'b>,
         sprite_width: i32,
         sprite_height: i32,
-        texture_creator: &'static TextureCreator<Canvas<Window>>,
-    ) -> Result<SpriteSheet> {
+        texture_creator: &'c TextureCreator<Canvas<Window>>,
+    ) -> Result<SpriteSheet<'b>>
+    where
+        'c: 'b,
+    {
         let w = surface.width() as i32;
         let reverse = reverse_surface(&surface)?;
         let surface = Sprite::new(surface, texture_creator)?;
@@ -113,7 +133,7 @@ impl<'a> SpriteSheet {
             &self.surface
         };
         let sprite = self.sprite(index, layer, reverse);
-        batch.draw(&texture, dest, sprite);
+        batch.draw(&texture, Some(dest), Some(sprite));
     }
 }
 
