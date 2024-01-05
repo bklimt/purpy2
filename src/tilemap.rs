@@ -38,6 +38,13 @@ struct ImageXml {
 
 #[derive(Debug, Deserialize)]
 struct ImageLayerXml {
+    #[serde(rename = "@id")]
+    id: i32,
+    #[serde(rename = "@offsetx")]
+    offsetx: String,
+    #[serde(rename = "@offsety")]
+    offsety: String,
+
     image: Vec<ImageXml>,
 }
 

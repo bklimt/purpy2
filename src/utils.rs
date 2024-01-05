@@ -64,6 +64,23 @@ impl Rect {
     }
 }
 
+impl Into<sdl2::rect::Rect> for Rect {
+    fn into(self) -> sdl2::rect::Rect {
+        sdl2::rect::Rect::new(self.x, self.y, self.w as u32, self.h as u32)
+    }
+}
+
+impl Into<Option<sdl2::rect::Rect>> for Rect {
+    fn into(self) -> Option<sdl2::rect::Rect> {
+        Some(sdl2::rect::Rect::new(
+            self.x,
+            self.y,
+            self.w as u32,
+            self.h as u32,
+        ))
+    }
+}
+
 /*
  * Try to move the actor rect in direction by delta and see if it intersects target.
  *

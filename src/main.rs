@@ -1,4 +1,5 @@
 mod constants;
+mod image_manager;
 mod properties;
 mod slope;
 mod sprite;

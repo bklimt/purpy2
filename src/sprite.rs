@@ -1,52 +1,84 @@
 use anyhow::{anyhow, Result};
+use sdl2::render::{Canvas, RenderTarget, RendererContext, Texture, TextureCreator};
 use sdl2::surface::{Surface, SurfaceRef};
+use sdl2::video::Window;
 
 use crate::utils::Rect;
 
-// TODO: Rewrite this.
-struct SpriteBatch {}
-
-impl SpriteBatch {
-    fn draw(&self, surface: &Surface, dst: Rect, src: Rect) {}
+pub struct Sprite {
+    surface: Surface<'static>,
+    texture: Texture<'static>,
 }
 
-// TODO: Is is Surface or SurfaceRef?
-struct SpriteSheet<'a> {
-    surface: Surface<'a>,
-    reverse: Surface<'a>,
+impl Sprite {
+    pub fn new<T>(
+        surface: Surface<'static>,
+        texture_creator: &'static TextureCreator<T>,
+    ) -> Result<Sprite> {
+        let texture = surface.as_texture(texture_creator)?;
+        Ok(Sprite { surface, texture })
+    }
+}
+
+struct SpriteBatch {
+    canvas: Canvas<Window>,
+}
+
+impl SpriteBatch {
+    fn draw(&mut self, sprite: &Sprite, dst: Rect, src: Rect) {
+        self.canvas.copy(&sprite.texture, src, dst);
+    }
+}
+
+struct SpriteSheet {
+    surface: Sprite,
+    reverse: Sprite,
     sprite_width: i32,
     sprite_height: i32,
     columns: i32,
 }
 
-impl<'a> SpriteSheet<'a> {
-    fn new(surface: Surface<'a>, sprite_width: i32, sprite_height: i32) -> Result<Self> {
-        let w = surface.width();
-        let h = surface.height();
-        let pitch = surface.pitch();
-        let format = surface.pixel_format_enum();
+fn reverse_surface(surface: &Surface) -> Result<Surface<'static>> {
+    let w = surface.width();
+    let h = surface.height();
+    let pitch = surface.pitch();
+    let format = surface.pixel_format_enum();
 
-        let mut reverse = Surface::new(w, h, format).map_err(|s: String| anyhow!("{}", s))?;
-        let reverse_pitch = reverse.pitch() as usize;
+    let mut reverse = Surface::new(w, h, format).map_err(|s: String| anyhow!("{}", s))?;
+    let reverse_pitch = reverse.pitch() as usize;
 
-        let w = w as usize;
-        let h = h as usize;
-        let pitch = pitch as usize;
+    let w = w as usize;
+    let h = h as usize;
+    let pitch = pitch as usize;
 
-        reverse.with_lock_mut(|dst| {
-            surface.with_lock(|src| {
-                for x in 0..w {
-                    let dx = (w - 1) - x;
-                    for y in 0..h {
-                        let sp = x + y * pitch;
-                        let dp = dx + y * reverse_pitch;
-                        dst[dp] = src[sp];
-                    }
+    reverse.with_lock_mut(|dst| {
+        surface.with_lock(|src| {
+            for x in 0..w {
+                let dx = (w - 1) - x;
+                for y in 0..h {
+                    let sp = x + y * pitch;
+                    let dp = dx + y * reverse_pitch;
+                    dst[dp] = src[sp];
                 }
-            });
+            }
         });
+    });
 
-        let columns = (surface.width() as i32) / sprite_width;
+    Ok(reverse)
+}
+
+impl<'a> SpriteSheet {
+    fn new(
+        surface: Surface<'static>,
+        sprite_width: i32,
+        sprite_height: i32,
+        texture_creator: &'static TextureCreator<Canvas<Window>>,
+    ) -> Result<SpriteSheet> {
+        let w = surface.width() as i32;
+        let reverse = reverse_surface(&surface)?;
+        let surface = Sprite::new(surface, texture_creator)?;
+        let reverse = Sprite::new(reverse, texture_creator)?;
+        let columns = w / sprite_width;
         Ok(SpriteSheet {
             surface,
             reverse,
@@ -71,31 +103,21 @@ impl<'a> SpriteSheet<'a> {
         Rect { x, y, w, h }
     }
 
-    fn blit(&self, batch: SpriteBatch, dest: Rect, index: i32, layer: i32, reverse: bool) {
+    fn blit<T>(&self, batch: &mut SpriteBatch, dest: Rect, index: i32, layer: i32, reverse: bool)
+    where
+        T: RenderTarget,
+    {
         let texture = if reverse {
             &self.reverse
         } else {
             &self.surface
         };
         let sprite = self.sprite(index, layer, reverse);
-        batch.draw(texture, dest, sprite);
+        batch.draw(&texture, dest, sprite);
     }
 }
 
 /*
-
-    def blit(self,
-             batch: SpriteBatch,
-             dest: pygame.Rect,
-             index: int = 0,
-             layer: int = 0,
-             reverse: bool = False):
-        texture = self.surface
-        if reverse:
-            texture = self.reverse
-        sprite = self.sprite(index, layer, reverse)
-        batch.draw(texture, dest, sprite)
-
 
 class Animation:
     spritesheet: SpriteSheet
