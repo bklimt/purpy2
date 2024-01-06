@@ -3,11 +3,12 @@ mod image_manager;
 mod properties;
 mod slope;
 mod sprite;
+mod switchstate;
 mod tilemap;
 mod tileset;
 mod utils;
 
-use std::{fs, time::Duration};
+use std::{fs, path::Path, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
@@ -44,13 +45,13 @@ fn run_game(_args: Args) -> Result<()> {
     let texture_creator = canvas.texture_creator();
 
     let image_manager = ImageManager::new(&texture_creator);
-    let space = image_manager.load_sprite("../purpy/assets/space.png")?;
+    let space = image_manager.load_sprite(Path::new("../purpy/assets/space.png"))?;
 
     let mut animation =
-        image_manager.load_animation("../purpy/assets/sprites/skelly2.png", 24, 24)?;
+        image_manager.load_animation(Path::new("../purpy/assets/sprites/skelly2.png"), 24, 24)?;
 
     let player_sprite =
-        image_manager.load_spritesheet("../purpy/assets/sprites/skelly2.png", 24, 24)?;
+        image_manager.load_spritesheet(Path::new("../purpy/assets/sprites/skelly2.png"), 24, 24)?;
     let animation_state_machine = AnimationStateMachine::new(&fs::read_to_string(
         "../purpy/assets/sprites/skelly2_states.txt",
     )?)?;

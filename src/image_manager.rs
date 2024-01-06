@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::{anyhow, Result};
 use sdl2::image::LoadSurface;
 use sdl2::render::TextureCreator;
@@ -17,18 +19,18 @@ impl<'a> ImageManager<'a> {
         }
     }
 
-    fn load_surface(&self, path: &str) -> Result<Surface<'static>> {
+    fn load_surface(&self, path: &Path) -> Result<Surface<'static>> {
         Surface::from_file(path).map_err(|s: String| anyhow!("{}", s))
     }
 
-    pub fn load_sprite(&self, path: &str) -> Result<Sprite<'a>> {
+    pub fn load_sprite(&self, path: &Path) -> Result<Sprite<'a>> {
         let surface = self.load_surface(path)?;
         Sprite::new(surface, self.texture_creator)
     }
 
     pub fn load_spritesheet(
         &self,
-        path: &str,
+        path: &Path,
         sprite_width: u32,
         sprite_height: u32,
     ) -> Result<SpriteSheet<'a>> {
@@ -38,7 +40,7 @@ impl<'a> ImageManager<'a> {
 
     pub fn load_animation(
         &self,
-        path: &str,
+        path: &Path,
         sprite_width: u32,
         sprite_height: u32,
     ) -> Result<Animation<'a>> {

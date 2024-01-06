@@ -1,31 +1,17 @@
-use crate::constants::SUBPIXELS;
-use crate::utils::{Direction, PropertyMap, PropertyValue, Rect, Subpixels};
+use crate::properties::PropertyMap;
+use crate::utils::{Direction, Rect, Subpixels};
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 
-struct Slope {
+pub struct Slope {
     left_y: Subpixels,
     right_y: Subpixels,
 }
 
 impl Slope {
-    fn new(properties: &PropertyMap) -> Result<Self> {
-        let left_y = properties
-            .get("left_y")
-            .unwrap_or(&PropertyValue::IntValue(0));
-        let PropertyValue::IntValue(left_y) = left_y else {
-            bail!("missing left_y for slope");
-        };
-        let left_y = *left_y;
-
-        let right_y = properties
-            .get("left_y")
-            .unwrap_or(&PropertyValue::IntValue(0));
-        let PropertyValue::IntValue(right_y) = right_y else {
-            bail!("missing right_y for slope");
-        };
-        let right_y = *right_y;
-
+    pub fn new(properties: &PropertyMap) -> Result<Self> {
+        let left_y = properties.get_int("left_y")?.unwrap_or(0);
+        let right_y = properties.get_int("right_y")?.unwrap_or(0);
         Ok(Slope { left_y, right_y })
     }
 
