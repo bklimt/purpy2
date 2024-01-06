@@ -4,7 +4,7 @@ use sdl2::render::TextureCreator;
 use sdl2::surface::Surface;
 use sdl2::video::WindowContext;
 
-use crate::sprite::{Sprite, SpriteSheet};
+use crate::sprite::{Animation, Sprite, SpriteSheet};
 
 pub struct ImageManager<'a> {
     texture_creator: &'a TextureCreator<WindowContext>,
@@ -34,5 +34,15 @@ impl<'a> ImageManager<'a> {
     ) -> Result<SpriteSheet<'a>> {
         let surface = self.load_surface(path)?;
         SpriteSheet::new(surface, sprite_width, sprite_height, self.texture_creator)
+    }
+
+    pub fn load_animation(
+        &self,
+        path: &str,
+        sprite_width: u32,
+        sprite_height: u32,
+    ) -> Result<Animation<'a>> {
+        let surface = self.load_surface(path)?;
+        Animation::new(surface, sprite_width, sprite_height, self.texture_creator)
     }
 }
