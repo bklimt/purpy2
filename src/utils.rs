@@ -1,8 +1,20 @@
-use std::collections::HashMap;
-
 pub type Subpixels = i32;
 
 pub struct Point(Subpixels, Subpixels);
+
+impl Point {
+    pub fn new(x: Subpixels, y: Subpixels) -> Point {
+        Point(x, y)
+    }
+
+    pub fn x(&self) -> Subpixels {
+        self.0
+    }
+
+    pub fn y(&self) -> Subpixels {
+        self.1
+    }
+}
 
 #[derive(Debug)]
 pub enum Direction {

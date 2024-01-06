@@ -74,7 +74,7 @@ pub struct TileSet<'a> {
     tileheight: i32,
     tilecount: i32,
     columns: i32,
-    sprite: Sprite<'a>,
+    pub sprite: Sprite<'a>,
     animations: HashMap<i32, Animation<'a>>,
     slopes: HashMap<i32, Slope>,
     properties: PropertyMap,
@@ -174,7 +174,7 @@ impl<'a> TileSet<'a> {
         (self.tilecount as f32 / self.columns as f32).ceil() as i32
     }
 
-    fn get_source_rect(&self, index: i32) -> Result<Rect> {
+    pub fn get_source_rect(&self, index: i32) -> Result<Rect> {
         if index < 0 || index > self.tilecount {
             bail!("index out of range");
         }
