@@ -47,12 +47,12 @@ impl<'a> SpriteBatch<'a> {
     }
 }
 
-struct SpriteSheet<'a> {
+pub struct SpriteSheet<'a> {
     surface: Sprite<'a>,
     reverse: Sprite<'a>,
-    sprite_width: i32,
-    sprite_height: i32,
-    columns: i32,
+    sprite_width: u32,
+    sprite_height: u32,
+    columns: u32,
 }
 
 fn reverse_surface(surface: &Surface) -> Result<Surface<'static>> {
@@ -85,16 +85,16 @@ fn reverse_surface(surface: &Surface) -> Result<Surface<'static>> {
 }
 
 impl<'a> SpriteSheet<'a> {
-    fn new<'b, 'c>(
+    pub fn new<'b, 'c, T>(
         surface: Surface<'b>,
-        sprite_width: i32,
-        sprite_height: i32,
-        texture_creator: &'c TextureCreator<Canvas<Window>>,
+        sprite_width: u32,
+        sprite_height: u32,
+        texture_creator: &'c TextureCreator<T>,
     ) -> Result<SpriteSheet<'b>>
     where
         'c: 'b,
     {
-        let w = surface.width() as i32;
+        let w = surface.width();
         let reverse = reverse_surface(&surface)?;
         let surface = Sprite::new(surface, texture_creator)?;
         let reverse = Sprite::new(reverse, texture_creator)?;
@@ -108,7 +108,7 @@ impl<'a> SpriteSheet<'a> {
         })
     }
 
-    fn sprite(&self, index: i32, layer: i32, reverse: bool) -> Rect {
+    fn sprite(&self, index: u32, layer: u32, reverse: bool) -> Rect {
         let row = (index / self.columns) + layer;
         let column = if reverse {
             (self.columns - 1) - (index % self.columns)
@@ -116,17 +116,14 @@ impl<'a> SpriteSheet<'a> {
             index % self.columns
         };
 
-        let w = self.sprite_width;
-        let h = self.sprite_height;
-        let x = column * w;
-        let y = row * h;
+        let w = self.sprite_width as i32;
+        let h = self.sprite_height as i32;
+        let x = column as i32 * w;
+        let y = row as i32 * h;
         Rect { x, y, w, h }
     }
 
-    fn blit<T>(&self, batch: &mut SpriteBatch, dest: Rect, index: i32, layer: i32, reverse: bool)
-    where
-        T: RenderTarget,
-    {
+    pub fn blit(&self, batch: &mut SpriteBatch, dest: Rect, index: u32, layer: u32, reverse: bool) {
         let texture = if reverse {
             &self.reverse
         } else {

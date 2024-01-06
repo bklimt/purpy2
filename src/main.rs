@@ -14,11 +14,11 @@ use clap::Parser;
 use image_manager::ImageManager;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::pixels::{Color, PixelFormatEnum};
+use sdl2::pixels::Color;
 use sdl2::render::Canvas;
-use sdl2::surface::Surface;
 use sdl2::video::Window;
 use sprite::SpriteBatch;
+use utils::Rect;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -43,6 +43,8 @@ fn run_game(_args: Args) -> Result<()> {
 
     let image_manager = ImageManager::new(&texture_creator);
     let sprite = image_manager.load_sprite("../purpy/assets/space.png")?;
+    let spritesheet =
+        image_manager.load_spritesheet("../purpy/assets/sprites/skelly2.png", 24, 24)?;
 
     canvas.set_logical_size(sprite.width(), sprite.height())?;
     canvas.set_draw_color(Color::RGB(40, 40, 40));
@@ -67,6 +69,13 @@ fn run_game(_args: Args) -> Result<()> {
 
         let mut batch = SpriteBatch::new(&mut canvas);
         batch.draw(&sprite, None, None);
+        let dest = Rect {
+            x: 0,
+            y: 0,
+            w: 24,
+            h: 24,
+        };
+        spritesheet.blit(&mut batch, dest, 1, 0, false);
 
         canvas.present();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
