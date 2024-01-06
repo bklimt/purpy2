@@ -7,7 +7,7 @@ mod tilemap;
 mod tileset;
 mod utils;
 
-use std::time::Duration;
+use std::{fs, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
@@ -17,7 +17,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
-use sprite::SpriteBatch;
+use sprite::{AnimationStateMachine, SpriteBatch};
 use utils::Rect;
 
 #[derive(Parser, Debug)]
@@ -44,11 +44,19 @@ fn run_game(_args: Args) -> Result<()> {
     let texture_creator = canvas.texture_creator();
 
     let image_manager = ImageManager::new(&texture_creator);
-    let sprite = image_manager.load_sprite("../purpy/assets/space.png")?;
+    let space = image_manager.load_sprite("../purpy/assets/space.png")?;
+
     let mut animation =
         image_manager.load_animation("../purpy/assets/sprites/skelly2.png", 24, 24)?;
 
-    canvas.set_logical_size(sprite.width(), sprite.height())?;
+    let player_sprite =
+        image_manager.load_spritesheet("../purpy/assets/sprites/skelly2.png", 24, 24)?;
+    let animation_state_machine = AnimationStateMachine::new(&fs::read_to_string(
+        "../purpy/assets/sprites/skelly2_states.txt",
+    )?)?;
+    let mut current_frame = 0;
+
+    canvas.set_logical_size(space.width(), space.height())?;
     canvas.set_draw_color(Color::RGB(40, 40, 40));
     canvas.clear();
     canvas.present();
@@ -70,15 +78,26 @@ fn run_game(_args: Args) -> Result<()> {
         }
 
         let mut batch = SpriteBatch::new(&mut canvas);
-        batch.draw(&sprite, None, None);
+        batch.draw(&space, None, None);
+
         let dest = Rect {
-            x: (sprite.width() / 2 - 12) as i32,
-            y: (sprite.height() / 2 - 12) as i32,
+            x: (space.width() / 2 - 24) as i32,
+            y: (space.height() / 2 - 24) as i32,
             w: 24,
             h: 24,
         };
         animation.update();
         animation.blit(&mut batch, dest, false);
+
+        let dest = Rect {
+            x: (space.width() / 2) as i32,
+            y: (space.height() / 2) as i32,
+            w: 24,
+            h: 24,
+        };
+
+        current_frame = animation_state_machine.next_frame(current_frame, "RUNNING")?;
+        player_sprite.blit(&mut batch, dest, current_frame, 0, false);
 
         canvas.present();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
