@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Error, Result};
 use serde::Deserialize;
 
 use crate::imagemanager::ImageManager;
@@ -68,6 +68,25 @@ pub struct TileSetXml {
     fields: Vec<TileSetXmlField>,
 }
 
+pub struct TileProperties {
+    pub alternate: Option<i32>,
+    pub condition: Option<String>,
+
+    pub raw: PropertyMap,
+}
+
+impl TryFrom<PropertyMap> for TileProperties {
+    type Error = Error;
+
+    fn try_from(value: PropertyMap) -> Result<Self, Self::Error> {
+        Ok(TileProperties {
+            alternate: value.get_int("alternate")?,
+            condition: value.get_string("condition")?.map(|s| s.clone()),
+            raw: value,
+        })
+    }
+}
+
 pub struct TileSet<'a> {
     name: String,
     tilewidth: i32,
@@ -75,10 +94,10 @@ pub struct TileSet<'a> {
     tilecount: i32,
     columns: i32,
     pub sprite: Sprite<'a>,
-    animations: HashMap<i32, Animation<'a>>,
+    pub animations: HashMap<i32, Animation<'a>>,
     slopes: HashMap<i32, Slope>,
     properties: PropertyMap,
-    tile_properties: HashMap<i32, PropertyMap>,
+    tile_properties: HashMap<i32, TileProperties>,
 }
 
 impl<'a> TileSet<'a> {
@@ -123,7 +142,7 @@ impl<'a> TileSet<'a> {
                     if props.get_bool("slope")?.unwrap_or(false) {
                         slopes.insert(id, Slope::new(&props)?);
                     }
-                    tile_properties.insert(id, props);
+                    tile_properties.insert(id, props.try_into()?);
                 }
                 _ => {}
             }
@@ -190,7 +209,7 @@ impl<'a> TileSet<'a> {
         })
     }
 
-    pub fn get_tile_properties(&self, tile_id: i32) -> Option<&PropertyMap> {
+    pub fn get_tile_properties(&self, tile_id: i32) -> Option<&TileProperties> {
         self.tile_properties.get(&tile_id)
     }
 }

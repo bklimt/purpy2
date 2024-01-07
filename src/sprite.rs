@@ -6,7 +6,7 @@ use sdl2::render::{Canvas, RenderTarget, Texture, TextureCreator};
 use sdl2::surface::Surface;
 use sdl2::video::Window;
 
-use crate::utils::Rect;
+use crate::utils::{Color, Rect};
 
 pub struct Sprite<'a> {
     surface: Surface<'a>,
@@ -46,7 +46,12 @@ impl<'a> SpriteBatch<'a> {
     pub fn draw(&mut self, sprite: &Sprite, dst: Option<Rect>, src: Option<Rect>) {
         let src = src.map(|r| r.into());
         let dst = dst.map(|r| r.into());
-        self.canvas.copy(&sprite.texture, src, dst);
+        let _ = self.canvas.copy(&sprite.texture, src, dst);
+    }
+
+    pub fn fill_rect(&mut self, rect: Rect, color: Color) {
+        self.canvas.set_draw_color(color);
+        let _ = self.canvas.draw_rect(rect.into());
     }
 }
 

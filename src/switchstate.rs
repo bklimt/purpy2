@@ -44,7 +44,7 @@ impl SwitchState {
         }
     }
 
-    fn is_condition_true(&self, s: &str) -> bool {
+    pub fn is_condition_true(&self, s: &str) -> bool {
         if s.starts_with("!") {
             return !self.is_on(&s[1..]);
         } else {

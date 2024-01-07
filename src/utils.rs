@@ -1,5 +1,10 @@
+use std::str::FromStr;
+
+use anyhow::{anyhow, Error};
+
 pub type Subpixels = i32;
 
+#[derive(Clone, Copy)]
 pub struct Point(Subpixels, Subpixels);
 
 impl Point {
@@ -37,6 +42,42 @@ impl Direction {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Color {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+}
+
+impl FromStr for Color {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = if s.starts_with("#") { &s[1..] } else { s };
+        if s.len() == 6 {
+            let r = s[0..2].parse()?;
+            let g = s[2..4].parse()?;
+            let b = s[4..6].parse()?;
+            Ok(Color { r, g, b, a: 255 })
+        } else if s.len() == 8 {
+            let r = s[0..2].parse()?;
+            let g = s[2..4].parse()?;
+            let b = s[4..6].parse()?;
+            let a = s[6..8].parse()?;
+            Ok(Color { r, g, b, a })
+        } else {
+            Err(anyhow!("invalid color: {}", s))
+        }
+    }
+}
+
+impl From<Color> for sdl2::pixels::Color {
+    fn from(value: Color) -> Self {
+        sdl2::pixels::Color::RGBA(value.r, value.g, value.b, value.a)
+    }
+}
+
 fn sign(n: Subpixels) -> Subpixels {
     if n < 0 {
         -1
@@ -54,6 +95,7 @@ fn cmp_in_direction(a: Subpixels, b: Subpixels, direction: Direction) -> Subpixe
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Rect {
     pub x: Subpixels,
     pub y: Subpixels,

@@ -1,10 +1,12 @@
 use std::{fs, path::Path};
 
+use crate::constants::SUBPIXELS;
 use crate::imagemanager::ImageManager;
 use crate::properties::{PropertiesXml, PropertyMap};
-use crate::sprite::Sprite;
+use crate::sprite::{Sprite, SpriteBatch};
+use crate::switchstate::SwitchState;
 use crate::tileset::TileSet;
-use crate::utils::Rect;
+use crate::utils::{Color, Point, Rect};
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -214,8 +216,9 @@ impl MapObject {
         let gid = xml.gid;
 
         if let Some(gid) = gid {
+            // TODO: Figure this part out.
             if let Some(props) = tileset.get_tile_properties(gid - 1) {
-                properties.copy_from(props);
+                properties.copy_from(&props.raw);
             }
             // For some reason, the position is the bottom left sometimes?
             y -= height;
@@ -247,12 +250,12 @@ struct TileMap<'a> {
     height: i32,
     tilewidth: i32,
     tileheight: i32,
-    backgroundcolor: String,
+    backgroundcolor: Color,
     tileset: TileSet<'a>,
     layers: Vec<Layer<'a>>,
     player_layer: Option<i32>, // TODO: Should just be i32.
     objects: Vec<MapObject>,
-    properties: PropertyMap,
+    is_dark: bool,
 }
 
 impl<'a> TileMap<'a> {
@@ -272,7 +275,7 @@ impl<'a> TileMap<'a> {
         let height = xml.height;
         let tilewidth: i32 = xml.tilewidth;
         let tileheight: i32 = xml.tileheight;
-        let backgroundcolor = xml.backgroundcolor;
+        let backgroundcolor = xml.backgroundcolor.parse()?;
         let tileset = TileSet::from_file(path, images)?;
 
         let mut player_layer: Option<i32> = None;
@@ -308,6 +311,8 @@ impl<'a> TileMap<'a> {
             PropertyMap::new()
         };
 
+        let is_dark = properties.get_bool("dark")?.unwrap_or(false);
+
         Ok(TileMap {
             width,
             height,
@@ -318,33 +323,178 @@ impl<'a> TileMap<'a> {
             layers,
             player_layer,
             objects,
-            properties,
+            is_dark,
         })
+    }
+
+    fn is_dark(&self) -> bool {
+        self.is_dark
+    }
+
+    fn is_condition_met(&self, tile: i32, switches: &SwitchState) -> bool {
+        let Some(props) = self.tileset.get_tile_properties(tile) else {
+            return true;
+        };
+        let Some(condition) = &props.condition else {
+            return true;
+        };
+        switches.is_condition_true(condition)
+    }
+
+    fn draw_image_layer(
+        &self,
+        layer: &ImageLayer,
+        batch: &mut SpriteBatch,
+        dest: Rect,
+        offset: Point,
+        switches: &SwitchState,
+    ) {
+        let dest = Rect {
+            x: offset.x(),
+            y: offset.y(),
+            w: layer.surface.width() as i32 * SUBPIXELS,
+            h: layer.surface.height() as i32 * SUBPIXELS,
+        };
+        batch.draw(&layer.surface, Some(dest), None);
+    }
+
+    fn draw_tile_layer(
+        &self,
+        layer: &TileLayer,
+        batch: &mut SpriteBatch,
+        dest: Rect,
+        offset: Point,
+        switches: &SwitchState,
+    ) {
+        let offset_x = offset.x();
+        let offset_y = offset.y();
+        let tileheight = self.tileheight * SUBPIXELS;
+        let tilewidth = self.tilewidth * SUBPIXELS;
+        let row_count = (dest.h as f32 / tileheight as f32).ceil() as i32 + 1;
+        let col_count = (dest.w as f32 / tilewidth as f32).ceil() as i32 + 1;
+
+        let start_row = (offset_y / -tileheight).max(0);
+        let end_row = (start_row + row_count).min(self.height);
+
+        let start_col = (offset_x / -tilewidth).max(0);
+        let end_col = (start_col + col_count).min(self.width);
+
+        for row in start_row..end_row {
+            for col in start_col..end_col {
+                // Compute what to draw where.
+                let index = layer
+                    .data
+                    .get(row as usize)
+                    .expect("size was checked at init")
+                    .get(col as usize)
+                    .expect("size was checked at init");
+                let index = *index;
+                if index == 0 {
+                    continue;
+                }
+                let index = index - 1;
+
+                let index = if self.is_condition_met(index, switches) {
+                    index
+                } else {
+                    let Some(props) = self.tileset.get_tile_properties(index) else {
+                        continue;
+                    };
+                    let Some(alt) = props.alternate else {
+                        continue;
+                    };
+                    alt
+                };
+
+                let mut source = self
+                    .tileset
+                    .get_source_rect(index)
+                    .expect("invalid tile index");
+                let mut pos_x = col * tilewidth + dest.x + offset_x;
+                let mut pos_y = row * tileheight + dest.y + offset_y;
+
+                // If it's off the top/left side, trim it.
+                if pos_x < dest.x {
+                    let extra = (dest.left() - pos_x) / SUBPIXELS;
+                    source.x += extra;
+                    source.w -= extra;
+                    pos_x = dest.x;
+                }
+                if pos_y < dest.y {
+                    let extra = (dest.top() - pos_y) / SUBPIXELS;
+                    source.y += extra;
+                    source.h -= extra;
+                    pos_y = dest.y;
+                }
+                if source.w <= 0 || source.h <= 0 {
+                    continue;
+                }
+
+                // If it's off the right/bottom side, trim it.
+                let pos_right = pos_x + self.tilewidth;
+                if pos_right >= dest.right() {
+                    source.w -= pos_right - dest.right();
+                }
+                if source.w <= 0 {
+                    continue;
+                }
+                let pos_bottom = pos_y + self.tileheight;
+                if pos_bottom >= dest.bottom() {
+                    source.h -= pos_bottom - dest.bottom();
+                }
+                if source.h <= 0 {
+                    continue;
+                }
+
+                // Draw the rest of the turtle.
+                let destination = Rect {
+                    x: pos_x,
+                    y: pos_y,
+                    w: tilewidth,
+                    h: tileheight,
+                };
+                if let Some(animation) = self.tileset.animations.get(&index) {
+                    animation.blit(batch, destination, false);
+                } else {
+                    batch.draw(&self.tileset.sprite, Some(destination), Some(source));
+                }
+            }
+        }
+    }
+
+    fn draw_layer(
+        &self,
+        layer: &Layer,
+        batch: &mut SpriteBatch,
+        dest: Rect,
+        offset: Point,
+        switches: &SwitchState,
+    ) {
+        match layer {
+            Layer::Image(layer) => self.draw_image_layer(layer, batch, dest, offset, switches),
+            Layer::Tile(layer) => self.draw_tile_layer(layer, batch, dest, offset, switches),
+        }
+    }
+
+    fn draw_background(
+        &self,
+        batch: &mut SpriteBatch,
+        dest: Rect,
+        offset: Point,
+        switches: &SwitchState,
+    ) {
+        batch.fill_rect(dest.clone(), self.backgroundcolor);
+        for layer in self.layers.iter() {
+            self.draw_layer(layer, batch, dest, offset, switches);
+            if let Layer::Tile(TileLayer { player: true, .. }) = layer {
+                return;
+            }
+        }
     }
 }
 
 /*
-    @property
-    def is_dark(self) -> bool:
-        return assert_bool(self.properties.get('dark', False))
 
-    def is_condition_met(self, tile: int, switches: SwitchState):
-        condition = self.tileset.get_str_property(tile, 'condition')
-        if condition is None:
-            return True
-        return switches.is_condition_true(condition)
-
-    def draw_background(self,
-                        context: RenderContext,
-                        batch: SpriteBatch,
-                        dest: pygame.Rect,
-                        offset: tuple[int, int],
-                        switches: SwitchState):
-        batch.draw_rect(dest, self.backgroundcolor)
-        for layer in self.layers:
-            self.draw_layer(context, batch, layer, dest, offset, switches)
-            if isinstance(layer, TileLayer) and layer.player:
-                return
 
     def draw_foreground(self,
                         context: RenderContext,
@@ -361,99 +511,6 @@ impl<'a> TileMap<'a> {
             if isinstance(layer, TileLayer) and layer.player:
                 drawing = True
 
-    def draw_layer(self,
-                   context: RenderContext,
-                   batch: SpriteBatch,
-                   layer: TileLayer | ImageLayer,
-                   dest: pygame.Rect,
-                   offset: tuple[int, int],
-                   switches: SwitchState):
-        if isinstance(layer, ImageLayer):
-            dest = pygame.Rect(
-                offset[0],
-                offset[1],
-                layer.surface.get_width() * SUBPIXELS,
-                layer.surface.get_height() * SUBPIXELS)
-            batch.draw(layer.surface, dest)
-            return
-
-        offset_x = offset[0]
-        offset_y = offset[1]
-        tileheight = self.tileheight * SUBPIXELS
-        tilewidth = self.tilewidth * SUBPIXELS
-        row_count = math.ceil(dest.height / tileheight) + 1
-        col_count = math.ceil(dest.width / tilewidth) + 1
-
-        start_row = offset_y // -tileheight
-        end_row = start_row + row_count
-        if start_row < 0:
-            start_row = 0
-        if end_row > self.height:
-            end_row = self.height
-
-        start_col = offset_x // -tilewidth
-        end_col = start_col + col_count
-        if start_col < 0:
-            start_col = 0
-        if end_col > self.width:
-            end_col = self.width
-
-        for row in range(start_row, end_row):
-            for col in range(start_col, end_col):
-                # Compute what to draw where.
-                index = layer.data[row][col]
-                if index == 0:
-                    continue
-                index -= 1
-
-                if not self.is_condition_met(index, switches):
-                    alt = self.tileset.get_int_property(index, 'alternate')
-                    if alt is None:
-                        continue
-                    index = alt
-
-                source = self.tileset.get_source_rect(index)
-                pos_x = col * tilewidth + dest.left + offset_x
-                pos_y = row * tileheight + dest.top + offset_y
-
-                # If it's off the top/left side, trim it.
-                if pos_x < dest.left:
-                    extra = (dest.left - pos_x) // SUBPIXELS
-                    source.left += extra
-                    source.width -= extra
-                    pos_x = dest.left
-                if pos_y < dest.top:
-                    extra = (dest.top - pos_y) // SUBPIXELS
-                    source.top += extra
-                    source.height -= extra
-                    pos_y = dest.top
-                if source.width <= 0 or source.height <= 0:
-                    continue
-
-                # If it's off the right/bottom side, trim it.
-                pos_right = pos_x + self.tilewidth
-                if pos_right >= dest.right:
-                    source.width = source.width - (pos_right - dest.right)
-                if source.width <= 0:
-                    continue
-                pos_bottom = pos_y + self.tileheight
-                if pos_bottom >= dest.bottom:
-                    source.height = source.height - \
-                        (pos_bottom - dest.bottom)
-                if source.height <= 0:
-                    continue
-
-                # Draw the rest of the turtle.
-                destination = pygame.Rect(
-                    pos_x,
-                    pos_y,
-                    tilewidth,
-                    tileheight)
-                if index in self.tileset.animations:
-                    self.tileset.animations[index].blit(
-                        batch, destination, reverse=False)
-                else:
-                    batch.draw(self.tileset.surface, destination, source)
 
     def get_rect(self, row: int, col: int) -> pygame.Rect:
         return pygame.Rect(
