@@ -15,6 +15,7 @@ use std::{fs, path::Path, time::Duration};
 use anyhow::Result;
 use clap::Parser;
 use imagemanager::ImageManager;
+use inputmanager::InputManager;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -64,20 +65,25 @@ fn run_game(_args: Args) -> Result<()> {
     canvas.clear();
     canvas.present();
 
+    let mut input_manager = InputManager::new();
+
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
         canvas.set_draw_color(Color::RGB(40, 40, 40));
         canvas.clear();
 
         for event in event_pump.poll_iter() {
+            input_manager.handle_event(&event);
             match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => break 'running,
+                Event::Quit { .. } => break 'running,
                 _ => {}
             }
+        }
+
+        input_manager.update();
+
+        if input_manager.is_on(inputmanager::BinaryInput::Cancel) {
+            break 'running;
         }
 
         let mut batch = SpriteBatch::new(&mut canvas);
