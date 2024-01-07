@@ -1,9 +1,11 @@
 use std::{fs, path::Path};
 
-use crate::{
-    image_manager::ImageManager, properties::PropertiesXml, properties::PropertyMap,
-    sprite::Sprite, tileset::TileSet, utils::Rect,
-};
+use crate::imagemanager::ImageManager;
+use crate::properties::{PropertiesXml, PropertyMap};
+use crate::sprite::Sprite;
+use crate::tileset::TileSet;
+use crate::utils::Rect;
+
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 

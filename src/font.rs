@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::path::Path;
 
 use crate::constants::SUBPIXELS;
-use crate::image_manager::ImageManager;
+use crate::imagemanager::ImageManager;
 use crate::sprite::SpriteBatch;
 use crate::tileset::TileSet;
 use crate::utils::{Point, Rect};

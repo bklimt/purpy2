@@ -1,15 +1,15 @@
+use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
-use std::{collections::HashMap, fs};
 
-use crate::utils::Rect;
-use crate::{
-    image_manager::ImageManager,
-    properties::{self, PropertiesXml, PropertyMap},
-    slope::Slope,
-    sprite::{self, Animation, Sprite},
-};
 use anyhow::{anyhow, bail, Context, Result};
 use serde::Deserialize;
+
+use crate::imagemanager::ImageManager;
+use crate::properties::{PropertiesXml, PropertyMap};
+use crate::slope::Slope;
+use crate::sprite::{Animation, Sprite};
+use crate::utils::Rect;
 
 #[derive(Debug, Deserialize)]
 struct ImageXml {
