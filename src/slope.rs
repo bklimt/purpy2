@@ -1,4 +1,4 @@
-use crate::properties::PropertyMap;
+use crate::tileset::TileProperties;
 use crate::utils::{Direction, Rect, Subpixels};
 
 use anyhow::Result;
@@ -9,9 +9,9 @@ pub struct Slope {
 }
 
 impl Slope {
-    pub fn new(properties: &PropertyMap) -> Result<Self> {
-        let left_y = properties.get_int("left_y")?.unwrap_or(0);
-        let right_y = properties.get_int("right_y")?.unwrap_or(0);
+    pub fn new(properties: &TileProperties) -> Result<Self> {
+        let left_y = properties.left_y;
+        let right_y = properties.right_y;
         Ok(Slope { left_y, right_y })
     }
 

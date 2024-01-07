@@ -52,11 +52,11 @@ impl PropertyMap {
             .transpose()
     }
 
-    pub fn get_string(&self, k: &str) -> Result<Option<&String>> {
+    pub fn get_string(&self, k: &str) -> Result<Option<&str>> {
         self.0
             .get(k)
             .map(|v| match v {
-                PropertyValue::String(s) => Ok(s),
+                PropertyValue::String(s) => Ok(s.as_str()),
                 _ => Err(anyhow!("property {k} is not a string")),
             })
             .transpose()

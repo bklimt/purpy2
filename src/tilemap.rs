@@ -5,8 +5,8 @@ use crate::imagemanager::ImageManager;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::sprite::{Sprite, SpriteBatch};
 use crate::switchstate::SwitchState;
-use crate::tileset::TileSet;
-use crate::utils::{Color, Point, Rect};
+use crate::tileset::{TileProperties, TileSet};
+use crate::utils::{Color, Direction, Point, Rect};
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -491,50 +491,63 @@ impl<'a> TileMap<'a> {
             }
         }
     }
+
+    fn draw_foreground(
+        &self,
+        batch: &mut SpriteBatch,
+        dest: Rect,
+        offset: Point,
+        switches: &SwitchState,
+    ) {
+        if self.player_layer.is_none() {
+            return;
+        }
+        let mut drawing = false;
+        for layer in self.layers.iter() {
+            if drawing {
+                self.draw_layer(layer, batch, dest, offset, switches);
+            }
+            if let Layer::Tile(TileLayer { player: true, .. }) = layer {
+                drawing = true;
+            }
+        }
+    }
+
+    fn get_rect(&self, row: i32, col: i32) -> Rect {
+        Rect {
+            x: col * self.tilewidth,
+            y: row * self.tileheight,
+            w: self.tilewidth,
+            h: self.tileheight,
+        }
+    }
+    fn is_solid_in_direction(
+        &self,
+        tile_id: i32,
+        direction: Direction,
+        is_backwards: bool,
+    ) -> bool {
+        let Some(TileProperties {
+            oneway: Some(oneway),
+            ..
+        }) = self.tileset.get_tile_properties(tile_id)
+        else {
+            return true;
+        };
+        if is_backwards {
+            return false;
+        }
+        match direction {
+            Direction::Up => oneway == "S",
+            Direction::Down => oneway == "N",
+            Direction::Right => oneway == "W",
+            Direction::Left => oneway == "E",
+            _ => panic!("unexpected direction"),
+        }
+    }
 }
 
 /*
-
-
-    def draw_foreground(self,
-                        context: RenderContext,
-                        batch: SpriteBatch,
-                        dest: pygame.Rect,
-                        offset: tuple[int, int],
-                        switches: SwitchState):
-        if self.player_layer is None:
-            return
-        drawing = False
-        for layer in self.layers:
-            if drawing:
-                self.draw_layer(context, batch, layer, dest, offset, switches)
-            if isinstance(layer, TileLayer) and layer.player:
-                drawing = True
-
-
-    def get_rect(self, row: int, col: int) -> pygame.Rect:
-        return pygame.Rect(
-            col * self.tilewidth,
-            row * self.tileheight,
-            self.tilewidth,
-            self.tileheight)
-
-    def is_solid_in_direction(self, tile_id: int, direction: Direction, is_backwards: bool) -> bool:
-        oneway = self.tileset.get_str_property(tile_id, 'oneway')
-        if oneway is None:
-            return True
-        if is_backwards:
-            return False
-        match direction:
-            case Direction.UP:
-                return oneway == 'S'
-            case Direction.DOWN:
-                return oneway == 'N'
-            case Direction.RIGHT:
-                return oneway == 'W'
-            case Direction.LEFT:
-                return oneway == 'E'
-        raise Exception('unexpection direction')
 
     class MoveResult:
         # We keep track of two different offsets so that you can be "on" a

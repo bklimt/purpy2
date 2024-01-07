@@ -9,7 +9,7 @@ use crate::imagemanager::ImageManager;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::slope::Slope;
 use crate::sprite::{Animation, Sprite};
-use crate::utils::Rect;
+use crate::utils::{Direction, Rect};
 
 #[derive(Debug, Deserialize)]
 struct ImageXml {
@@ -71,6 +71,10 @@ pub struct TileSetXml {
 pub struct TileProperties {
     pub alternate: Option<i32>,
     pub condition: Option<String>,
+    pub oneway: Option<String>,
+    pub slope: bool,
+    pub left_y: i32,
+    pub right_y: i32,
 
     pub raw: PropertyMap,
 }
@@ -81,7 +85,11 @@ impl TryFrom<PropertyMap> for TileProperties {
     fn try_from(value: PropertyMap) -> Result<Self, Self::Error> {
         Ok(TileProperties {
             alternate: value.get_int("alternate")?,
-            condition: value.get_string("condition")?.map(|s| s.clone()),
+            condition: value.get_string("condition")?.map(str::to_string),
+            oneway: value.get_string("oneway")?.map(str::to_string),
+            slope: value.get_bool("slope")?.unwrap_or(false),
+            left_y: value.get_int("left_y")?.unwrap_or(0),
+            right_y: value.get_int("right_y")?.unwrap_or(0),
             raw: value,
         })
     }
@@ -139,10 +147,11 @@ impl<'a> TileSet<'a> {
                 TileSetXmlField::Tile(tile_xml) => {
                     let id = tile_xml.id;
                     let props: PropertyMap = tile_xml.properties.try_into()?;
-                    if props.get_bool("slope")?.unwrap_or(false) {
+                    let props: TileProperties = props.try_into()?;
+                    if props.slope {
                         slopes.insert(id, Slope::new(&props)?);
                     }
-                    tile_properties.insert(id, props.try_into()?);
+                    tile_properties.insert(id, props);
                 }
                 _ => {}
             }
