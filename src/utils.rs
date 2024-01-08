@@ -21,7 +21,7 @@ impl Point {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Direction {
     None,
     Up,
@@ -88,7 +88,7 @@ fn sign(n: Subpixels) -> Subpixels {
     }
 }
 
-fn cmp_in_direction(a: Subpixels, b: Subpixels, direction: Direction) -> Subpixels {
+pub fn cmp_in_direction(a: Subpixels, b: Subpixels, direction: Direction) -> Subpixels {
     match direction {
         Direction::Up | Direction::Left => sign(b - a),
         _ => sign(a - b),
@@ -140,7 +140,7 @@ impl Into<Option<sdl2::rect::Rect>> for Rect {
  *
  * Returns the maximum distance the actor can move.
  */
-fn try_move_to_bounds(actor: Rect, target: Rect, direction: Direction) -> Subpixels {
+pub fn try_move_to_bounds(actor: Rect, target: Rect, direction: Direction) -> Subpixels {
     if actor.bottom() <= target.top() {
         0
     } else if actor.top() >= target.bottom() {
@@ -165,7 +165,7 @@ fn try_move_to_bounds(actor: Rect, target: Rect, direction: Direction) -> Subpix
  *
  * Returns the maximum distance the actor can move.
  */
-fn try_move_to_slope_bounds(
+pub fn try_move_to_slope_bounds(
     actor: &Rect,
     target: &Rect,
     left_y: Subpixels,
@@ -217,7 +217,7 @@ fn try_move_to_slope_bounds(
     }
 }
 
-fn intersect(rect1: Rect, rect2: Rect) -> bool {
+pub fn intersect(rect1: Rect, rect2: Rect) -> bool {
     if rect1.right() < rect2.left() {
         false
     } else if rect1.left() > rect2.right() {

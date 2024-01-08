@@ -20,7 +20,7 @@ impl Slope {
      *
      * Returns the maximum distance the actor can move.
      */
-    fn try_move_to_bounds(&self, actor: Rect, target: Rect, direction: Direction) -> Subpixels {
+    pub fn try_move_to_bounds(&self, actor: Rect, target: Rect, direction: Direction) -> Subpixels {
         let left_y = self.left_y;
         let right_y = self.right_y;
 

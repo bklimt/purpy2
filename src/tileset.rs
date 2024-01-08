@@ -69,6 +69,7 @@ pub struct TileSetXml {
 }
 
 pub struct TileProperties {
+    pub solid: bool,
     pub alternate: Option<i32>,
     pub condition: Option<String>,
     pub oneway: Option<String>,
@@ -84,6 +85,7 @@ impl TryFrom<PropertyMap> for TileProperties {
 
     fn try_from(value: PropertyMap) -> Result<Self, Self::Error> {
         Ok(TileProperties {
+            solid: value.get_bool("solid")?.unwrap_or(true),
             alternate: value.get_int("alternate")?,
             condition: value.get_string("condition")?.map(str::to_string),
             oneway: value.get_string("oneway")?.map(str::to_string),
@@ -184,15 +186,11 @@ impl<'a> TileSet<'a> {
         })
     }
 
-    fn is_slope(&self, tile_id: i32) -> bool {
-        self.slopes.contains_key(&tile_id)
-    }
-
-    fn get_slope(&self, tile_id: i32) -> Option<&Slope> {
+    pub fn get_slope(&self, tile_id: i32) -> Option<&Slope> {
         self.slopes.get(&tile_id)
     }
 
-    fn update_animations(&mut self) {
+    pub fn update_animations(&mut self) {
         for (_, animation) in self.animations.iter_mut() {
             animation.update();
         }

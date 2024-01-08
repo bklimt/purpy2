@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+use std::ops::{Index, IndexMut};
 use std::{fs, path::Path};
 
 use crate::constants::SUBPIXELS;
@@ -6,7 +8,9 @@ use crate::properties::{PropertiesXml, PropertyMap};
 use crate::sprite::{Sprite, SpriteBatch};
 use crate::switchstate::SwitchState;
 use crate::tileset::{TileProperties, TileSet};
-use crate::utils::{Color, Direction, Point, Rect};
+use crate::utils::{
+    cmp_in_direction, intersect, try_move_to_bounds, Color, Direction, Point, Rect,
+};
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -183,6 +187,29 @@ impl TileLayer {
             data,
             player,
         })
+    }
+
+    fn get(&self, row: usize, col: usize) -> Option<&i32> {
+        self.data.get(row).and_then(|r| r.get(col))
+    }
+
+    fn get_mut(&mut self, row: usize, col: usize) -> Option<&mut i32> {
+        self.data.get_mut(row).and_then(|r| r.get_mut(col))
+    }
+}
+
+impl Index<(usize, usize)> for TileLayer {
+    type Output = i32;
+
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        self.get(index.0, index.1).expect("indices must be valid")
+    }
+}
+
+impl IndexMut<(usize, usize)> for TileLayer {
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        self.get_mut(index.0, index.1)
+            .expect("indices must be valid")
     }
 }
 
@@ -545,146 +572,185 @@ impl<'a> TileMap<'a> {
             _ => panic!("unexpected direction"),
         }
     }
+
+    // Returns the offset needed to account for the closest one.
+    fn try_move_to(
+        &self,
+        player_rect: Rect,
+        direction: Direction,
+        switches: &SwitchState,
+        is_backwards: bool,
+    ) -> MoveResult {
+        let mut result = MoveResult::new();
+
+        let right_edge = self.width * self.tilewidth * SUBPIXELS;
+        let bottom_edge = self.height * self.tileheight * SUBPIXELS;
+
+        match direction {
+            Direction::Left => {
+                if player_rect.x < 0 {
+                    result.hard_offset = -player_rect.x;
+                    result.soft_offset = result.hard_offset;
+                    return result;
+                }
+            }
+            Direction::Up => {
+                if player_rect.y < 0 {
+                    result.hard_offset = -player_rect.y;
+                    result.soft_offset = result.hard_offset;
+                    return result;
+                }
+            }
+            Direction::Right => {
+                if player_rect.right() >= right_edge {
+                    result.hard_offset = (right_edge - player_rect.right()) - 1;
+                    result.soft_offset = result.hard_offset;
+                    return result;
+                }
+            }
+            Direction::Down => {
+                if player_rect.bottom() >= bottom_edge {
+                    result.hard_offset = (bottom_edge - player_rect.bottom()) - 1;
+                    result.soft_offset = result.hard_offset;
+                    return result;
+                }
+            }
+            Direction::None => panic!("unexpected direction"),
+        }
+
+        let row1 = player_rect.top() / (self.tileheight * SUBPIXELS);
+        let col1 = player_rect.left() / (self.tilewidth * SUBPIXELS);
+        let row2 = player_rect.bottom() / (self.tileheight * SUBPIXELS);
+        let col2 = player_rect.right() / (self.tilewidth * SUBPIXELS);
+
+        for row in row1..=row2 {
+            for col in col1..=col2 {
+                let tile_rect = self.get_rect(row, col);
+                let tile_bounds = Rect {
+                    x: tile_rect.x * SUBPIXELS,
+                    y: tile_rect.y * SUBPIXELS,
+                    w: tile_rect.w * SUBPIXELS,
+                    h: tile_rect.h * SUBPIXELS,
+                };
+                for layer in self.layers.iter() {
+                    let Layer::Tile(layer) = layer else {
+                        continue;
+                    };
+                    if !layer.player && self.player_layer.is_some() {
+                        continue;
+                    }
+                    let mut index = layer[(row as usize, col as usize)];
+                    if index == 0 {
+                        continue;
+                    }
+                    // TODO: This should use the start_gid and tileset.
+                    index -= 1;
+                    if !self.is_condition_met(index, switches) {
+                        let Some(TileProperties {
+                            alternate: Some(alt),
+                            ..
+                        }) = self.tileset.get_tile_properties(index)
+                        else {
+                            continue;
+                        };
+                        // Use an alt tile instead of the original.
+                        index = *alt;
+                    }
+                    let solid = self
+                        .tileset
+                        .get_tile_properties(index)
+                        .map(|p| p.solid)
+                        .unwrap_or(true);
+                    if !solid {
+                        continue;
+                    }
+                    if !self.is_solid_in_direction(index, direction, is_backwards) {
+                        continue;
+                    }
+
+                    let soft_offset = try_move_to_bounds(player_rect, tile_bounds, direction);
+                    let hard_offset = soft_offset;
+
+                    if let Some(slope) = self.tileset.get_slope(index) {
+                        let hard_offset =
+                            slope.try_move_to_bounds(player_rect, tile_bounds, direction);
+                    };
+
+                    result.consider_tile(index, hard_offset, soft_offset, direction);
+                }
+            }
+        }
+        result
+    }
+
+    fn get_preferred_view(&self, player_rect: Rect) -> (Option<i32>, Option<i32>) {
+        let mut preferred_x = None;
+        let mut preferred_y = None;
+        for obj in self.objects.iter() {
+            if obj.gid.is_some() {
+                continue;
+            }
+            if !intersect(player_rect, obj.rect()) {
+                continue;
+            }
+            if let Ok(Some(p_x)) = obj.properties.get_int("preferred_x") {
+                preferred_x = Some(p_x);
+            }
+            if let Ok(Some(p_y)) = obj.properties.get_int("preferred_y") {
+                preferred_y = Some(p_y);
+            }
+        }
+        (preferred_x, preferred_y)
+    }
+
+    fn update_animations(&mut self) {
+        self.tileset.update_animations();
+    }
 }
 
 /*
+ * We keep track of two different offsets so that you can be "on" a
+ * slope even if there's a higher block next to it. That way, if you're
+ * at the top of a slope, you can be down the slope a little, and not
+ * wait until you're completely clear of the flat area before falling.
+ */
+struct MoveResult {
+    hard_offset: i32,
+    soft_offset: i32,
+    tile_ids: HashSet<i32>,
+}
 
-    class MoveResult:
-        # We keep track of two different offsets so that you can be "on" a
-        # slope even if there's a higher block next to it. That way, if you're
-        # at the top of a slope, you can be down the slope a little, and not
-        # wait until you're completely clear of the flat area before falling.
+impl MoveResult {
+    fn new() -> MoveResult {
+        MoveResult {
+            // This is the offset that stops the player.
+            hard_offset: 0,
+            // This is the offset for being on a slope.
+            soft_offset: 0,
+            tile_ids: HashSet::new(),
+        }
+    }
 
-        # This is the offset that stops the player.
-        hard_offset: int = 0
-        # This is the offset for being on a slope.
-        soft_offset: int = 0
-        tile_ids: set[int]
+    fn consider_tile(
+        &mut self,
+        index: i32,
+        hard_offset: i32,
+        soft_offset: i32,
+        direction: Direction,
+    ) {
+        let cmp = cmp_in_direction(hard_offset, self.hard_offset, direction);
+        if cmp < 0 {
+            self.hard_offset = hard_offset;
+        }
 
-        def __init__(self):
-            self.tile_ids = set()
-
-        def consider_tile(self,
-                          index: int,
-                          hard_offset: int,
-                          soft_offset: int,
-                          direction: Direction):
-            cmp = cmp_in_direction(
-                hard_offset, self.hard_offset, direction)
-            if cmp < 0:
-                self.hard_offset = hard_offset
-
-            cmp = cmp_in_direction(
-                soft_offset, self.soft_offset, direction)
-            if cmp < 0:
-                self.soft_offset = soft_offset
-                self.tile_ids = set([index])
-            elif cmp == 0:
-                self.tile_ids.add(index)
-
-    def try_move_to(self,
-                    player_rect: pygame.Rect,
-                    direction: Direction,
-                    switches: SwitchState,
-                    is_backwards: bool) -> MoveResult:
-        """ Returns the offset needed to account for the closest one. """
-        result = TileMap.MoveResult()
-
-        right_edge = self.width * self.tilewidth * SUBPIXELS
-        bottom_edge = self.height * self.tileheight * SUBPIXELS
-
-        if direction == Direction.LEFT and player_rect.x < 0:
-            result.hard_offset = -player_rect.x
-            result.soft_offset = result.hard_offset
-            return result
-        if direction == Direction.UP and player_rect.y < 0:
-            result.hard_offset = -player_rect.y
-            result.soft_offset = result.hard_offset
-            return result
-        if direction == Direction.RIGHT and player_rect.right >= right_edge:
-            result.hard_offset = (right_edge - player_rect.right) - 1
-            result.soft_offset = result.hard_offset
-            return result
-        if direction == Direction.DOWN and player_rect.bottom >= bottom_edge:
-            result.hard_offset = (bottom_edge - player_rect.bottom) - 1
-            result.soft_offset = result.hard_offset
-            return result
-
-        row1 = player_rect.top // (self.tileheight * SUBPIXELS)
-        col1 = player_rect.left // (self.tilewidth * SUBPIXELS)
-        row2 = player_rect.bottom // (self.tileheight * SUBPIXELS)
-        col2 = player_rect.right // (self.tilewidth * SUBPIXELS)
-
-        for row in range(row1, row2+1):
-            for col in range(col1, col2+1):
-                tile_rect = self.get_rect(row, col)
-                tile_bounds = pygame.Rect(
-                    tile_rect.x * SUBPIXELS,
-                    tile_rect.y * SUBPIXELS,
-                    tile_rect.w * SUBPIXELS,
-                    tile_rect.h * SUBPIXELS)
-                for layer in self.layers:
-                    if not isinstance(layer, TileLayer):
-                        continue
-                    if layer.player or self.player_layer is None:
-                        index = layer.data[row][col]
-                        if index == 0:
-                            continue
-                        index -= 1
-                        if not self.is_condition_met(index, switches):
-                            alt = self.tileset.get_int_property(
-                                index, 'alternate')
-                            if alt is None:
-                                continue
-                            # Use an alt tile instead of the original.
-                            index = alt
-                        if not self.tileset.get_bool_property(index, 'solid', True):
-                            continue
-                        if not self.is_solid_in_direction(index, direction, is_backwards):
-                            continue
-
-                        soft_offset = try_move_to_bounds(
-                            player_rect,
-                            tile_bounds,
-                            direction)
-                        hard_offset = soft_offset
-
-                        if self.tileset.is_slope(index):
-                            slope = self.tileset.get_slope(index)
-                            hard_offset = slope.try_move_to_bounds(
-                                player_rect,
-                                tile_bounds,
-                                direction)
-
-                        result.consider_tile(
-                            index, hard_offset, soft_offset, direction)
-        return result
-
-    def get_preferred_view(self, player_rect: pygame.Rect) -> tuple[int | None, int | None]:
-        preferred_x: int | None = None
-        preferred_y: int | None = None
-        for obj in self.objects:
-            if obj.gid is not None:
-                continue
-            if not intersect(player_rect, obj.rect()):
-                continue
-            p_x = obj.properties.get('preferred_x', None)
-            p_y = obj.properties.get('preferred_y', None)
-            if isinstance(p_x, int):
-                preferred_x = p_x
-            if isinstance(p_y, int):
-                preferred_y = p_y
-        return (preferred_x, preferred_y)
-
-    def update_animations(self):
-        self.tileset.update_animations()
-
-
-def load_map(path: str, images: ImageManager):
-    print('loading map from ' + path)
-    root = xml.etree.ElementTree.parse(path).getroot()
-    if not isinstance(root, xml.etree.ElementTree.Element):
-        raise Exception('root was not an element')
-    return TileMap(root, path, images)
-
-*/
+        let cmp = cmp_in_direction(soft_offset, self.soft_offset, direction);
+        if cmp < 0 {
+            let mut ids = HashSet::new();
+            ids.insert(index);
+            self.soft_offset = soft_offset;
+            self.tile_ids = ids;
+        } else if cmp == 0 {
+            self.tile_ids.insert(index);
+        }
+    }
+}
