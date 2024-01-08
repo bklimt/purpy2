@@ -1,13 +1,13 @@
-use std::collections::HashSet;
 use std::ops::{Index, IndexMut};
 use std::{fs, path::Path};
 
 use crate::constants::SUBPIXELS;
 use crate::imagemanager::ImageManager;
 use crate::properties::{PropertiesXml, PropertyMap};
+use crate::smallintset::SmallIntSet;
 use crate::sprite::{Sprite, SpriteBatch};
 use crate::switchstate::SwitchState;
-use crate::tileset::{TileProperties, TileSet};
+use crate::tileset::{TileIndex, TileProperties, TileSet};
 use crate::utils::{
     cmp_in_direction, intersect, try_move_to_bounds, Color, Direction, Point, Rect,
 };
@@ -33,13 +33,13 @@ struct DataXml {
 #[derive(Debug, Deserialize)]
 struct LayerXml {
     #[serde(rename = "@id")]
-    id: i32,
+    id: u32,
     #[serde(rename = "@name")]
     name: String,
     #[serde(rename = "@width")]
-    width: i32,
+    width: u32,
     #[serde(rename = "@height")]
-    height: i32,
+    height: u32,
 
     data: DataXml,
 
@@ -77,7 +77,7 @@ struct ObjectXml {
     #[serde(rename = "@height")]
     height: i32,
     #[serde(rename = "@gid")]
-    gid: Option<i32>,
+    gid: Option<u32>,
 
     properties: Option<PropertiesXml>,
 }
@@ -103,7 +103,7 @@ fn default_backgroundcolor() -> String {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TileMapXml {
+struct TileMapXml {
     #[serde(rename = "@width")]
     width: i32,
     #[serde(rename = "@height")]
@@ -141,11 +141,11 @@ impl<'a> ImageLayer<'a> {
 }
 
 struct TileLayer {
-    id: i32,
+    id: u32,
     name: String,
-    width: i32,
-    height: i32,
-    data: Vec<Vec<i32>>,
+    width: u32,
+    height: u32,
+    data: Vec<Vec<TileIndex>>,
     player: bool,
 }
 
@@ -170,12 +170,12 @@ impl TileLayer {
             for part in line.split(",") {
                 row.push(part.parse()?);
             }
-            if row.len() as i32 != width {
+            if row.len() as u32 != width {
                 bail!("row len = {}, but width = {}", row.len(), width);
             }
             data.push(row);
         }
-        if data.len() as i32 != height {
+        if data.len() as u32 != height {
             bail!("row data height = {}, but height = {}", data.len(), height);
         }
 
@@ -189,17 +189,17 @@ impl TileLayer {
         })
     }
 
-    fn get(&self, row: usize, col: usize) -> Option<&i32> {
+    fn get(&self, row: usize, col: usize) -> Option<&TileIndex> {
         self.data.get(row).and_then(|r| r.get(col))
     }
 
-    fn get_mut(&mut self, row: usize, col: usize) -> Option<&mut i32> {
+    fn get_mut(&mut self, row: usize, col: usize) -> Option<&mut TileIndex> {
         self.data.get_mut(row).and_then(|r| r.get_mut(col))
     }
 }
 
 impl Index<(usize, usize)> for TileLayer {
-    type Output = i32;
+    type Output = TileIndex;
 
     fn index(&self, index: (usize, usize)) -> &Self::Output {
         self.get(index.0, index.1).expect("indices must be valid")
@@ -220,7 +220,7 @@ enum Layer<'a> {
 
 struct MapObject {
     id: i32,
-    gid: Option<i32>,
+    gid: Option<u32>,
     x: i32,
     y: i32,
     width: i32,
@@ -244,7 +244,7 @@ impl MapObject {
 
         if let Some(gid) = gid {
             // TODO: Figure this part out.
-            if let Some(props) = tileset.get_tile_properties(gid - 1) {
+            if let Some(props) = tileset.get_tile_properties(gid as TileIndex - 1) {
                 properties.copy_from(&props.raw);
             }
             // For some reason, the position is the bottom left sometimes?
@@ -272,7 +272,7 @@ impl MapObject {
     }
 }
 
-struct TileMap<'a> {
+pub struct TileMap<'a> {
     width: i32,
     height: i32,
     tilewidth: i32,
@@ -358,7 +358,7 @@ impl<'a> TileMap<'a> {
         self.is_dark
     }
 
-    fn is_condition_met(&self, tile: i32, switches: &SwitchState) -> bool {
+    fn is_condition_met(&self, tile: TileIndex, switches: &SwitchState) -> bool {
         let Some(props) = self.tileset.get_tile_properties(tile) else {
             return true;
         };
@@ -550,7 +550,7 @@ impl<'a> TileMap<'a> {
     }
     fn is_solid_in_direction(
         &self,
-        tile_id: i32,
+        tile_id: TileIndex,
         direction: Direction,
         is_backwards: bool,
     ) -> bool {
@@ -717,7 +717,7 @@ impl<'a> TileMap<'a> {
 struct MoveResult {
     hard_offset: i32,
     soft_offset: i32,
-    tile_ids: HashSet<i32>,
+    tile_ids: SmallIntSet,
 }
 
 impl MoveResult {
@@ -727,13 +727,13 @@ impl MoveResult {
             hard_offset: 0,
             // This is the offset for being on a slope.
             soft_offset: 0,
-            tile_ids: HashSet::new(),
+            tile_ids: SmallIntSet::new(),
         }
     }
 
     fn consider_tile(
         &mut self,
-        index: i32,
+        index: TileIndex,
         hard_offset: i32,
         soft_offset: i32,
         direction: Direction,
@@ -745,7 +745,7 @@ impl MoveResult {
 
         let cmp = cmp_in_direction(soft_offset, self.soft_offset, direction);
         if cmp < 0 {
-            let mut ids = HashSet::new();
+            let mut ids = SmallIntSet::new();
             ids.insert(index);
             self.soft_offset = soft_offset;
             self.tile_ids = ids;

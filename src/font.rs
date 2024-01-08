@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::constants::SUBPIXELS;
 use crate::imagemanager::ImageManager;
 use crate::sprite::SpriteBatch;
-use crate::tileset::TileSet;
+use crate::tileset::{TileIndex, TileSet};
 use crate::utils::{Point, Rect};
 
 pub struct Font<'a> {
@@ -25,7 +25,7 @@ impl<'a> Font<'a> {
     pub fn draw_string(&self, batch: &mut SpriteBatch, pos: Point, s: &str) {
         let mut pos = pos;
         for c in s.chars() {
-            let c = (c as i32).min(127);
+            let c = (c as u32).min(127) as TileIndex;
             let area = self
                 .tileset
                 .get_source_rect(c)

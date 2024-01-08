@@ -18,7 +18,7 @@ enum PlayerState {
     Jumping,
 }
 
-struct Player<'a> {
+pub struct Player<'a> {
     x: i32,
     y: i32,
     dx: i32,

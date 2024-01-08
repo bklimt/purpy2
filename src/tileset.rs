@@ -9,7 +9,9 @@ use crate::imagemanager::ImageManager;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::slope::Slope;
 use crate::sprite::{Animation, Sprite};
-use crate::utils::{Direction, Rect};
+use crate::utils::Rect;
+
+pub type TileIndex = usize;
 
 #[derive(Debug, Deserialize)]
 struct ImageXml {
@@ -24,7 +26,7 @@ struct ImageXml {
 #[derive(Debug, Deserialize)]
 struct TileXml {
     #[serde(rename = "@id")]
-    id: i32,
+    id: TileIndex,
 
     properties: PropertiesXml,
 }
@@ -70,7 +72,7 @@ pub struct TileSetXml {
 
 pub struct TileProperties {
     pub solid: bool,
-    pub alternate: Option<i32>,
+    pub alternate: Option<TileIndex>,
     pub condition: Option<String>,
     pub oneway: Option<String>,
     pub slope: bool,
@@ -86,7 +88,7 @@ impl TryFrom<PropertyMap> for TileProperties {
     fn try_from(value: PropertyMap) -> Result<Self, Self::Error> {
         Ok(TileProperties {
             solid: value.get_bool("solid")?.unwrap_or(true),
-            alternate: value.get_int("alternate")?,
+            alternate: value.get_int("alternate")?.map(|x| x as TileIndex),
             condition: value.get_string("condition")?.map(str::to_string),
             oneway: value.get_string("oneway")?.map(str::to_string),
             slope: value.get_bool("slope")?.unwrap_or(false),
@@ -104,10 +106,10 @@ pub struct TileSet<'a> {
     tilecount: i32,
     columns: i32,
     pub sprite: Sprite<'a>,
-    pub animations: HashMap<i32, Animation<'a>>,
-    slopes: HashMap<i32, Slope>,
+    pub animations: HashMap<TileIndex, Animation<'a>>,
+    slopes: HashMap<TileIndex, Slope>,
     properties: PropertyMap,
-    tile_properties: HashMap<i32, TileProperties>,
+    tile_properties: HashMap<TileIndex, TileProperties>,
 }
 
 impl<'a> TileSet<'a> {
@@ -186,7 +188,7 @@ impl<'a> TileSet<'a> {
         })
     }
 
-    pub fn get_slope(&self, tile_id: i32) -> Option<&Slope> {
+    pub fn get_slope(&self, tile_id: TileIndex) -> Option<&Slope> {
         self.slopes.get(&tile_id)
     }
 
@@ -200,7 +202,8 @@ impl<'a> TileSet<'a> {
         (self.tilecount as f32 / self.columns as f32).ceil() as i32
     }
 
-    pub fn get_source_rect(&self, index: i32) -> Result<Rect> {
+    pub fn get_source_rect(&self, index: TileIndex) -> Result<Rect> {
+        let index = index as i32;
         if index < 0 || index > self.tilecount {
             bail!("index out of range");
         }
@@ -216,7 +219,7 @@ impl<'a> TileSet<'a> {
         })
     }
 
-    pub fn get_tile_properties(&self, tile_id: i32) -> Option<&TileProperties> {
+    pub fn get_tile_properties(&self, tile_id: TileIndex) -> Option<&TileProperties> {
         self.tile_properties.get(&tile_id)
     }
 }
@@ -225,7 +228,7 @@ impl<'a> TileSet<'a> {
 fn load_tile_animations<'b>(
     path: &Path,
     images: &ImageManager<'b>,
-    animations: &mut HashMap<i32, Animation<'b>>,
+    animations: &mut HashMap<TileIndex, Animation<'b>>,
 ) -> Result<()> {
     println!("loading tile animations from {:?}", path);
     let files = fs::read_dir(path)?;
@@ -243,7 +246,7 @@ fn load_tile_animations<'b>(
             println!("skipping non-file {:?}", file);
             continue;
         }
-        let tile_id = filename[..filename.len() - 4].parse::<i32>()?;
+        let tile_id = filename[..filename.len() - 4].parse::<TileIndex>()?;
         println!(
             "loading animation for tile {:?} from {:?}",
             tile_id,
