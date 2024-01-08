@@ -1,5 +1,7 @@
 use std::collections::HashSet;
+use std::fs;
 use std::ops::RangeInclusive;
+use std::path::Path;
 
 use anyhow::{anyhow, bail, Context, Result};
 use sdl2::render::{Canvas, RenderTarget, Texture, TextureCreator};
@@ -304,6 +306,11 @@ pub struct AnimationStateMachine {
 }
 
 impl AnimationStateMachine {
+    pub fn from_file(path: &Path) -> Result<AnimationStateMachine> {
+        let s = fs::read_to_string(path)?;
+        AnimationStateMachine::new(&s)
+    }
+
     pub fn new(text: &str) -> Result<AnimationStateMachine> {
         let mut rules = Vec::new();
         let mut states = HashSet::new();

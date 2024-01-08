@@ -2,6 +2,7 @@ mod constants;
 mod font;
 mod imagemanager;
 mod inputmanager;
+mod player;
 mod properties;
 mod slope;
 mod sprite;
