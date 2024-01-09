@@ -202,21 +202,21 @@ impl<'a> TileSet<'a> {
         (self.tilecount as f32 / self.columns as f32).ceil() as i32
     }
 
-    pub fn get_source_rect(&self, index: TileIndex) -> Result<Rect> {
+    pub fn get_source_rect(&self, index: TileIndex) -> Rect {
         let index = index as i32;
         if index < 0 || index > self.tilecount {
-            bail!("index out of range");
+            panic!("index out of range");
         }
         let row = index / self.columns;
         let col = index % self.columns;
         let x = col * self.tilewidth;
         let y = row * self.tileheight;
-        Ok(Rect {
+        Rect {
             x,
             y,
             w: self.tilewidth,
             h: self.tileheight,
-        })
+        }
     }
 
     pub fn get_tile_properties(&self, tile_id: TileIndex) -> Option<&TileProperties> {

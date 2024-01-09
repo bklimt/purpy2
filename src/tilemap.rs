@@ -218,14 +218,12 @@ enum Layer<'a> {
     Image(ImageLayer<'a>),
 }
 
-struct MapObject {
-    id: i32,
-    gid: Option<u32>,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    properties: PropertyMap,
+pub struct MapObject {
+    pub id: i32,
+    pub gid: Option<u32>,
+    pub position: Rect,
+    pub solid: bool,
+    pub properties: PropertyMap,
 }
 
 impl MapObject {
@@ -251,24 +249,22 @@ impl MapObject {
             y -= height;
         }
 
+        let position = Rect {
+            x,
+            y,
+            w: width,
+            h: height,
+        };
+
+        let solid = properties.get_bool("solid")?.unwrap_or(false);
+
         Ok(MapObject {
             id,
             gid,
-            x,
-            y,
-            width,
-            height,
+            position,
+            solid,
             properties,
         })
-    }
-
-    fn rect(&self) -> Rect {
-        Rect {
-            x: self.x,
-            y: self.y,
-            w: self.width,
-            h: self.height,
-        }
     }
 }
 
@@ -433,10 +429,7 @@ impl<'a> TileMap<'a> {
                     alt
                 };
 
-                let mut source = self
-                    .tileset
-                    .get_source_rect(index)
-                    .expect("invalid tile index");
+                let mut source = self.tileset.get_source_rect(index);
                 let mut pos_x = col * tilewidth + dest.x + offset_x;
                 let mut pos_y = row * tileheight + dest.y + offset_y;
 
@@ -690,7 +683,7 @@ impl<'a> TileMap<'a> {
             if obj.gid.is_some() {
                 continue;
             }
-            if !intersect(player_rect, obj.rect()) {
+            if !intersect(player_rect, obj.position.clone()) {
                 continue;
             }
             if let Ok(Some(p_x)) = obj.properties.get_int("preferred_x") {

@@ -26,10 +26,7 @@ impl<'a> Font<'a> {
         let mut pos = pos;
         for c in s.chars() {
             let c = (c as u32).min(127) as TileIndex;
-            let area = self
-                .tileset
-                .get_source_rect(c)
-                .expect("tileset should be large enough");
+            let area = self.tileset.get_source_rect(c);
             let dest = Rect {
                 x: pos.x(),
                 y: pos.y(),
