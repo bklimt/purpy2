@@ -1,4 +1,5 @@
 use std::ops::{Index, IndexMut};
+use std::str::FromStr;
 use std::{fs, path::Path};
 
 use crate::constants::SUBPIXELS;
@@ -12,7 +13,7 @@ use crate::utils::{
     cmp_in_direction, intersect, try_move_to_bounds, Color, Direction, Point, Rect,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -218,12 +219,81 @@ enum Layer<'a> {
     Image(ImageLayer<'a>),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Overflow {
+    Oscillate,
+    Wrap,
+    Clamp,
+}
+
+impl FromStr for Overflow {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "oscillate" => Ok(Overflow::Oscillate),
+            "wrap" => Ok(Overflow::Wrap),
+            "clamp" => Ok(Overflow::Clamp),
+            _ => Err(anyhow!("invalid overflow type: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ConveyorDirection {
+    Left,
+    Right,
+}
+
+impl FromStr for ConveyorDirection {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "W" => Ok(ConveyorDirection::Left),
+            "E" => Ok(ConveyorDirection::Right),
+            _ => Err(anyhow!("invalid conveyor direction: {}", s)),
+        }
+    }
+}
+
+pub struct MapObjectProperties {
+    pub solid: bool,
+    pub preferred_x: Option<i32>,
+    pub preferred_y: Option<i32>,
+    pub distance: i32,
+    pub speed: Option<i32>,
+    pub condition: Option<String>,
+    pub overflow: Overflow,
+    pub direction: Direction,
+    pub convey: ConveyorDirection,
+    raw: PropertyMap,
+}
+
+impl TryFrom<PropertyMap> for MapObjectProperties {
+    type Error = anyhow::Error;
+    fn try_from(properties: PropertyMap) -> Result<Self> {
+        Ok(MapObjectProperties {
+            solid: properties.get_bool("solid")?.unwrap_or(false),
+            preferred_x: properties.get_int("preferred_x")?,
+            preferred_y: properties.get_int("preferred_y")?,
+            distance: properties.get_int("distance")?.unwrap_or(0),
+            speed: properties.get_int("speed")?,
+            condition: properties.get_string("condition")?.map(str::to_string),
+            overflow: properties
+                .get_string("overflow")?
+                .unwrap_or("oscillate")
+                .parse()?,
+            direction: properties.get_string("direction")?.unwrap_or("N").parse()?,
+            convey: properties.get_string("convey")?.unwrap_or("E").parse()?,
+            raw: properties,
+        })
+    }
+}
+
 pub struct MapObject {
     pub id: i32,
     pub gid: Option<u32>,
     pub position: Rect,
-    pub solid: bool,
-    pub properties: PropertyMap,
+    pub properties: MapObjectProperties,
 }
 
 impl MapObject {
@@ -256,13 +326,12 @@ impl MapObject {
             h: height,
         };
 
-        let solid = properties.get_bool("solid")?.unwrap_or(false);
+        let properties = properties.try_into()?;
 
         Ok(MapObject {
             id,
             gid,
             position,
-            solid,
             properties,
         })
     }
@@ -686,10 +755,10 @@ impl<'a> TileMap<'a> {
             if !intersect(player_rect, obj.position.clone()) {
                 continue;
             }
-            if let Ok(Some(p_x)) = obj.properties.get_int("preferred_x") {
+            if let Some(p_x) = obj.properties.preferred_x {
                 preferred_x = Some(p_x);
             }
-            if let Ok(Some(p_y)) = obj.properties.get_int("preferred_y") {
+            if let Some(p_y) = obj.properties.preferred_y {
                 preferred_y = Some(p_y);
             }
         }

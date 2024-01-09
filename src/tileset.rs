@@ -101,8 +101,8 @@ impl TryFrom<PropertyMap> for TileProperties {
 
 pub struct TileSet<'a> {
     name: String,
-    tilewidth: i32,
-    tileheight: i32,
+    pub tilewidth: i32,
+    pub tileheight: i32,
     tilecount: i32,
     columns: i32,
     pub sprite: Sprite<'a>,

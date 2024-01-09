@@ -1,23 +1,26 @@
 use std::str::FromStr;
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, bail, Error};
 
 pub type Subpixels = i32;
 
 #[derive(Clone, Copy)]
-pub struct Point(Subpixels, Subpixels);
+pub struct Point {
+    pub x: Subpixels,
+    pub y: Subpixels,
+}
 
 impl Point {
     pub fn new(x: Subpixels, y: Subpixels) -> Point {
-        Point(x, y)
+        Point { x, y }
     }
 
     pub fn x(&self) -> Subpixels {
-        self.0
+        self.x
     }
 
     pub fn y(&self) -> Subpixels {
-        self.1
+        self.y
     }
 }
 
@@ -39,6 +42,19 @@ impl Direction {
             Direction::Right => Direction::Left,
             Direction::Left => Direction::Right,
         }
+    }
+}
+
+impl FromStr for Direction {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "N" => Direction::Up,
+            "S" => Direction::Down,
+            "W" => Direction::Left,
+            "E" => Direction::Right,
+            _ => bail!("invalid direction: {}", s),
+        })
     }
 }
 
@@ -78,7 +94,7 @@ impl From<Color> for sdl2::pixels::Color {
     }
 }
 
-fn sign(n: Subpixels) -> Subpixels {
+pub fn sign(n: Subpixels) -> Subpixels {
     if n < 0 {
         -1
     } else if n > 0 {
@@ -232,9 +248,9 @@ pub fn intersect(rect1: Rect, rect2: Rect) -> bool {
 }
 
 fn inside(rect: Rect, point: Point) -> bool {
-    if point.0 < rect.left() || point.0 > rect.right() {
+    if point.x < rect.left() || point.x > rect.right() {
         false
-    } else if point.1 < rect.top() || point.1 > rect.bottom() {
+    } else if point.y < rect.top() || point.y > rect.bottom() {
         false
     } else {
         true
