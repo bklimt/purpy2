@@ -67,6 +67,6 @@ pub const SPRING_JUMP_DURATION: i32 = 10; // How long to jump when jumping from 
 pub const SPRING_JUMP_VELOCITY: i32 = 78 * SUBPIXELS / 16;
 
 // Doors.
-pub const DOOR_SPEED: i32 = 3;
-pub const DOOR_CLOSING_FRAMES: i32 = 9; // The should match the door animation frames.
-pub const DOOR_UNLOCKING_FRAMES: i32 = 9;
+pub const DOOR_SPEED: u32 = 3;
+pub const DOOR_CLOSING_FRAMES: u32 = 9; // The should match the door animation frames.
+pub const DOOR_UNLOCKING_FRAMES: u32 = 9;

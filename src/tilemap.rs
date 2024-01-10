@@ -277,17 +277,25 @@ impl FromStr for ButtonType {
 }
 
 pub struct MapObjectProperties {
+    // Tiles
     pub solid: bool,
+    // Map Areas
     pub preferred_x: Option<i32>,
     pub preferred_y: Option<i32>,
+    // Platforms
     pub distance: i32,
     pub speed: Option<i32>,
     pub condition: Option<String>,
     pub overflow: Overflow,
     pub direction: Direction,
     pub convey: ConveyorDirection,
+    // Buttons
     pub button_type: ButtonType,
     pub color: Option<String>,
+    // Doors
+    pub sprite: Option<String>,
+    pub destination: Option<String>,
+    pub stars_needed: i32,
     raw: PropertyMap,
 }
 
@@ -312,6 +320,9 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
                 .unwrap_or("toggle")
                 .parse()?,
             color: properties.get_string("color")?.map(str::to_string),
+            sprite: properties.get_string("sprite")?.map(str::to_string),
+            destination: properties.get_string("destination")?.map(str::to_string),
+            stars_needed: properties.get_int("stars_needed")?.unwrap_or(0),
             raw: properties,
         })
     }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use anyhow::{anyhow, bail, Context, Error, Result};
+use anyhow::{anyhow, Context, Error, Result};
 use serde::Deserialize;
 
 use crate::imagemanager::ImageManager;

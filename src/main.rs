@@ -1,4 +1,5 @@
 mod constants;
+mod door;
 mod font;
 mod imagemanager;
 mod inputmanager;
@@ -51,7 +52,7 @@ fn run_game(_args: Args) -> Result<()> {
         .expect("failed to build window's canvas");
     let texture_creator = canvas.texture_creator();
 
-    let image_manager = ImageManager::new(&texture_creator);
+    let image_manager = ImageManager::new(&texture_creator)?;
     let space = image_manager.load_sprite(Path::new("../purpy/assets/space.png"))?;
 
     let mut animation =
