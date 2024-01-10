@@ -24,7 +24,7 @@ enum DoorState {
     Closed,
 }
 
-struct Door<'a> {
+pub struct Door<'a> {
     x: i32,
     y: i32,
     sprite: SpriteSheet<'a>,
@@ -37,7 +37,7 @@ struct Door<'a> {
 }
 
 impl<'a> Door<'a> {
-    fn new<'b>(obj: MapObject, images: ImageManager<'b>) -> Result<Door<'b>> {
+    pub fn new<'b>(obj: MapObject, images: ImageManager<'b>) -> Result<Door<'b>> {
         let sprite_path = obj
             .properties
             .sprite

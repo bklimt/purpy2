@@ -1,7 +1,10 @@
-use crate::{
-    platform::Platform, player::Player, smallintset::SmallIntSet, switchstate::SwitchState,
-    tilemap::TileMap,
-};
+use crate::door::Door;
+use crate::platform::Platform;
+use crate::player::Player;
+use crate::smallintset::SmallIntSet;
+use crate::star::Star;
+use crate::switchstate::SwitchState;
+use crate::tilemap::TileMap;
 
 struct PlatformIntersectionResult {
     offset: i32,
@@ -72,12 +75,12 @@ struct Level<'a> {
 
     // platforms, stars, and doors
     platforms: Vec<Box<dyn Platform>>,
-    // stars: list[Star],
-    // doors: list[Door],
+    stars: Vec<Star<'a>>,
+    doors: Vec<Door<'a>>,
 
-    // current_platform: Option<usize.
+    current_platform: Option<usize>,
     current_slopes: SmallIntSet,
     switches: SwitchState,
     current_switch_tiles: SmallIntSet,
-    // current_door: Option<usize>,
+    current_door: Option<usize>,
 }

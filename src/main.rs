@@ -11,6 +11,7 @@ mod slope;
 mod smallintset;
 mod soundmanager;
 mod sprite;
+mod star;
 mod switchstate;
 mod tilemap;
 mod tileset;
