@@ -48,8 +48,8 @@ pub const TOAST_HEIGHT: i32 = 12 * SUBPIXELS;
 pub const TOAST_SPEED: i32 = 8 * SUBPIXELS / 16;
 
 // Button switches.
-pub const BUTTON_DELAY: i32 = 2; // How slowly the button goes down.
-pub const BUTTON_MAX_LEVEL: i32 = BUTTON_DELAY * 3; // There are 4 frames of animation.
+pub const BUTTON_DELAY: u32 = 2; // How slowly the button goes down.
+pub const BUTTON_MAX_LEVEL: u32 = BUTTON_DELAY * 3; // There are 4 frames of animation.
 
 // Falling platforms that look like bagels.
 pub const BAGEL_WAIT_TIME: i32 = 30;

@@ -255,6 +255,27 @@ impl FromStr for ConveyorDirection {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ButtonType {
+    OneShot,
+    Toggle,
+    Momentary,
+    Smart,
+}
+
+impl FromStr for ButtonType {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "oneshot" => ButtonType::OneShot,
+            "toggle" => ButtonType::Toggle,
+            "momentary" => ButtonType::Momentary,
+            "smart" => ButtonType::Smart,
+            _ => bail!("invalid button type: {}", s),
+        })
+    }
+}
+
 pub struct MapObjectProperties {
     pub solid: bool,
     pub preferred_x: Option<i32>,
@@ -265,6 +286,8 @@ pub struct MapObjectProperties {
     pub overflow: Overflow,
     pub direction: Direction,
     pub convey: ConveyorDirection,
+    pub button_type: ButtonType,
+    pub color: Option<String>,
     raw: PropertyMap,
 }
 
@@ -284,6 +307,11 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
                 .parse()?,
             direction: properties.get_string("direction")?.unwrap_or("N").parse()?,
             convey: properties.get_string("convey")?.unwrap_or("E").parse()?,
+            button_type: properties
+                .get_string("button_type")?
+                .unwrap_or("toggle")
+                .parse()?,
+            color: properties.get_string("color")?.map(str::to_string),
             raw: properties,
         })
     }

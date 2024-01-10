@@ -21,7 +21,7 @@ impl SwitchState {
         }
     }
 
-    fn toggle(&mut self, s: &str) {
+    pub fn toggle(&mut self, s: &str) {
         println!("toggling {s}");
         if self.on.contains(s) {
             self.on.remove(s);
@@ -34,7 +34,7 @@ impl SwitchState {
         return self.on.contains(s);
     }
 
-    fn apply_command(&mut self, s: &str) {
+    pub fn apply_command(&mut self, s: &str) {
         if s.starts_with("~") {
             self.toggle(&s[1..]);
         } else if s.starts_with("!") {

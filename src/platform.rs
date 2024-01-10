@@ -4,19 +4,19 @@ use anyhow::{Context, Result};
 use rand::random;
 
 use crate::constants::{
-    BAGEL_FALL_TIME, BAGEL_GRAVITY_ACCELERATION, BAGEL_MAX_GRAVITY, BAGEL_WAIT_TIME, SPRING_SPEED,
-    SPRING_STALL_FRAMES, SPRING_STEPS, SUBPIXELS,
+    BAGEL_FALL_TIME, BAGEL_GRAVITY_ACCELERATION, BAGEL_MAX_GRAVITY, BAGEL_WAIT_TIME, BUTTON_DELAY,
+    BUTTON_MAX_LEVEL, SPRING_SPEED, SPRING_STALL_FRAMES, SPRING_STEPS, SUBPIXELS,
 };
 use crate::imagemanager::ImageManager;
 use crate::soundmanager::SoundManager;
 use crate::sprite::{SpriteBatch, SpriteSheet};
 use crate::switchstate::SwitchState;
-use crate::tilemap::{ConveyorDirection, MapObject, Overflow};
+use crate::tilemap::{ButtonType, ConveyorDirection, MapObject, Overflow};
 use crate::tileset::{TileIndex, TileSet};
 use crate::utils::{sign, try_move_to_bounds, Direction, Point, Rect};
 
 pub trait Platform {
-    fn update(&mut self, switches: &SwitchState, sounds: &SoundManager);
+    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager);
     fn draw(&self, batch: &mut SpriteBatch, offset: Point);
     fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32;
 }
@@ -33,7 +33,7 @@ struct PlatformBase<'a> {
 }
 
 impl<'a> PlatformBase<'a> {
-    fn new<'b>(obj: MapObject, tileset: &'b TileSet<'b>) -> Result<PlatformBase<'b>> {
+    pub fn new<'b>(obj: MapObject, tileset: &'b TileSet<'b>) -> Result<PlatformBase<'b>> {
         Ok(PlatformBase {
             id: obj.id,
             tileset: tileset,
@@ -134,7 +134,7 @@ impl<'a> MovingPlatform<'a> {
 }
 
 impl<'a> Platform for MovingPlatform<'a> {
-    fn update(&mut self, switches: &SwitchState, sounds: &SoundManager) {
+    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
         if let Some(condition) = self.condition.as_deref() {
             if !switches.is_condition_true(&condition) {
                 self.moving_forward = false;
@@ -288,7 +288,7 @@ impl<'a> Platform for Bagel<'a> {
         batch.draw(&self.base.tileset.sprite, Some(rect), Some(area));
     }
 
-    fn update(&mut self, switches: &SwitchState, sounds: &SoundManager) {
+    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
         if self.falling {
             self.remaining -= 1;
             if self.remaining == 0 {
@@ -341,7 +341,7 @@ impl<'a> Conveyor<'a> {
 impl<'a> Platform for Conveyor<'a> {
     fn draw(&self, batch: &mut SpriteBatch, offset: Point) {}
 
-    fn update(&mut self, switches: &SwitchState, sounds: &SoundManager) {}
+    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {}
 
     fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
         self.base.try_move_to(player_rect, direction, is_backwards)
@@ -396,7 +396,7 @@ impl<'a> Platform for Spring<'a> {
         self.sprite.blit(batch, dest, self.frame() as u32, 0, false);
     }
 
-    fn update(&mut self, switches: &SwitchState, sounds: &SoundManager) {
+    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
         self.base.dx = 0;
         self.base.dy = 0;
         if !self.base.occupied {
@@ -454,5 +454,123 @@ impl<'a> Platform for Spring<'a> {
             };
             try_move_to_bounds(player_rect, area, direction)
         }
+    }
+}
+
+struct Button<'a> {
+    base: PlatformBase<'a>,
+    sprite: SpriteSheet<'a>,
+    level: u32,
+    original_y: i32,
+    clicked: bool,
+    button_type: ButtonType,
+    was_occupied: bool,
+    color: String,
+}
+
+fn get_button_image_path(color: &str) -> String {
+    let color = if color == "!white" { "black" } else { "white" };
+    format!("assets/sprites/buttons/{color}.png")
+}
+
+impl<'a> Button<'a> {
+    fn new<'b>(
+        obj: MapObject,
+        tileset: &'b TileSet<'b>,
+        images: &'b ImageManager<'b>,
+    ) -> Result<Button<'b>> {
+        let level = 0;
+        let clicked = false;
+        let was_occupied = false;
+
+        let color = obj
+            .properties
+            .color
+            .clone()
+            .unwrap_or_else(|| "red".to_string());
+        let image_path = get_button_image_path(&color);
+        let sprite = images.load_spritesheet(Path::new(&image_path), 8, 8)?;
+        let button_type = obj.properties.button_type;
+
+        let mut base = PlatformBase::new(obj, tileset)?;
+        let original_y = base.position.y;
+        // Move down by a whole pixel while on a button.
+        base.dy = SUBPIXELS;
+
+        Ok(Button {
+            base,
+            sprite,
+            level,
+            original_y,
+            clicked,
+            button_type,
+            was_occupied,
+            color,
+        })
+    }
+}
+
+impl<'a> Platform for Button<'a> {
+    fn draw(&self, batch: &mut SpriteBatch, offset: Point) {
+        let x = self.base.position.x + offset.x;
+        let y = self.original_y + offset.y();
+        let dest = Rect {
+            x,
+            y,
+            w: self.base.position.w,
+            h: self.base.position.h,
+        };
+        self.sprite
+            .blit(batch, dest, self.level / BUTTON_DELAY, 0, false);
+    }
+
+    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
+        let was_clicked = self.clicked;
+
+        if matches!(self.button_type, ButtonType::Smart) {
+            self.clicked = switches.is_condition_true(&self.color);
+        }
+
+        if self.base.occupied && !self.was_occupied {
+            self.clicked = match self.button_type {
+                ButtonType::OneShot | ButtonType::Smart => true,
+                ButtonType::Toggle => !self.clicked,
+                _ => self.clicked,
+            };
+        }
+
+        self.was_occupied = self.base.occupied;
+
+        if matches!(self.button_type, ButtonType::Momentary) {
+            self.clicked = self.base.occupied;
+        }
+
+        if self.clicked {
+            if self.level < BUTTON_MAX_LEVEL {
+                self.level += 1;
+            }
+        } else {
+            if self.level > 0 {
+                self.level -= 1;
+            }
+        }
+
+        self.base.position.y =
+            self.original_y + ((self.level * SUBPIXELS as u32) / BUTTON_DELAY) as i32;
+
+        if self.clicked != was_clicked {
+            // sounds.play(Sound.CLICK);
+            if matches!(self.button_type, ButtonType::Smart) {
+                if self.clicked && self.base.occupied {
+                    switches.apply_command(&self.color);
+                }
+            } else if self.clicked || !matches!(self.button_type, ButtonType::OneShot) {
+                switches.toggle(&self.color);
+            }
+        }
+    }
+
+    fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
+        self.base.try_move_to(player_rect, direction, is_backwards)
     }
 }
