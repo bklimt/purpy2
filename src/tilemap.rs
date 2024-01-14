@@ -1,12 +1,15 @@
+use std::collections::HashMap;
 use std::ops::{Index, IndexMut};
+use std::rc::Rc;
 use std::str::FromStr;
 use std::{fs, path::Path};
 
 use crate::constants::SUBPIXELS;
 use crate::imagemanager::ImageManager;
 use crate::properties::{PropertiesXml, PropertyMap};
+use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::smallintset::SmallIntSet;
-use crate::sprite::{Sprite, SpriteBatch};
+use crate::sprite::Sprite;
 use crate::switchstate::SwitchState;
 use crate::tileset::{TileIndex, TileProperties, TileSet};
 use crate::utils::{
@@ -14,6 +17,7 @@ use crate::utils::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
+use sdl2::render::RenderTarget;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -123,7 +127,7 @@ struct TileMapXml {
 }
 
 struct ImageLayer<'a> {
-    surface: Sprite<'a>,
+    surface: Rc<Sprite<'a>>,
 }
 
 impl<'a> ImageLayer<'a> {
@@ -277,6 +281,13 @@ impl FromStr for ButtonType {
 }
 
 pub struct MapObjectProperties {
+    // Types
+    pub platform: bool,
+    pub bagel: bool,
+    pub spring: bool,
+    pub button: bool,
+    pub door: bool,
+    pub star: bool,
     // Tiles
     pub solid: bool,
     // Map Areas
@@ -288,7 +299,7 @@ pub struct MapObjectProperties {
     pub condition: Option<String>,
     pub overflow: Overflow,
     pub direction: Direction,
-    pub convey: ConveyorDirection,
+    pub convey: Option<ConveyorDirection>,
     // Buttons
     pub button_type: ButtonType,
     pub color: Option<String>,
@@ -303,6 +314,12 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
     type Error = anyhow::Error;
     fn try_from(properties: PropertyMap) -> Result<Self> {
         Ok(MapObjectProperties {
+            platform: properties.get_bool("platform")?.unwrap_or(false),
+            bagel: properties.get_bool("bagel")?.unwrap_or(false),
+            spring: properties.get_bool("spring")?.unwrap_or(false),
+            button: properties.get_bool("button")?.unwrap_or(false),
+            door: properties.get_bool("door")?.unwrap_or(false),
+            star: properties.get_bool("star")?.unwrap_or(false),
             solid: properties.get_bool("solid")?.unwrap_or(false),
             preferred_x: properties.get_int("preferred_x")?,
             preferred_y: properties.get_int("preferred_y")?,
@@ -314,7 +331,10 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
                 .unwrap_or("oscillate")
                 .parse()?,
             direction: properties.get_string("direction")?.unwrap_or("N").parse()?,
-            convey: properties.get_string("convey")?.unwrap_or("E").parse()?,
+            convey: properties
+                .get_string("convey")?
+                .map(|s| s.parse())
+                .transpose()?,
             button_type: properties
                 .get_string("button_type")?
                 .unwrap_or("toggle")
@@ -382,10 +402,10 @@ pub struct TileMap<'a> {
     tilewidth: i32,
     tileheight: i32,
     backgroundcolor: Color,
-    tileset: TileSet<'a>,
+    pub tileset: Rc<TileSet<'a>>,
     layers: Vec<Layer<'a>>,
     player_layer: Option<i32>, // TODO: Should just be i32.
-    objects: Vec<MapObject>,
+    pub objects: Vec<MapObject>,
     is_dark: bool,
 }
 
@@ -444,6 +464,8 @@ impl<'a> TileMap<'a> {
 
         let is_dark = properties.get_bool("dark")?.unwrap_or(false);
 
+        let tileset = Rc::new(tileset);
+
         Ok(TileMap {
             width,
             height,
@@ -472,31 +494,43 @@ impl<'a> TileMap<'a> {
         switches.is_condition_true(condition)
     }
 
-    fn draw_image_layer(
+    fn draw_image_layer<'b>(
         &self,
-        layer: &ImageLayer,
-        batch: &mut SpriteBatch,
+        layer: &ImageLayer<'a>,
+        context: &'b mut RenderContext<'a>,
+        render_layer: RenderLayer,
         dest: Rect,
         offset: Point,
         switches: &SwitchState,
-    ) {
+    ) where
+        'a: 'b,
+    {
         let dest = Rect {
             x: offset.x(),
             y: offset.y(),
             w: layer.surface.width() as i32 * SUBPIXELS,
             h: layer.surface.height() as i32 * SUBPIXELS,
         };
-        batch.draw(&layer.surface, Some(dest), None);
+        let source = Rect {
+            x: 0,
+            y: 0,
+            w: dest.w,
+            h: dest.h,
+        };
+        context.draw(&layer.surface, render_layer, dest, source);
     }
 
-    fn draw_tile_layer(
+    fn draw_tile_layer<'b>(
         &self,
         layer: &TileLayer,
-        batch: &mut SpriteBatch,
+        context: &'b mut RenderContext<'a>,
+        render_layer: RenderLayer,
         dest: Rect,
         offset: Point,
         switches: &SwitchState,
-    ) {
+    ) where
+        'a: 'b,
+    {
         let offset_x = offset.x();
         let offset_y = offset.y();
         let tileheight = self.tileheight * SUBPIXELS;
@@ -582,58 +616,71 @@ impl<'a> TileMap<'a> {
                     h: tileheight,
                 };
                 if let Some(animation) = self.tileset.animations.get(&index) {
-                    animation.blit(batch, destination, false);
+                    animation.blit(context, render_layer, destination, false);
                 } else {
-                    batch.draw(&self.tileset.sprite, Some(destination), Some(source));
+                    context.draw(&self.tileset.sprite, render_layer, destination, source);
                 }
             }
         }
     }
 
-    fn draw_layer(
+    fn draw_layer<'b>(
         &self,
-        layer: &Layer,
-        batch: &mut SpriteBatch,
+        layer: &Layer<'a>,
+        context: &'b mut RenderContext<'a>,
+        render_layer: RenderLayer,
         dest: Rect,
         offset: Point,
         switches: &SwitchState,
-    ) {
+    ) where
+        'a: 'b,
+    {
         match layer {
-            Layer::Image(layer) => self.draw_image_layer(layer, batch, dest, offset, switches),
-            Layer::Tile(layer) => self.draw_tile_layer(layer, batch, dest, offset, switches),
+            Layer::Image(layer) => {
+                self.draw_image_layer(layer, context, render_layer, dest, offset, switches)
+            }
+            Layer::Tile(layer) => {
+                self.draw_tile_layer(layer, context, render_layer, dest, offset, switches)
+            }
         }
     }
 
-    fn draw_background(
+    fn draw_background<'b>(
         &self,
-        batch: &mut SpriteBatch,
+        context: &'b mut RenderContext<'a>,
+        render_layer: RenderLayer,
         dest: Rect,
         offset: Point,
         switches: &SwitchState,
-    ) {
-        batch.fill_rect(dest.clone(), self.backgroundcolor);
+    ) where
+        'a: 'b,
+    {
+        context.fill_rect(dest.clone(), render_layer, self.backgroundcolor);
         for layer in self.layers.iter() {
-            self.draw_layer(layer, batch, dest, offset, switches);
+            self.draw_layer(layer, context, render_layer, dest, offset, switches);
             if let Layer::Tile(TileLayer { player: true, .. }) = layer {
                 return;
             }
         }
     }
 
-    fn draw_foreground(
+    fn draw_foreground<'b>(
         &self,
-        batch: &mut SpriteBatch,
+        context: &'b mut RenderContext<'a>,
+        render_layer: RenderLayer,
         dest: Rect,
         offset: Point,
         switches: &SwitchState,
-    ) {
+    ) where
+        'b: 'a,
+    {
         if self.player_layer.is_none() {
             return;
         }
         let mut drawing = false;
         for layer in self.layers.iter() {
             if drawing {
-                self.draw_layer(layer, batch, dest, offset, switches);
+                self.draw_layer(layer, context, render_layer, dest, offset, switches);
             }
             if let Layer::Tile(TileLayer { player: true, .. }) = layer {
                 drawing = true;
@@ -802,10 +849,6 @@ impl<'a> TileMap<'a> {
             }
         }
         (preferred_x, preferred_y)
-    }
-
-    fn update_animations(&mut self) {
-        self.tileset.update_animations();
     }
 }
 

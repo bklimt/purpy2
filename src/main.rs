@@ -7,6 +7,8 @@ mod level;
 mod platform;
 mod player;
 mod properties;
+mod rendercontext;
+mod scene;
 mod slope;
 mod smallintset;
 mod soundmanager;
@@ -23,11 +25,12 @@ use anyhow::Result;
 use clap::Parser;
 use imagemanager::ImageManager;
 use inputmanager::InputManager;
+use rendercontext::{RenderContext, RenderLayer};
 use sdl2::event::Event;
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
-use sprite::{AnimationStateMachine, SpriteBatch};
+use sprite::AnimationStateMachine;
 use utils::Rect;
 
 #[derive(Parser, Debug)]
@@ -66,6 +69,8 @@ fn run_game(_args: Args) -> Result<()> {
     )?)?;
     let mut current_frame = 0;
 
+    let mut frame = 0;
+
     canvas.set_logical_size(space.width(), space.height())?;
     canvas.set_draw_color(Color::RGB(40, 40, 40));
     canvas.clear();
@@ -77,6 +82,10 @@ fn run_game(_args: Args) -> Result<()> {
     'running: loop {
         canvas.set_draw_color(Color::RGB(40, 40, 40));
         canvas.clear();
+
+        let (width, height) = canvas.logical_size();
+        let pixel_format = canvas.default_pixel_format();
+        let mut context = RenderContext::new(width, height, pixel_format, frame)?;
 
         for event in event_pump.poll_iter() {
             input_manager.handle_event(&event);
@@ -92,8 +101,19 @@ fn run_game(_args: Args) -> Result<()> {
             break 'running;
         }
 
-        let mut batch = SpriteBatch::new(&mut canvas);
-        batch.draw(&space, None, None);
+        let dest = Rect {
+            x: 0,
+            y: 0,
+            w: canvas.logical_size().0 as i32,
+            h: canvas.logical_size().1 as i32,
+        };
+        let source = Rect {
+            x: 0,
+            y: 0,
+            w: space.width() as i32,
+            h: space.height() as i32,
+        };
+        context.draw(&space, RenderLayer::Player, dest, source);
 
         let dest = Rect {
             x: (space.width() / 2 - 24) as i32,
@@ -101,8 +121,7 @@ fn run_game(_args: Args) -> Result<()> {
             w: 24,
             h: 24,
         };
-        animation.update();
-        animation.blit(&mut batch, dest, false);
+        animation.blit(&mut context, RenderLayer::Player, dest, false);
 
         let dest = Rect {
             x: (space.width() / 2) as i32,
@@ -112,10 +131,19 @@ fn run_game(_args: Args) -> Result<()> {
         };
 
         current_frame = animation_state_machine.next_frame(current_frame, "RUNNING")?;
-        player_sprite.blit(&mut batch, dest, current_frame, 0, false);
+        player_sprite.blit(
+            &mut context,
+            RenderLayer::Player,
+            dest,
+            current_frame,
+            0,
+            false,
+        );
 
+        context.render(&mut canvas)?;
         canvas.present();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        frame += 1;
     }
 
     Ok(())

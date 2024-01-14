@@ -1,17 +1,18 @@
+use std::rc::Rc;
+
 use anyhow::{Context, Result};
 use rand::random;
+use sdl2::render::RenderTarget;
 
-use crate::{
-    constants::SUBPIXELS,
-    sprite::{Sprite, SpriteBatch},
-    tilemap::MapObject,
-    tileset::{TileIndex, TileSet},
-    utils::{intersect, Point, Rect},
-};
+use crate::constants::SUBPIXELS;
+use crate::rendercontext::{RenderContext, RenderLayer};
+use crate::tilemap::MapObject;
+use crate::tileset::{TileIndex, TileSet};
+use crate::utils::{intersect, Point, Rect};
 
 pub struct Star<'a> {
     area: Rect,
-    sprite: &'a Sprite<'a>,
+    tileset: Rc<TileSet<'a>>,
     source: Rect,
 }
 
@@ -20,10 +21,9 @@ fn star_rand() -> i32 {
 }
 
 impl<'a> Star<'a> {
-    fn new<'b>(obj: MapObject, tileset: &'b TileSet<'b>) -> Result<Star<'b>> {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Star<'b>> {
         let gid = obj.gid.context("star must have gid")?;
         let source = tileset.get_source_rect(gid as TileIndex - 1);
-        let sprite = &tileset.sprite;
         let area = Rect {
             x: obj.position.x * SUBPIXELS,
             y: obj.position.y * SUBPIXELS,
@@ -32,7 +32,7 @@ impl<'a> Star<'a> {
         };
         Ok(Star {
             area,
-            sprite,
+            tileset,
             source,
         })
     }
@@ -41,7 +41,12 @@ impl<'a> Star<'a> {
         return intersect(self.area, player_rect);
     }
 
-    pub fn draw(&self, batch: &mut SpriteBatch, offset: Point) {
+    pub fn draw<T: RenderTarget>(
+        &self,
+        context: &'a mut RenderContext<'a>,
+        layer: RenderLayer,
+        offset: Point,
+    ) {
         let mut x = self.area.x + offset.x();
         let mut y = self.area.y + offset.y();
         x += star_rand() * SUBPIXELS;
@@ -52,7 +57,8 @@ impl<'a> Star<'a> {
             w: self.area.w,
             h: self.area.h,
         };
-        batch.draw(self.sprite, Some(rect), Some(self.source));
+        let sprite = &self.tileset.sprite;
+        context.draw(sprite, layer, rect, self.source);
         // TODO: Add lights.
     }
 }

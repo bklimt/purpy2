@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::rc::Rc;
 
 use anyhow::{anyhow, Result};
 use sdl2::image::LoadSurface;
@@ -29,9 +30,9 @@ impl<'a> ImageManager<'a> {
         Surface::from_file(path).map_err(|s: String| anyhow!("{}", s))
     }
 
-    pub fn load_sprite(&self, path: &Path) -> Result<Sprite<'a>> {
+    pub fn load_sprite(&self, path: &Path) -> Result<Rc<Sprite<'a>>> {
         let surface = self.load_surface(path)?;
-        Sprite::new(surface, self.texture_creator)
+        Ok(Rc::new(Sprite::new(surface, self.texture_creator)?))
     }
 
     pub fn load_spritesheet(

@@ -2,17 +2,18 @@ use std::collections::HashSet;
 use std::fs;
 use std::ops::RangeInclusive;
 use std::path::Path;
+use std::rc::Rc;
 
 use anyhow::{anyhow, bail, Context, Result};
-use sdl2::render::{Canvas, RenderTarget, Texture, TextureCreator};
+use sdl2::render::{Texture, TextureCreator};
 use sdl2::surface::Surface;
-use sdl2::video::Window;
 
+use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::utils::{Color, Rect};
 
 pub struct Sprite<'a> {
     surface: Surface<'a>,
-    texture: Texture<'a>,
+    pub texture: Texture<'a>,
 }
 
 impl<'a> Sprite<'a> {
@@ -36,30 +37,9 @@ impl<'a> Sprite<'a> {
     }
 }
 
-pub struct SpriteBatch<'a> {
-    canvas: &'a mut Canvas<Window>,
-}
-
-impl<'a> SpriteBatch<'a> {
-    pub fn new<'b>(canvas: &'b mut Canvas<Window>) -> SpriteBatch<'b> {
-        SpriteBatch { canvas }
-    }
-
-    pub fn draw(&mut self, sprite: &Sprite, dst: Option<Rect>, src: Option<Rect>) {
-        let src = src.map(|r| r.into());
-        let dst = dst.map(|r| r.into());
-        let _ = self.canvas.copy(&sprite.texture, src, dst);
-    }
-
-    pub fn fill_rect(&mut self, rect: Rect, color: Color) {
-        self.canvas.set_draw_color(color);
-        let _ = self.canvas.draw_rect(rect.into());
-    }
-}
-
 pub struct SpriteSheet<'a> {
-    surface: Sprite<'a>,
-    reverse: Sprite<'a>,
+    surface: Rc<Sprite<'a>>,
+    reverse: Rc<Sprite<'a>>,
     sprite_width: u32,
     sprite_height: u32,
     columns: u32,
@@ -106,8 +86,8 @@ impl<'a> SpriteSheet<'a> {
     {
         let w = surface.width();
         let reverse = reverse_surface(&surface)?;
-        let surface = Sprite::new(surface, texture_creator)?;
-        let reverse = Sprite::new(reverse, texture_creator)?;
+        let surface = Rc::new(Sprite::new(surface, texture_creator)?);
+        let reverse = Rc::new(Sprite::new(reverse, texture_creator)?);
         let columns = w / sprite_width;
         Ok(SpriteSheet {
             surface,
@@ -133,23 +113,29 @@ impl<'a> SpriteSheet<'a> {
         Rect { x, y, w, h }
     }
 
-    pub fn blit(&self, batch: &mut SpriteBatch, dest: Rect, index: u32, layer: u32, reverse: bool) {
+    pub fn blit<'b>(
+        &self,
+        context: &'b mut RenderContext<'a>,
+        layer: RenderLayer,
+        dest: Rect,
+        index: u32,
+        sprite_layer: u32,
+        reverse: bool,
+    ) {
         let texture = if reverse {
             &self.reverse
         } else {
             &self.surface
         };
-        let sprite = self.sprite(index, layer, reverse);
-        batch.draw(&texture, Some(dest), Some(sprite));
+        let sprite = self.sprite(index, sprite_layer, reverse);
+        context.draw(&texture, layer, dest, sprite);
     }
 }
 
 pub struct Animation<'a> {
     spritesheet: SpriteSheet<'a>,
-    index: u32,
     frames: u32,
     frames_per_frame: u32,
-    timer: u32,
 }
 
 impl<'a> Animation<'a> {
@@ -167,30 +153,25 @@ impl<'a> Animation<'a> {
         }
         let w = surface.width();
         let spritesheet = SpriteSheet::new(surface, sprite_width, sprite_height, texture_creator)?;
-        let index = 0;
         let frames = w / sprite_width;
         let frames_per_frame = 2;
-        let timer = frames_per_frame;
         Ok(Animation {
             spritesheet,
-            index,
             frames,
             frames_per_frame,
-            timer,
         })
     }
 
-    pub fn update(&mut self) {
-        if self.timer == 0 {
-            self.index = (self.index + 1) % self.frames;
-            self.timer = self.frames_per_frame;
-        } else {
-            self.timer -= 1;
-        }
-    }
-
-    pub fn blit(&self, batch: &mut SpriteBatch, dest: Rect, reverse: bool) {
-        self.spritesheet.blit(batch, dest, self.index, 0, reverse)
+    pub fn blit<'b>(
+        &self,
+        context: &'b mut RenderContext<'a>,
+        layer: RenderLayer,
+        dest: Rect,
+        reverse: bool,
+    ) {
+        let index = (context.frame / self.frames_per_frame) % self.frames;
+        self.spritesheet
+            .blit(context, layer, dest, index, 0, reverse)
     }
 }
 

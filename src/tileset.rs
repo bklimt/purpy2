@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::rc::Rc;
 
 use anyhow::{anyhow, Context, Error, Result};
 use serde::Deserialize;
@@ -99,16 +100,30 @@ impl TryFrom<PropertyMap> for TileProperties {
     }
 }
 
+pub struct TileSetProperties {
+    pub animation_path: Option<String>,
+}
+
+impl TryFrom<PropertyMap> for TileSetProperties {
+    type Error = Error;
+
+    fn try_from(value: PropertyMap) -> Result<Self, Self::Error> {
+        Ok(TileSetProperties {
+            animation_path: value.get_string("animations")?.map(str::to_string),
+        })
+    }
+}
+
 pub struct TileSet<'a> {
     name: String,
     pub tilewidth: i32,
     pub tileheight: i32,
     tilecount: i32,
     columns: i32,
-    pub sprite: Sprite<'a>,
-    pub animations: HashMap<TileIndex, Animation<'a>>,
+    pub sprite: Rc<Sprite<'a>>,
     slopes: HashMap<TileIndex, Slope>,
-    properties: PropertyMap,
+    pub animations: HashMap<TileIndex, Animation<'a>>,
+    pub properties: TileSetProperties,
     tile_properties: HashMap<TileIndex, TileProperties>,
 }
 
@@ -131,7 +146,7 @@ impl<'a> TileSet<'a> {
         let tilecount = xml.tilecount;
         let columns = xml.columns;
 
-        let mut sprite: Option<Sprite> = None;
+        let mut sprite: Option<Rc<Sprite>> = None;
         let mut properties = PropertyMap::new();
         let mut slopes = HashMap::new();
         let mut tile_properties = HashMap::new();
@@ -164,9 +179,10 @@ impl<'a> TileSet<'a> {
         //println!("tile properties: {:?}", tile_properties);
 
         let sprite = sprite.context("missing image")?;
+        let properties: TileSetProperties = properties.try_into()?;
 
         let mut animations = HashMap::new();
-        if let Some(animations_path) = properties.get_string("animations")? {
+        if let Some(animations_path) = properties.animation_path.as_ref() {
             let animations_path = path
                 .parent()
                 .context("tileset path is root")?
@@ -181,8 +197,8 @@ impl<'a> TileSet<'a> {
             tilecount,
             columns,
             sprite,
-            animations,
             slopes,
+            animations,
             properties,
             tile_properties,
         })
@@ -190,12 +206,6 @@ impl<'a> TileSet<'a> {
 
     pub fn get_slope(&self, tile_id: TileIndex) -> Option<&Slope> {
         self.slopes.get(&tile_id)
-    }
-
-    pub fn update_animations(&mut self) {
-        for (_, animation) in self.animations.iter_mut() {
-            animation.update();
-        }
     }
 
     fn rows(&self) -> i32 {

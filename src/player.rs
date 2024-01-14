@@ -1,11 +1,13 @@
 use std::path::Path;
 
 use anyhow::Result;
+use sdl2::render::RenderTarget;
 
 use crate::{
     constants::{IDLE_TIME, PLAYER_FRAMES_PER_FRAME, SUBPIXELS},
     imagemanager::ImageManager,
-    sprite::{AnimationStateMachine, SpriteBatch, SpriteSheet},
+    rendercontext::{RenderContext, RenderLayer},
+    sprite::{AnimationStateMachine, SpriteSheet},
     utils::{Direction, Point, Rect},
 };
 
@@ -19,8 +21,8 @@ enum PlayerState {
 }
 
 pub struct Player<'a> {
-    x: i32,
-    y: i32,
+    pub x: i32,
+    pub y: i32,
     dx: i32,
     dy: i32,
     facing_right: bool,
@@ -36,7 +38,7 @@ pub struct Player<'a> {
 }
 
 impl<'a> Player<'a> {
-    fn new<'b>(images: &ImageManager<'b>) -> Result<Player<'b>> {
+    pub fn new<'b>(images: &ImageManager<'b>) -> Result<Player<'b>> {
         let sprite = images.load_spritesheet(Path::new("assets/sprites/skelly2.png"), 24, 24)?;
         let animation_state_machine =
             AnimationStateMachine::from_file(Path::new("assets/sprites/skelly2_states.txt"))?;
@@ -111,7 +113,7 @@ impl<'a> Player<'a> {
         Ok(())
     }
 
-    fn draw(&self, batch: &mut SpriteBatch, pos: Point) {
+    fn draw(&self, context: &'a mut RenderContext<'a>, layer: RenderLayer, pos: Point) {
         let dest = Rect {
             x: pos.x(),
             y: pos.y(),
@@ -120,7 +122,7 @@ impl<'a> Player<'a> {
         };
 
         self.sprite
-            .blit(batch, dest, self.frame, 0, !self.facing_right);
+            .blit(context, layer, dest, self.frame, 0, !self.facing_right);
     }
 
     fn get_raw_target_bounds(&self, direction: Direction) -> (i32, i32, i32, i32) {

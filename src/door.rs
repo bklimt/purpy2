@@ -1,10 +1,12 @@
 use std::path::Path;
 
 use anyhow::Result;
+use sdl2::render::RenderTarget;
 
 use crate::constants::{DOOR_CLOSING_FRAMES, DOOR_SPEED, DOOR_UNLOCKING_FRAMES, SUBPIXELS};
 use crate::imagemanager::ImageManager;
-use crate::sprite::{SpriteBatch, SpriteSheet};
+use crate::rendercontext::{RenderContext, RenderLayer};
+use crate::sprite::SpriteSheet;
 use crate::tilemap::MapObject;
 use crate::utils::{intersect, Point, Rect};
 
@@ -37,17 +39,18 @@ pub struct Door<'a> {
 }
 
 impl<'a> Door<'a> {
-    pub fn new<'b>(obj: MapObject, images: ImageManager<'b>) -> Result<Door<'b>> {
+    pub fn new<'b>(obj: &MapObject, images: &ImageManager<'b>) -> Result<Door<'b>> {
         let sprite_path = obj
             .properties
             .sprite
+            .clone()
             .unwrap_or_else(|| "assets/sprites/door.png".to_owned());
 
         let sprite = images.load_spritesheet(Path::new(&sprite_path), 32, 32)?;
         let x = obj.position.x * SUBPIXELS;
         let y = obj.position.y * SUBPIXELS;
         let active = false;
-        let destination = obj.properties.destination;
+        let destination = obj.properties.destination.clone();
         let stars_needed = obj.properties.stars_needed;
         let stars_remaining = stars_needed;
         let state = if stars_needed > 0 {
@@ -94,7 +97,13 @@ impl<'a> Door<'a> {
         self.frame = 0;
     }
 
-    fn draw_background(&self, batch: &mut SpriteBatch, offset: Point, images: &ImageManager) {
+    fn draw_background<T: RenderTarget>(
+        &self,
+        context: &'a mut RenderContext<'a>,
+        layer: RenderLayer,
+        offset: Point,
+        images: &'a ImageManager,
+    ) {
         let x = self.x + offset.x();
         let y = self.y + offset.y();
         let dest = Rect {
@@ -103,28 +112,39 @@ impl<'a> Door<'a> {
             w: 32 * SUBPIXELS,
             h: 32 * SUBPIXELS,
         };
-        let layer = if self.active {
+        let door_layer = if self.active {
             DoorLayer::Active
         } else {
             DoorLayer::Inactive
         } as u32;
-        self.sprite.blit(batch, dest, 0, layer, false);
+        self.sprite.blit(context, layer, dest, 0, door_layer, false);
         if let Some(locked_index) = match self.state {
             DoorState::Locked => Some(0),
             DoorState::Unlocking => Some(self.frame / DOOR_SPEED),
             _ => None,
         } {
-            self.sprite
-                .blit(batch, dest, locked_index, DoorLayer::Locked as u32, false);
+            self.sprite.blit(
+                context,
+                layer,
+                dest,
+                locked_index,
+                DoorLayer::Locked as u32,
+                false,
+            );
         }
         if self.stars_remaining > 0 {
             let s = format!("{:02}", self.stars_remaining);
             let pos = Point::new(x + 8 * SUBPIXELS, y + 12 * SUBPIXELS);
-            images.font().draw_string(batch, pos, &s);
+            images.font().draw_string(context, layer, pos, &s);
         }
     }
 
-    fn draw_foreground(&self, batch: &mut SpriteBatch, offset: Point) {
+    fn draw_foreground(
+        &self,
+        context: &'a mut RenderContext<'a>,
+        layer: RenderLayer,
+        offset: Point,
+    ) {
         let x = self.x + offset.x();
         let y = self.y + offset.y();
         let dest = Rect {
@@ -138,11 +158,17 @@ impl<'a> Door<'a> {
             DoorState::Closed => Some(DOOR_CLOSING_FRAMES - 1),
             _ => None,
         } {
-            self.sprite
-                .blit(batch, dest, door_index, DoorLayer::Doors as u32, false);
+            self.sprite.blit(
+                context,
+                layer,
+                dest,
+                door_index,
+                DoorLayer::Doors as u32,
+                false,
+            );
         }
         self.sprite
-            .blit(batch, dest, DoorLayer::Frame as u32, 0, false);
+            .blit(context, layer, dest, DoorLayer::Frame as u32, 0, false);
     }
 
     fn is_inside(&self, player_rect: Rect) -> bool {

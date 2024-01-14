@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::rc::Rc;
 
 use anyhow::{Context, Result};
 use rand::random;
@@ -8,22 +9,25 @@ use crate::constants::{
     BUTTON_MAX_LEVEL, SPRING_SPEED, SPRING_STALL_FRAMES, SPRING_STEPS, SUBPIXELS,
 };
 use crate::imagemanager::ImageManager;
+use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::soundmanager::SoundManager;
-use crate::sprite::{SpriteBatch, SpriteSheet};
+use crate::sprite::SpriteSheet;
 use crate::switchstate::SwitchState;
 use crate::tilemap::{ButtonType, ConveyorDirection, MapObject, Overflow};
 use crate::tileset::{TileIndex, TileSet};
 use crate::utils::{sign, try_move_to_bounds, Direction, Point, Rect};
 
-pub trait Platform {
+pub trait Platform<'a> {
     fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager);
-    fn draw(&self, batch: &mut SpriteBatch, offset: Point);
+    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
+    where
+        'b: 'a;
     fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32;
 }
 
 struct PlatformBase<'a> {
     id: i32,
-    tileset: &'a TileSet<'a>,
+    tileset: Rc<TileSet<'a>>,
     tile_id: TileIndex,
     position: Rect,
     dx: i32,
@@ -33,7 +37,7 @@ struct PlatformBase<'a> {
 }
 
 impl<'a> PlatformBase<'a> {
-    pub fn new<'b>(obj: MapObject, tileset: &'b TileSet<'b>) -> Result<PlatformBase<'b>> {
+    fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<PlatformBase<'b>> {
         Ok(PlatformBase {
             id: obj.id,
             tileset: tileset,
@@ -46,15 +50,18 @@ impl<'a> PlatformBase<'a> {
         })
     }
 
-    fn draw(&self, batch: &mut SpriteBatch, offset: Point) {
+    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
+    where
+        'b: 'a,
+    {
         let x = self.position.x + offset.x();
         let y = self.position.y + offset.y();
         let dest = self.position;
         if let Some(anim) = self.tileset.animations.get(&self.tile_id) {
-            anim.blit(batch, dest, false);
+            anim.blit(context, layer, dest, false);
         } else {
             let src = self.tileset.get_source_rect(self.tile_id);
-            batch.draw(&self.tileset.sprite, Some(dest), Some(src));
+            context.draw(&self.tileset.sprite, layer, dest, src);
         }
     }
 
@@ -94,7 +101,7 @@ pub struct MovingPlatform<'a> {
 }
 
 impl<'a> MovingPlatform<'a> {
-    fn new<'b>(mut obj: MapObject, tileset: &'b TileSet<'b>) -> Result<MovingPlatform<'b>> {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<MovingPlatform<'b>> {
         let (dist_mult, dx, dy) = match obj.properties.direction {
             Direction::Up => (tileset.tileheight, 0, -obj.properties.distance),
             Direction::Down => (tileset.tileheight, 0, obj.properties.distance),
@@ -114,7 +121,7 @@ impl<'a> MovingPlatform<'a> {
         let end_x = start_x + dx;
         let end_y = start_y + dy;
         let moving_forward = true;
-        let condition = obj.properties.condition.take();
+        let condition = obj.properties.condition.clone();
         let overflow = obj.properties.overflow;
 
         Ok(MovingPlatform {
@@ -133,7 +140,7 @@ impl<'a> MovingPlatform<'a> {
     }
 }
 
-impl<'a> Platform for MovingPlatform<'a> {
+impl<'a> Platform<'a> for MovingPlatform<'a> {
     fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
         if let Some(condition) = self.condition.as_deref() {
             if !switches.is_condition_true(&condition) {
@@ -241,8 +248,11 @@ impl<'a> Platform for MovingPlatform<'a> {
         self.base.position.y += self.base.dy;
     }
 
-    fn draw(&self, batch: &mut SpriteBatch, offset: Point) {
-        self.base.draw(batch, offset)
+    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
+    where
+        'b: 'a,
+    {
+        self.base.draw(context, layer, offset)
     }
 
     fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
@@ -258,7 +268,7 @@ pub struct Bagel<'a> {
 }
 
 impl<'a> Bagel<'a> {
-    fn new<'b>(obj: MapObject, tileset: &'b TileSet<'b>) -> Result<Bagel<'b>> {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Bagel<'b>> {
         let base = PlatformBase::new(obj, tileset)?;
         let original_y = base.position.y;
         Ok(Bagel {
@@ -270,8 +280,11 @@ impl<'a> Bagel<'a> {
     }
 }
 
-impl<'a> Platform for Bagel<'a> {
-    fn draw(&self, batch: &mut SpriteBatch, offset: Point) {
+impl<'a> Platform<'a> for Bagel<'a> {
+    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
+    where
+        'b: 'a,
+    {
         let mut x = self.base.position.x + offset.x;
         let mut y = self.base.position.y + offset.y;
         let area = self.base.tileset.get_source_rect(self.base.tile_id);
@@ -285,7 +298,7 @@ impl<'a> Platform for Bagel<'a> {
             w: area.w * SUBPIXELS,
             h: area.h * SUBPIXELS,
         };
-        batch.draw(&self.base.tileset.sprite, Some(rect), Some(area));
+        context.draw(&self.base.tileset.sprite, layer, rect, area);
     }
 
     fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
@@ -325,10 +338,14 @@ pub struct Conveyor<'a> {
 }
 
 impl<'a> Conveyor<'a> {
-    fn new<'b>(obj: MapObject, tileset: &'b TileSet<'b>) -> Result<Conveyor<'b>> {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Conveyor<'b>> {
         // This is hand-tuned.
         let speed = (obj.properties.speed.unwrap_or(24) * SUBPIXELS) / 16;
-        let dx = match obj.properties.convey {
+        let dx = match obj
+            .properties
+            .convey
+            .expect("conveyor does not have convey property")
+        {
             ConveyorDirection::Left => -1 * speed,
             ConveyorDirection::Right => speed,
         };
@@ -338,8 +355,13 @@ impl<'a> Conveyor<'a> {
     }
 }
 
-impl<'a> Platform for Conveyor<'a> {
-    fn draw(&self, batch: &mut SpriteBatch, offset: Point) {}
+impl<'a> Platform<'a> for Conveyor<'a> {
+    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
+    where
+        'b: 'a,
+    {
+        self.base.draw(context, layer, offset);
+    }
 
     fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {}
 
@@ -357,9 +379,9 @@ pub struct Spring<'a> {
 }
 
 impl<'a> Spring<'a> {
-    fn new<'b>(
-        obj: MapObject,
-        tileset: &'b TileSet<'b>,
+    pub fn new<'b>(
+        obj: &MapObject,
+        tileset: Rc<TileSet<'b>>,
         images: &'b ImageManager,
     ) -> Result<Spring<'b>> {
         let path = Path::new("assets/sprites/spring.png");
@@ -383,8 +405,11 @@ impl<'a> Spring<'a> {
     }
 }
 
-impl<'a> Platform for Spring<'a> {
-    fn draw(&self, batch: &mut SpriteBatch, offset: Point) {
+impl<'a> Platform<'a> for Spring<'a> {
+    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
+    where
+        'b: 'a,
+    {
         let x = self.base.position.x + offset.x;
         let y = self.base.position.y + offset.y;
         let dest = Rect {
@@ -393,7 +418,8 @@ impl<'a> Platform for Spring<'a> {
             w: self.base.position.w,
             h: self.base.position.h,
         };
-        self.sprite.blit(batch, dest, self.frame() as u32, 0, false);
+        self.sprite
+            .blit(context, layer, dest, self.frame() as u32, 0, false);
     }
 
     fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
@@ -457,7 +483,7 @@ impl<'a> Platform for Spring<'a> {
     }
 }
 
-struct Button<'a> {
+pub struct Button<'a> {
     base: PlatformBase<'a>,
     sprite: SpriteSheet<'a>,
     level: u32,
@@ -474,9 +500,9 @@ fn get_button_image_path(color: &str) -> String {
 }
 
 impl<'a> Button<'a> {
-    fn new<'b>(
-        obj: MapObject,
-        tileset: &'b TileSet<'b>,
+    pub fn new<'b>(
+        obj: &MapObject,
+        tileset: Rc<TileSet<'b>>,
         images: &'b ImageManager<'b>,
     ) -> Result<Button<'b>> {
         let level = 0;
@@ -510,8 +536,11 @@ impl<'a> Button<'a> {
     }
 }
 
-impl<'a> Platform for Button<'a> {
-    fn draw(&self, batch: &mut SpriteBatch, offset: Point) {
+impl<'a> Platform<'a> for Button<'a> {
+    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
+    where
+        'b: 'a,
+    {
         let x = self.base.position.x + offset.x;
         let y = self.original_y + offset.y();
         let dest = Rect {
@@ -521,7 +550,7 @@ impl<'a> Platform for Button<'a> {
             h: self.base.position.h,
         };
         self.sprite
-            .blit(batch, dest, self.level / BUTTON_DELAY, 0, false);
+            .blit(context, layer, dest, self.level / BUTTON_DELAY, 0, false);
     }
 
     fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
