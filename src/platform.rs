@@ -1,3 +1,4 @@
+use std::mem;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -17,20 +18,15 @@ use crate::tilemap::{ButtonType, ConveyorDirection, MapObject, Overflow};
 use crate::tileset::{TileIndex, TileSet};
 use crate::utils::{sign, try_move_to_bounds, Direction, Point, Rect};
 
-pub trait Platform<'a> {
-    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager);
-    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
-    where
-        'b: 'a;
-    fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32;
-
-    fn is_solid(&self) -> bool;
-    fn dx(&self) -> i32;
-    fn dy(&self) -> i32;
-    fn set_occupied(&mut self, occupied: bool);
+pub enum PlatformType<'a> {
+    MovingPlatform(MovingPlatform),
+    Bagel(Bagel),
+    Conveyor(Conveyor),
+    Spring(Spring<'a>),
+    Button(Button<'a>),
 }
 
-struct PlatformBase<'a> {
+pub struct Platform<'a> {
     id: i32,
     tileset: Rc<TileSet<'a>>,
     tile_id: TileIndex,
@@ -39,11 +35,16 @@ struct PlatformBase<'a> {
     dy: i32,
     solid: bool,
     occupied: bool,
+    pub subtype: PlatformType<'a>,
 }
 
-impl<'a> PlatformBase<'a> {
-    fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<PlatformBase<'b>> {
-        Ok(PlatformBase {
+impl<'a> Platform<'a> {
+    fn new<'b>(
+        obj: &MapObject,
+        tileset: Rc<TileSet<'b>>,
+        subtype: PlatformType<'b>,
+    ) -> Result<Platform<'b>> {
+        Ok(Platform {
             id: obj.id,
             tileset: tileset,
             tile_id: obj.gid.context("gid required for platforms")? as TileIndex - 1,
@@ -52,25 +53,48 @@ impl<'a> PlatformBase<'a> {
             dy: 0,
             solid: obj.properties.solid,
             occupied: false,
+            subtype,
         })
     }
 
-    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
+    pub fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
+        // Temporarily swap out the subtype so we can pass both it and self as &mut.
+        // Conveyor is just a subtype that is trivial to construct.
+        let mut subtype = mem::replace(&mut self.subtype, PlatformType::Conveyor(Conveyor(())));
+        match &mut subtype {
+            PlatformType::MovingPlatform(platform) => platform.update(self, switches, sounds),
+            PlatformType::Bagel(bagel) => bagel.update(self, switches, sounds),
+            PlatformType::Conveyor(_) => {}
+            PlatformType::Spring(spring) => spring.update(self, switches, sounds),
+            PlatformType::Button(button) => button.update(self, switches, sounds),
+            _ => unimplemented!(),
+        }
+        self.subtype = subtype;
+    }
+
+    pub fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
     where
         'b: 'a,
     {
-        let x = self.position.x + offset.x();
-        let y = self.position.y + offset.y();
-        let dest = self.position;
-        if let Some(anim) = self.tileset.animations.get(&self.tile_id) {
-            anim.blit(context, layer, dest, false);
-        } else {
-            let src = self.tileset.get_source_rect(self.tile_id);
-            context.draw(&self.tileset.sprite, layer, dest, src);
+        match &self.subtype {
+            PlatformType::Bagel(bagel) => bagel.draw(self, context, layer, offset),
+            PlatformType::Spring(spring) => spring.draw(self, context, layer, offset),
+            PlatformType::Button(button) => button.draw(self, context, layer, offset),
+            _ => {
+                let x = self.position.x + offset.x();
+                let y = self.position.y + offset.y();
+                let dest = self.position;
+                if let Some(anim) = self.tileset.animations.get(&self.tile_id) {
+                    anim.blit(context, layer, dest, false);
+                } else {
+                    let src = self.tileset.get_source_rect(self.tile_id);
+                    context.draw(&self.tileset.sprite, layer, dest, src);
+                }
+            }
         }
     }
 
-    fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
+    pub fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
         let area = if self.solid {
             self.position
         } else {
@@ -90,22 +114,21 @@ impl<'a> PlatformBase<'a> {
         try_move_to_bounds(player_rect, area, direction)
     }
 
-    fn is_solid(&self) -> bool {
+    pub fn is_solid(&self) -> bool {
         self.solid
     }
-    fn dx(&self) -> i32 {
+    pub fn dx(&self) -> i32 {
         self.dx
     }
-    fn dy(&self) -> i32 {
+    pub fn dy(&self) -> i32 {
         self.dy
     }
-    fn set_occupied(&mut self, occupied: bool) {
+    pub fn set_occupied(&mut self, occupied: bool) {
         self.occupied = occupied;
     }
 }
 
-pub struct MovingPlatform<'a> {
-    base: PlatformBase<'a>,
+pub struct MovingPlatform {
     direction: Direction,
     distance: i32,
     speed: i32,
@@ -118,8 +141,8 @@ pub struct MovingPlatform<'a> {
     overflow: Overflow,
 }
 
-impl<'a> MovingPlatform<'a> {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<MovingPlatform<'b>> {
+impl MovingPlatform {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Platform<'b>> {
         let (dist_mult, dx, dy) = match obj.properties.direction {
             Direction::Up => (tileset.tileheight, 0, -obj.properties.distance),
             Direction::Down => (tileset.tileheight, 0, obj.properties.distance),
@@ -142,8 +165,7 @@ impl<'a> MovingPlatform<'a> {
         let condition = obj.properties.condition.clone();
         let overflow = obj.properties.overflow;
 
-        Ok(MovingPlatform {
-            base: PlatformBase::new(obj, tileset)?,
+        let moving_platform = MovingPlatform {
             direction,
             speed,
             distance,
@@ -154,91 +176,92 @@ impl<'a> MovingPlatform<'a> {
             moving_forward,
             condition,
             overflow,
-        })
+        };
+        Ok(Platform::new(
+            obj,
+            tileset,
+            PlatformType::MovingPlatform(moving_platform),
+        )?)
     }
-}
 
-impl<'a> Platform<'a> for MovingPlatform<'a> {
-    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
+    fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, sounds: &SoundManager) {
         if let Some(condition) = self.condition.as_deref() {
             if !switches.is_condition_true(&condition) {
                 self.moving_forward = false;
-                if self.base.position.x == self.start_x && self.base.position.y == self.start_y {
-                    self.base.dx = 0;
-                    self.base.dy = 0;
+                if base.position.x == self.start_x && base.position.y == self.start_y {
+                    base.dx = 0;
+                    base.dy = 0;
                     return;
                 }
             }
         }
 
-        self.base.dx = sign(self.end_x - self.start_x) * self.speed;
-        self.base.dy = sign(self.end_y - self.start_y) * self.speed;
+        base.dx = sign(self.end_x - self.start_x) * self.speed;
+        base.dy = sign(self.end_y - self.start_y) * self.speed;
         if self.moving_forward {
             match self.direction {
                 Direction::Up => {
-                    if self.base.position.y <= self.end_y {
+                    if base.position.y <= self.end_y {
                         match self.overflow {
-                            Overflow::Wrap => self.base.position.y += self.distance,
+                            Overflow::Wrap => base.position.y += self.distance,
                             Overflow::Clamp => {
-                                self.base.dy = 0;
-                                self.base.position.y = self.end_y + 1;
+                                base.dy = 0;
+                                base.position.y = self.end_y + 1;
                             }
                             Overflow::Oscillate => {
-                                self.base.dy *= -1;
+                                base.dy *= -1;
                                 self.moving_forward = false;
                             }
                         }
                     }
                 }
                 Direction::Down => {
-                    if self.base.position.y >= self.end_y {
+                    if base.position.y >= self.end_y {
                         match self.overflow {
                             Overflow::Wrap => {
-                                self.base.position.y =
-                                    self.start_y + (self.end_y - self.base.position.y)
+                                base.position.y = self.start_y + (self.end_y - base.position.y)
                             }
 
                             Overflow::Clamp => {
-                                self.base.dy = 0;
-                                self.base.position.y = self.end_y - 1;
+                                base.dy = 0;
+                                base.position.y = self.end_y - 1;
                             }
                             Overflow::Oscillate => {
-                                self.base.dy *= -1;
+                                base.dy *= -1;
                                 self.moving_forward = false;
                             }
                         }
                     }
                 }
                 Direction::Left => {
-                    if self.base.position.x <= self.end_x {
+                    if base.position.x <= self.end_x {
                         match self.overflow {
-                            Overflow::Wrap => self.base.position.x += self.distance,
+                            Overflow::Wrap => base.position.x += self.distance,
 
                             Overflow::Clamp => {
-                                self.base.dx = 0;
-                                self.base.position.x = self.end_x + 1;
+                                base.dx = 0;
+                                base.position.x = self.end_x + 1;
                             }
                             Overflow::Oscillate => {
-                                self.base.dx *= -1;
+                                base.dx *= -1;
                                 self.moving_forward = false;
                             }
                         }
                     }
                 }
                 Direction::Right => {
-                    if self.base.position.x >= self.end_x {
+                    if base.position.x >= self.end_x {
                         match self.overflow {
                             Overflow::Wrap => {
-                                self.base.position.x =
-                                    self.start_x + (self.end_x - self.base.position.x)
+                                base.position.x = self.start_x + (self.end_x - base.position.x)
                             }
 
                             Overflow::Clamp => {
-                                self.base.dx = 0;
-                                self.base.position.x = self.end_x - 1;
+                                base.dx = 0;
+                                base.position.x = self.end_x - 1;
                             }
                             Overflow::Oscillate => {
-                                self.base.dx *= -1;
+                                base.dx *= -1;
                                 self.moving_forward = false;
                             }
                         }
@@ -249,77 +272,54 @@ impl<'a> Platform<'a> for MovingPlatform<'a> {
         } else {
             // If must be oscillating.
             let at_start = match self.direction {
-                Direction::Up => self.base.position.y >= self.start_y,
-                Direction::Down => self.base.position.y <= self.start_y,
-                Direction::Left => self.base.position.x >= self.start_x,
-                Direction::Right => self.base.position.x <= self.start_x,
+                Direction::Up => base.position.y >= self.start_y,
+                Direction::Down => base.position.y <= self.start_y,
+                Direction::Left => base.position.x >= self.start_x,
+                Direction::Right => base.position.x <= self.start_x,
                 Direction::None => panic!("platform direction cannot be none"),
             };
             if at_start {
                 self.moving_forward = true;
             } else {
-                self.base.dx *= -1;
-                self.base.dy *= -1;
+                base.dx *= -1;
+                base.dy *= -1;
             }
         }
-        self.base.position.x += self.base.dx;
-        self.base.position.y += self.base.dy;
-    }
-
-    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
-    where
-        'b: 'a,
-    {
-        self.base.draw(context, layer, offset)
-    }
-
-    fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
-        self.base.try_move_to(player_rect, direction, is_backwards)
-    }
-
-    fn is_solid(&self) -> bool {
-        self.base.is_solid()
-    }
-    fn dx(&self) -> i32 {
-        self.base.dx
-    }
-    fn dy(&self) -> i32 {
-        self.base.dy
-    }
-    fn set_occupied(&mut self, occupied: bool) {
-        self.base.set_occupied(occupied);
+        base.position.x += base.dx;
+        base.position.y += base.dy;
     }
 }
 
-pub struct Bagel<'a> {
-    base: PlatformBase<'a>,
+pub struct Bagel {
     original_y: i32,
     falling: bool,
     remaining: i32,
 }
 
-impl<'a> Bagel<'a> {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Bagel<'b>> {
-        let base = PlatformBase::new(obj, tileset)?;
-        let original_y = base.position.y;
-        Ok(Bagel {
-            base,
+impl Bagel {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Platform<'b>> {
+        let original_y = obj.position.y;
+        let bagel = Bagel {
             original_y,
             falling: false,
             remaining: BAGEL_WAIT_TIME,
-        })
+        };
+        Ok(Platform::new(obj, tileset, PlatformType::Bagel(bagel))?)
     }
-}
 
-impl<'a> Platform<'a> for Bagel<'a> {
-    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
-    where
+    fn draw<'a, 'b>(
+        &self,
+        base: &Platform<'a>,
+        context: &'b mut RenderContext<'a>,
+        layer: RenderLayer,
+        offset: Point,
+    ) where
         'b: 'a,
     {
-        let mut x = self.base.position.x + offset.x;
-        let mut y = self.base.position.y + offset.y;
-        let area = self.base.tileset.get_source_rect(self.base.tile_id);
-        if self.base.occupied {
+        let mut x = base.position.x + offset.x;
+        let mut y = base.position.y + offset.y;
+        let area = base.tileset.get_source_rect(base.tile_id);
+        if base.occupied {
             x += (random::<u8>() % 3) as i32 - 1;
             y += (random::<u8>() % 3) as i32 - 1;
         }
@@ -329,60 +329,41 @@ impl<'a> Platform<'a> for Bagel<'a> {
             w: area.w * SUBPIXELS,
             h: area.h * SUBPIXELS,
         };
-        context.draw(&self.base.tileset.sprite, layer, rect, area);
+        context.draw(&base.tileset.sprite, layer, rect, area);
     }
 
-    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
+    fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, sounds: &SoundManager) {
         if self.falling {
             self.remaining -= 1;
             if self.remaining == 0 {
-                self.base.dy = 0;
-                self.base.position.y = self.original_y;
+                base.dy = 0;
+                base.position.y = self.original_y;
                 self.falling = false;
                 self.remaining = BAGEL_WAIT_TIME;
             } else {
-                self.base.dy += BAGEL_GRAVITY_ACCELERATION;
-                self.base.dy = self.base.dy.max(BAGEL_MAX_GRAVITY);
-                self.base.position.y += self.base.dy;
+                base.dy += BAGEL_GRAVITY_ACCELERATION;
+                base.dy = base.dy.max(BAGEL_MAX_GRAVITY);
+                base.position.y += base.dy;
             }
         } else {
-            if self.base.occupied {
+            if base.occupied {
                 self.remaining -= 1;
                 if self.remaining == 0 {
                     self.falling = true;
                     self.remaining = BAGEL_FALL_TIME;
-                    self.base.dy = 0;
+                    base.dy = 0;
                 }
             } else {
                 self.remaining = BAGEL_WAIT_TIME;
             }
         }
     }
-
-    fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
-        self.base.try_move_to(player_rect, direction, is_backwards)
-    }
-
-    fn is_solid(&self) -> bool {
-        self.base.is_solid()
-    }
-    fn dx(&self) -> i32 {
-        self.base.dx
-    }
-    fn dy(&self) -> i32 {
-        self.base.dy
-    }
-    fn set_occupied(&mut self, occupied: bool) {
-        self.base.set_occupied(occupied);
-    }
 }
 
-pub struct Conveyor<'a> {
-    base: PlatformBase<'a>,
-}
+pub struct Conveyor(());
 
-impl<'a> Conveyor<'a> {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Conveyor<'b>> {
+impl Conveyor {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Platform<'b>> {
         // This is hand-tuned.
         let speed = (obj.properties.speed.unwrap_or(24) * SUBPIXELS) / 16;
         let dx = match obj
@@ -393,46 +374,19 @@ impl<'a> Conveyor<'a> {
             ConveyorDirection::Left => -1 * speed,
             ConveyorDirection::Right => speed,
         };
-        let mut base = PlatformBase::new(obj, tileset)?;
+
+        let mut base = Platform::new(obj, tileset, PlatformType::Conveyor(Conveyor(())))?;
         base.dx = dx;
-        Ok(Conveyor { base: base })
-    }
-}
-
-impl<'a> Platform<'a> for Conveyor<'a> {
-    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
-    where
-        'b: 'a,
-    {
-        self.base.draw(context, layer, offset);
-    }
-
-    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {}
-
-    fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
-        self.base.try_move_to(player_rect, direction, is_backwards)
-    }
-
-    fn is_solid(&self) -> bool {
-        self.base.is_solid()
-    }
-    fn dx(&self) -> i32 {
-        self.base.dx
-    }
-    fn dy(&self) -> i32 {
-        self.base.dy
-    }
-    fn set_occupied(&mut self, occupied: bool) {
-        self.base.set_occupied(occupied);
+        Ok(base)
     }
 }
 
 pub struct Spring<'a> {
-    base: PlatformBase<'a>,
     sprite: SpriteSheet<'a>,
     up: bool,
     pos: i32,
     stall_counter: i32,
+    pub launch: bool,
 }
 
 impl<'a> Spring<'a> {
@@ -440,67 +394,73 @@ impl<'a> Spring<'a> {
         obj: &MapObject,
         tileset: Rc<TileSet<'b>>,
         images: &'b ImageManager,
-    ) -> Result<Spring<'b>> {
+    ) -> Result<Platform<'b>> {
         let path = Path::new("assets/sprites/spring.png");
         let sprite = images.load_spritesheet(path, 8, 8)?;
-        let mut base = PlatformBase::new(obj, tileset)?;
-        Ok(Spring {
-            base,
+        let spring = Spring {
             sprite,
             up: false,
             pos: 0,
             stall_counter: SPRING_STALL_FRAMES,
-        })
+            launch: false,
+        };
+        Ok(Platform::new(obj, tileset, PlatformType::Spring(spring))?)
     }
 
     fn frame(&self) -> i32 {
         self.pos / SUBPIXELS
     }
 
-    fn should_boost(&self) -> bool {
+    pub fn should_boost(&self) -> bool {
         self.up || (self.frame() == SPRING_STEPS - 1)
     }
-}
 
-impl<'a> Platform<'a> for Spring<'a> {
-    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
-    where
+    fn draw<'b>(
+        &self,
+        base: &Platform<'a>,
+        context: &'b mut RenderContext<'a>,
+        layer: RenderLayer,
+        offset: Point,
+    ) where
         'b: 'a,
     {
-        let x = self.base.position.x + offset.x;
-        let y = self.base.position.y + offset.y;
+        let x = base.position.x + offset.x;
+        let y = base.position.y + offset.y;
         let dest = Rect {
             x,
             y,
-            w: self.base.position.w,
-            h: self.base.position.h,
+            w: base.position.w,
+            h: base.position.h,
         };
         self.sprite
             .blit(context, layer, dest, self.frame() as u32, 0, false);
     }
 
-    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
-        self.base.dx = 0;
-        self.base.dy = 0;
-        if !self.base.occupied {
+    fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, sounds: &SoundManager) {
+        base.dx = 0;
+        base.dy = 0;
+        self.launch = false;
+        if !base.occupied {
             self.stall_counter = SPRING_STALL_FRAMES;
             self.up = false;
             if self.pos > 0 {
                 self.pos -= SPRING_SPEED;
-                self.base.dy = -SPRING_SPEED;
+                base.dy = -SPRING_SPEED;
             }
         } else {
             if self.up {
                 self.stall_counter = SPRING_STALL_FRAMES;
                 if self.pos > 0 {
                     self.pos -= SPRING_SPEED;
-                    self.base.dy = -SPRING_SPEED;
+                    base.dy = -SPRING_SPEED;
+                } else {
+                    self.launch = true;
                 }
             } else {
                 if self.pos < (SPRING_STEPS * SUBPIXELS) - SPRING_SPEED {
                     self.stall_counter = SPRING_STALL_FRAMES;
                     self.pos += SPRING_SPEED;
-                    self.base.dy = SPRING_SPEED;
+                    base.dy = SPRING_SPEED;
                 } else {
                     if self.stall_counter > 0 {
                         self.stall_counter -= 1;
@@ -513,13 +473,19 @@ impl<'a> Platform<'a> for Spring<'a> {
         }
     }
 
-    fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
-        if self.base.solid {
+    fn try_move_to(
+        &self,
+        base: &mut Platform,
+        player_rect: Rect,
+        direction: Direction,
+        is_backwards: bool,
+    ) -> i32 {
+        if base.solid {
             let area = Rect {
-                x: self.base.position.x,
-                y: self.base.position.y + self.pos,
-                w: self.base.position.w,
-                h: self.base.position.h - self.pos,
+                x: base.position.x,
+                y: base.position.y + self.pos,
+                w: base.position.w,
+                h: base.position.h - self.pos,
             };
             try_move_to_bounds(player_rect, area, direction)
         } else {
@@ -530,31 +496,17 @@ impl<'a> Platform<'a> for Spring<'a> {
                 return 0;
             }
             let area = Rect {
-                x: self.base.position.x,
-                y: self.base.position.y + self.pos,
-                w: self.base.position.w,
-                h: self.base.position.h / 2,
+                x: base.position.x,
+                y: base.position.y + self.pos,
+                w: base.position.w,
+                h: base.position.h / 2,
             };
             try_move_to_bounds(player_rect, area, direction)
         }
     }
-
-    fn is_solid(&self) -> bool {
-        self.base.is_solid()
-    }
-    fn dx(&self) -> i32 {
-        self.base.dx
-    }
-    fn dy(&self) -> i32 {
-        self.base.dy
-    }
-    fn set_occupied(&mut self, occupied: bool) {
-        self.base.set_occupied(occupied);
-    }
 }
 
 pub struct Button<'a> {
-    base: PlatformBase<'a>,
     sprite: SpriteSheet<'a>,
     level: u32,
     original_y: i32,
@@ -574,7 +526,7 @@ impl<'a> Button<'a> {
         obj: &MapObject,
         tileset: Rc<TileSet<'b>>,
         images: &'b ImageManager<'b>,
-    ) -> Result<Button<'b>> {
+    ) -> Result<Platform<'b>> {
         let level = 0;
         let clicked = false;
         let was_occupied = false;
@@ -588,13 +540,8 @@ impl<'a> Button<'a> {
         let sprite = images.load_spritesheet(Path::new(&image_path), 8, 8)?;
         let button_type = obj.properties.button_type;
 
-        let mut base = PlatformBase::new(obj, tileset)?;
-        let original_y = base.position.y;
-        // Move down by a whole pixel while on a button.
-        base.dy = SUBPIXELS;
-
-        Ok(Button {
-            base,
+        let original_y = obj.position.y;
+        let button = Button {
             sprite,
             level,
             original_y,
@@ -602,35 +549,43 @@ impl<'a> Button<'a> {
             button_type,
             was_occupied,
             color,
-        })
-    }
-}
+        };
 
-impl<'a> Platform<'a> for Button<'a> {
-    fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
-    where
+        let mut base = Platform::new(obj, tileset, PlatformType::Button(button))?;
+        // Move down by a whole pixel while on a button.
+        base.dy = SUBPIXELS;
+        Ok(base)
+    }
+
+    fn draw<'b>(
+        &self,
+        base: &Platform<'a>,
+        context: &'b mut RenderContext<'a>,
+        layer: RenderLayer,
+        offset: Point,
+    ) where
         'b: 'a,
     {
-        let x = self.base.position.x + offset.x;
+        let x = base.position.x + offset.x;
         let y = self.original_y + offset.y();
         let dest = Rect {
             x,
             y,
-            w: self.base.position.w,
-            h: self.base.position.h,
+            w: base.position.w,
+            h: base.position.h,
         };
         self.sprite
             .blit(context, layer, dest, self.level / BUTTON_DELAY, 0, false);
     }
 
-    fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
+    fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, sounds: &SoundManager) {
         let was_clicked = self.clicked;
 
         if matches!(self.button_type, ButtonType::Smart) {
             self.clicked = switches.is_condition_true(&self.color);
         }
 
-        if self.base.occupied && !self.was_occupied {
+        if base.occupied && !self.was_occupied {
             self.clicked = match self.button_type {
                 ButtonType::OneShot | ButtonType::Smart => true,
                 ButtonType::Toggle => !self.clicked,
@@ -638,10 +593,10 @@ impl<'a> Platform<'a> for Button<'a> {
             };
         }
 
-        self.was_occupied = self.base.occupied;
+        self.was_occupied = base.occupied;
 
         if matches!(self.button_type, ButtonType::Momentary) {
-            self.clicked = self.base.occupied;
+            self.clicked = base.occupied;
         }
 
         if self.clicked {
@@ -654,35 +609,17 @@ impl<'a> Platform<'a> for Button<'a> {
             }
         }
 
-        self.base.position.y =
-            self.original_y + ((self.level * SUBPIXELS as u32) / BUTTON_DELAY) as i32;
+        base.position.y = self.original_y + ((self.level * SUBPIXELS as u32) / BUTTON_DELAY) as i32;
 
         if self.clicked != was_clicked {
             // sounds.play(Sound.CLICK);
             if matches!(self.button_type, ButtonType::Smart) {
-                if self.clicked && self.base.occupied {
+                if self.clicked && base.occupied {
                     switches.apply_command(&self.color);
                 }
             } else if self.clicked || !matches!(self.button_type, ButtonType::OneShot) {
                 switches.toggle(&self.color);
             }
         }
-    }
-
-    fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
-        self.base.try_move_to(player_rect, direction, is_backwards)
-    }
-
-    fn is_solid(&self) -> bool {
-        self.base.is_solid()
-    }
-    fn dx(&self) -> i32 {
-        self.base.dx
-    }
-    fn dy(&self) -> i32 {
-        self.base.dy
-    }
-    fn set_occupied(&mut self, occupied: bool) {
-        self.base.set_occupied(occupied);
     }
 }

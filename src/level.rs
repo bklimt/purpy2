@@ -15,7 +15,7 @@ use crate::constants::{
 use crate::door::Door;
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::{BinaryInput, InputManager};
-use crate::platform::{Bagel, Button, Conveyor, MovingPlatform, Platform, Spring};
+use crate::platform::{Bagel, Button, Conveyor, MovingPlatform, Platform, PlatformType, Spring};
 use crate::player::{Player, PlayerState};
 use crate::scene::{Scene, SceneResult};
 use crate::smallintset::SmallIntSet;
@@ -91,7 +91,7 @@ struct Level<'a> {
     toast_counter: i32,
 
     // platforms, stars, and doors
-    platforms: Vec<Box<dyn Platform<'a> + 'a>>,
+    platforms: Vec<Platform<'a>>,
     stars: Vec<Star<'a>>,
     doors: Vec<Door<'a>>,
 
@@ -146,25 +146,25 @@ impl<'a> Level<'a> {
         let current_platform = None;
         let current_door = None;
 
-        let mut platforms: Vec<Box<dyn Platform>> = Vec::new();
+        let mut platforms: Vec<Platform> = Vec::new();
         let mut stars = Vec::new();
         let mut doors = Vec::new();
 
         for obj in map.objects.iter() {
             if obj.properties.platform {
-                platforms.push(Box::new(MovingPlatform::new(obj, map.tileset.clone())?));
+                platforms.push(MovingPlatform::new(obj, map.tileset.clone())?);
             }
             if obj.properties.bagel {
-                platforms.push(Box::new(Bagel::new(obj, map.tileset.clone())?));
+                platforms.push(Bagel::new(obj, map.tileset.clone())?);
             }
             if obj.properties.convey.is_some() {
-                platforms.push(Box::new(Conveyor::new(obj, map.tileset.clone())?));
+                platforms.push(Conveyor::new(obj, map.tileset.clone())?);
             }
             if obj.properties.spring {
-                platforms.push(Box::new(Spring::new(obj, map.tileset.clone(), images)?));
+                platforms.push(Spring::new(obj, map.tileset.clone(), images)?);
             }
             if obj.properties.button {
-                platforms.push(Box::new(Button::new(obj, map.tileset.clone(), images)?));
+                platforms.push(Button::new(obj, map.tileset.clone(), images)?);
             }
             if obj.properties.door {
                 doors.push(Door::new(obj, images)?);
@@ -626,7 +626,16 @@ impl<'a> Level<'a> {
             match self.player.state {
                 PlayerState::Crouching | PlayerState::WallSliding | PlayerState::Stopped => {}
                 PlayerState::Standing => {
-                    if (isinstance(self.current_platform, Spring) && self.current_platform.launch) {
+                    let launch = if let Some(Platform {
+                        subtype: PlatformType::Spring(spring),
+                        ..
+                    }) = self.current_platform.map(|i| &self.platforms[i])
+                    {
+                        spring.launch
+                    } else {
+                        false
+                    };
+                    if launch {
                         self.jump_grace_counter = 0;
                         self.player.state = PlayerState::Jumping;
                         if movement.jump_triggered || self.jump_grace_counter > 0 {
@@ -653,9 +662,17 @@ impl<'a> Level<'a> {
                         } else {
                             self.jump_grace_counter = 0;
                             self.player.state = PlayerState::Jumping;
-                            if (isinstance(self.current_platform, Spring)
-                                && self.current_platform.should_boost())
+                            let should_boost = if let Some(Platform {
+                                subtype: PlatformType::Spring(spring),
+                                ..
+                            }) =
+                                self.current_platform.map(|i| &self.platforms[i])
                             {
+                                spring.should_boost()
+                            } else {
+                                false
+                            };
+                            if should_boost {
                                 self.spring_counter = SPRING_JUMP_DURATION;
                                 self.player.dy = -1 * SPRING_JUMP_VELOCITY;
                             } else {
