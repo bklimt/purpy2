@@ -1,5 +1,5 @@
 use std::mem;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use sdl2::render::RenderTarget;
@@ -8,7 +8,7 @@ use crate::constants::{
     COYOTE_TIME, FALL_ACCELERATION, FALL_MAX_GRAVITY, JUMP_ACCELERATION, JUMP_GRACE_TIME,
     JUMP_INITIAL_SPEED, JUMP_MAX_GRAVITY, SLIDE_SPEED_DECELERATION, SPRING_BOUNCE_DURATION,
     SPRING_BOUNCE_VELOCITY, SPRING_JUMP_DURATION, SPRING_JUMP_VELOCITY, TARGET_WALK_SPEED,
-    TOAST_HEIGHT, TOAST_TIME, WALK_SPEED_ACCELERATION, WALK_SPEED_DECELERATION,
+    TOAST_HEIGHT, TOAST_SPEED, TOAST_TIME, WALK_SPEED_ACCELERATION, WALK_SPEED_DECELERATION,
     WALL_JUMP_HORIZONTAL_SPEED, WALL_JUMP_VERTICAL_SPEED, WALL_SLIDE_SPEED, WALL_SLIDE_TIME,
     WALL_STICK_TIME,
 };
@@ -62,6 +62,7 @@ struct MovePlayerYResult {
     crushed_by_platform: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
 struct PlayerMovementResult {
     on_ground: bool,
     pushing_against_wall: bool,
@@ -74,6 +75,7 @@ struct PlayerMovementResult {
 
 struct Level<'a> {
     name: String,
+    map_path: PathBuf,
     map: TileMap<'a>,
     player: Player<'a>,
 
@@ -101,6 +103,8 @@ struct Level<'a> {
     switches: SwitchState,
     current_switch_tiles: SmallIntSet<usize>,
     current_door: Option<usize>,
+
+    previous_transition: String,
 }
 
 fn inc_player_x(player: &mut Player, offset: i32) {
@@ -174,8 +178,12 @@ impl<'a> Level<'a> {
             }
         }
 
+        let map_path = map_path.to_owned();
+        let previous_transition = "".to_owned();
+
         Ok(Level {
             name,
+            map_path,
             map,
             player,
             wall_stick_counter,
@@ -197,6 +205,7 @@ impl<'a> Level<'a> {
             switches,
             current_switch_tiles,
             current_door,
+            previous_transition,
         })
     }
 }
@@ -750,6 +759,96 @@ impl<'a> Level<'a> {
                 }
             }
         }
+    }
+
+    fn update(&mut self, inputs: &InputManager, sounds: &SoundManager) -> SceneResult {
+        if inputs.is_on(BinaryInput::Cancel) {
+            return SceneResult::Pop;
+        }
+
+        for platform in self.platforms.iter_mut() {
+            platform.update(&mut self.switches, sounds);
+        }
+
+        let movement = match self.player.state {
+            PlayerState::Stopped => PlayerMovementResult {
+                on_ground: false,
+                pushing_against_wall: false,
+                jump_down: false,
+                jump_triggered: false,
+                crouch_down: false,
+                stuck_in_wall: false,
+                crushed_by_platform: false,
+            },
+            _ => self.update_player_movement(inputs, sounds),
+        };
+
+        let start_state: PlayerState = self.player.state.clone();
+        self.update_player_state(movement);
+
+        // Make sure you aren't stuck in a wall.
+        let player_rect = self.player.get_target_bounds_rect(Direction::None);
+
+        self.current_door = None;
+        for (i, door) in self.doors.iter_mut().enumerate() {
+            door.update(player_rect, self.star_count);
+            if door.is_closed() {
+                return SceneResult::SwitchToLevel {
+                    path: door
+                        .destination
+                        .as_ref()
+                        .map(|s| Path::new(s).to_owned())
+                        .unwrap_or(self.map_path.clone()),
+                };
+            }
+            if door.active {
+                self.current_door = Some(i);
+            }
+        }
+
+        let old_stars = mem::replace(&mut self.stars, Vec::new());
+        for star in old_stars.into_iter() {
+            if star.intersects(player_rect) {
+                //sounds.play(Sound.STAR);
+                self.star_count += 1;
+                self.toast_text = format!("STARS x {}", self.star_count);
+                self.toast_counter = TOAST_TIME;
+            } else {
+                self.stars.push(star);
+            }
+        }
+
+        if true {
+            // TODO: Include slopes.
+            let attribs = format!(
+                "{:?}, idle={}, platform={:?}",
+                movement, self.player.is_idle, self.current_platform,
+            );
+            let transition = format!("{:?} x {} -> {:?}", start_state, attribs, self.player.state);
+            if transition != self.previous_transition {
+                self.previous_transition = transition;
+                println!("{}", self.previous_transition);
+            }
+        }
+
+        if self.player.is_dead {
+            return SceneResult::SwitchToKillScreen {
+                path: self.map_path.clone(),
+            };
+        }
+
+        if self.toast_counter == 0 {
+            if self.toast_position > -TOAST_HEIGHT {
+                self.toast_position -= TOAST_SPEED;
+            }
+        } else {
+            self.toast_counter -= 1;
+            if self.toast_position < 0 {
+                self.toast_position += TOAST_SPEED;
+            }
+        }
+
+        SceneResult::Continue
     }
 }
 

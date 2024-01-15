@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use anyhow::Result;
-use sdl2::render::RenderTarget;
 
 use crate::{
     constants::{IDLE_TIME, PLAYER_FRAMES_PER_FRAME, SUBPIXELS},
@@ -11,6 +10,7 @@ use crate::{
     utils::{Direction, Point, Rect},
 };
 
+#[derive(Debug, Clone, Copy)]
 pub enum PlayerState {
     Falling,
     Standing,
@@ -26,15 +26,16 @@ pub struct Player<'a> {
     pub dx: i32,
     pub dy: i32,
     pub facing_right: bool,
+    pub state: PlayerState,
     // 24x24 sprite sheet
+    pub is_idle: bool,
+    pub is_dead: bool,
+
     sprite: SpriteSheet<'a>,
     animation_state_machine: AnimationStateMachine,
-    pub state: PlayerState,
     frame: u32,
     frames_to_next_frame: i32,
     idle_counter: i32,
-    is_idle: bool,
-    pub is_dead: bool,
 }
 
 impl<'a> Player<'a> {

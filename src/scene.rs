@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Result;
 
 use crate::imagemanager::ImageManager;
@@ -8,10 +10,10 @@ pub enum SceneResult {
     Continue,
     Quit,
     Pop,
-    PushLevelSelect { path: String },
-    PushLevel { path: String },
-    SwitchToKillScreen { path: String },
-    SwitchToLevel { path: String },
+    PushLevelSelect { path: PathBuf },
+    PushLevel { path: PathBuf },
+    SwitchToKillScreen { path: PathBuf },
+    SwitchToLevel { path: PathBuf },
 }
 
 pub trait Scene {

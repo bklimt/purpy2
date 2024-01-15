@@ -30,10 +30,10 @@ pub struct Door<'a> {
     x: i32,
     y: i32,
     sprite: SpriteSheet<'a>,
-    destination: Option<String>,
+    pub destination: Option<String>,
     stars_needed: i32,
     stars_remaining: i32,
-    active: bool,
+    pub active: bool,
     state: DoorState,
     frame: u32,
 }
@@ -77,11 +77,11 @@ impl<'a> Door<'a> {
         matches!(self.state, DoorState::Open)
     }
 
-    fn is_closed(&self) -> bool {
+    pub fn is_closed(&self) -> bool {
         matches!(self.state, DoorState::Closed)
     }
 
-    fn unlock(&mut self) {
+    pub fn unlock(&mut self) {
         if !matches!(self.state, DoorState::Locked) {
             return;
         }
@@ -171,7 +171,7 @@ impl<'a> Door<'a> {
             .blit(context, layer, dest, DoorLayer::Frame as u32, 0, false);
     }
 
-    fn is_inside(&self, player_rect: Rect) -> bool {
+    pub fn is_inside(&self, player_rect: Rect) -> bool {
         let door_rect = Rect {
             x: self.x + 8 * SUBPIXELS,
             y: self.y,
@@ -181,7 +181,7 @@ impl<'a> Door<'a> {
         intersect(player_rect, door_rect)
     }
 
-    fn update(&mut self, player_rect: Rect, star_count: i32) {
+    pub fn update(&mut self, player_rect: Rect, star_count: i32) {
         self.active = self.is_inside(player_rect);
         self.stars_remaining = (self.stars_needed - star_count).max(0);
 
