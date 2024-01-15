@@ -722,7 +722,7 @@ impl<'a> TileMap<'a> {
     }
 
     // Returns the offset needed to account for the closest one.
-    fn try_move_to(
+    pub fn try_move_to(
         &self,
         player_rect: Rect,
         direction: Direction,
@@ -858,10 +858,10 @@ impl<'a> TileMap<'a> {
  * at the top of a slope, you can be down the slope a little, and not
  * wait until you're completely clear of the flat area before falling.
  */
-struct MoveResult {
-    hard_offset: i32,
-    soft_offset: i32,
-    tile_ids: SmallIntSet,
+pub struct MoveResult {
+    pub hard_offset: i32,
+    pub soft_offset: i32,
+    pub tile_ids: SmallIntSet<TileIndex>,
 }
 
 impl MoveResult {

@@ -11,7 +11,7 @@ use crate::{
     utils::{Direction, Point, Rect},
 };
 
-enum PlayerState {
+pub enum PlayerState {
     Falling,
     Standing,
     Crouching,
@@ -23,18 +23,18 @@ enum PlayerState {
 pub struct Player<'a> {
     pub x: i32,
     pub y: i32,
-    dx: i32,
-    dy: i32,
-    facing_right: bool,
+    pub dx: i32,
+    pub dy: i32,
+    pub facing_right: bool,
     // 24x24 sprite sheet
     sprite: SpriteSheet<'a>,
     animation_state_machine: AnimationStateMachine,
-    state: PlayerState,
+    pub state: PlayerState,
     frame: u32,
     frames_to_next_frame: i32,
     idle_counter: i32,
     is_idle: bool,
-    is_dead: bool,
+    pub is_dead: bool,
 }
 
 impl<'a> Player<'a> {
@@ -139,7 +139,7 @@ impl<'a> Player<'a> {
     }
 
     // Returns the bounds rect in subpixels to check when moving in direction.
-    fn get_target_bounds_rect(&self, direction: Direction) -> Rect {
+    pub fn get_target_bounds_rect(&self, direction: Direction) -> Rect {
         let unscaled = self.get_raw_target_bounds(direction);
         Rect {
             x: self.x + unscaled.0 * SUBPIXELS,

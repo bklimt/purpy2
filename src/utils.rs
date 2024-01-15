@@ -34,7 +34,7 @@ pub enum Direction {
 }
 
 impl Direction {
-    fn opposite(&self) -> Direction {
+    pub fn opposite(&self) -> Direction {
         match self {
             Direction::None => panic!("cannot take the opposite of no direction"),
             Direction::Up => Direction::Down,

@@ -79,6 +79,8 @@ pub struct TileProperties {
     pub slope: bool,
     pub left_y: i32,
     pub right_y: i32,
+    pub deadly: bool,
+    pub switch: Option<String>,
 
     pub raw: PropertyMap,
 }
@@ -95,6 +97,8 @@ impl TryFrom<PropertyMap> for TileProperties {
             slope: value.get_bool("slope")?.unwrap_or(false),
             left_y: value.get_int("left_y")?.unwrap_or(0),
             right_y: value.get_int("right_y")?.unwrap_or(0),
+            deadly: value.get_bool("deadly")?.unwrap_or(false),
+            switch: value.get_string("switch")?.map(str::to_string),
             raw: value,
         })
     }

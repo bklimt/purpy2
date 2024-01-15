@@ -73,7 +73,7 @@ impl<'a> Door<'a> {
         })
     }
 
-    fn is_open(&self) -> bool {
+    pub fn is_open(&self) -> bool {
         matches!(self.state, DoorState::Open)
     }
 
@@ -89,7 +89,7 @@ impl<'a> Door<'a> {
         self.frame = 0;
     }
 
-    fn close(&mut self) {
+    pub fn close(&mut self) {
         if !matches!(self.state, DoorState::Open) {
             return;
         }

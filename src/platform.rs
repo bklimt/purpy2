@@ -23,6 +23,11 @@ pub trait Platform<'a> {
     where
         'b: 'a;
     fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32;
+
+    fn is_solid(&self) -> bool;
+    fn dx(&self) -> i32;
+    fn dy(&self) -> i32;
+    fn set_occupied(&mut self, occupied: bool);
 }
 
 struct PlatformBase<'a> {
@@ -83,6 +88,19 @@ impl<'a> PlatformBase<'a> {
             }
         };
         try_move_to_bounds(player_rect, area, direction)
+    }
+
+    fn is_solid(&self) -> bool {
+        self.solid
+    }
+    fn dx(&self) -> i32 {
+        self.dx
+    }
+    fn dy(&self) -> i32 {
+        self.dy
+    }
+    fn set_occupied(&mut self, occupied: bool) {
+        self.occupied = occupied;
     }
 }
 
@@ -258,6 +276,19 @@ impl<'a> Platform<'a> for MovingPlatform<'a> {
     fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
         self.base.try_move_to(player_rect, direction, is_backwards)
     }
+
+    fn is_solid(&self) -> bool {
+        self.base.is_solid()
+    }
+    fn dx(&self) -> i32 {
+        self.base.dx
+    }
+    fn dy(&self) -> i32 {
+        self.base.dy
+    }
+    fn set_occupied(&mut self, occupied: bool) {
+        self.base.set_occupied(occupied);
+    }
 }
 
 pub struct Bagel<'a> {
@@ -331,6 +362,19 @@ impl<'a> Platform<'a> for Bagel<'a> {
     fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
         self.base.try_move_to(player_rect, direction, is_backwards)
     }
+
+    fn is_solid(&self) -> bool {
+        self.base.is_solid()
+    }
+    fn dx(&self) -> i32 {
+        self.base.dx
+    }
+    fn dy(&self) -> i32 {
+        self.base.dy
+    }
+    fn set_occupied(&mut self, occupied: bool) {
+        self.base.set_occupied(occupied);
+    }
 }
 
 pub struct Conveyor<'a> {
@@ -367,6 +411,19 @@ impl<'a> Platform<'a> for Conveyor<'a> {
 
     fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
         self.base.try_move_to(player_rect, direction, is_backwards)
+    }
+
+    fn is_solid(&self) -> bool {
+        self.base.is_solid()
+    }
+    fn dx(&self) -> i32 {
+        self.base.dx
+    }
+    fn dy(&self) -> i32 {
+        self.base.dy
+    }
+    fn set_occupied(&mut self, occupied: bool) {
+        self.base.set_occupied(occupied);
     }
 }
 
@@ -480,6 +537,19 @@ impl<'a> Platform<'a> for Spring<'a> {
             };
             try_move_to_bounds(player_rect, area, direction)
         }
+    }
+
+    fn is_solid(&self) -> bool {
+        self.base.is_solid()
+    }
+    fn dx(&self) -> i32 {
+        self.base.dx
+    }
+    fn dy(&self) -> i32 {
+        self.base.dy
+    }
+    fn set_occupied(&mut self, occupied: bool) {
+        self.base.set_occupied(occupied);
     }
 }
 
@@ -601,5 +671,18 @@ impl<'a> Platform<'a> for Button<'a> {
 
     fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
         self.base.try_move_to(player_rect, direction, is_backwards)
+    }
+
+    fn is_solid(&self) -> bool {
+        self.base.is_solid()
+    }
+    fn dx(&self) -> i32 {
+        self.base.dx
+    }
+    fn dy(&self) -> i32 {
+        self.base.dy
+    }
+    fn set_occupied(&mut self, occupied: bool) {
+        self.base.set_occupied(occupied);
     }
 }

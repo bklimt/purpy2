@@ -4,8 +4,8 @@ use crate::utils::{Direction, Rect, Subpixels};
 use anyhow::Result;
 
 pub struct Slope {
-    left_y: Subpixels,
-    right_y: Subpixels,
+    pub left_y: Subpixels,
+    pub right_y: Subpixels,
 }
 
 impl Slope {

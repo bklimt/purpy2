@@ -1,38 +1,40 @@
-pub struct SmallIntSet {
-    items: Vec<bool>,
+pub struct SmallIntSet<T> {
+    items: Vec<T>,
 }
 
-impl SmallIntSet {
+impl<T> SmallIntSet<T>
+where
+    T: PartialEq,
+{
     pub fn new() -> Self {
         SmallIntSet { items: Vec::new() }
     }
 
-    pub fn insert<T>(&mut self, item: T)
-    where
-        T: Into<usize>,
-    {
-        let item = item.into();
-        if self.items.len() <= item {
-            self.items.resize(item + 1, false);
-        }
-        self.items[item] = true;
+    pub fn insert(&mut self, item: T) {
+        self.items.push(item);
     }
 
-    pub fn contains<T>(&self, item: T) -> bool
-    where
-        T: Into<usize>,
-    {
-        let item = item.into();
-        *self.items.get(item).unwrap_or(&false)
+    pub fn contains(&self, item: T) -> bool {
+        self.items.contains(&item)
     }
 
-    pub fn remove<T>(&mut self, item: T)
-    where
-        T: Into<usize>,
-    {
-        let item = item.into();
-        if let Some(b) = self.items.get_mut(item) {
-            *b = false;
+    pub fn remove(&mut self, item: T) {
+        let mut len = self.items.len();
+        let mut i = 0;
+        while i < len {
+            if self.items[i] == item {
+                len -= 1;
+                self.items.swap(i, len);
+            }
         }
+        self.items.truncate(len);
+    }
+
+    pub fn clear(&mut self) {
+        self.items.clear();
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, T> {
+        self.items.iter()
     }
 }
