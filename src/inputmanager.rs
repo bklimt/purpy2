@@ -444,8 +444,8 @@ fn create_input(input: BinaryInput) -> AnyOfInput {
             joystick_button_input(0),
         ],
         BinaryInput::MenuDown => vec![
-            key_input(Keycode::Down),
-            key_input(Keycode::S),
+            key_trigger(Keycode::Down),
+            key_trigger(Keycode::S),
             joystick_threshold(JoystickAxis::Vertical, None, Some(0.5)),
         ],
         BinaryInput::MenuUp => vec![

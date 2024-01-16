@@ -39,6 +39,9 @@ impl LevelSelect {
             println!("Found directory entry {:?} named {}", path, &name);
             files.push((path, name));
         }
+
+        files.sort();
+
         let directory = directory.to_owned();
         Ok(LevelSelect {
             directory,
@@ -55,7 +58,7 @@ impl<'a> Scene<'a> for LevelSelect {
             return SceneResult::Pop;
         }
         if inputs.is_on(BinaryInput::MenuUp) {
-            self.current = (self.current - 1) % self.files.len() as i32;
+            self.current = ((self.current - 1) + self.files.len() as i32) % self.files.len() as i32;
         }
         if inputs.is_on(BinaryInput::MenuDown) {
             self.current = (self.current + 1) % self.files.len() as i32;

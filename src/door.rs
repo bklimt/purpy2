@@ -173,7 +173,7 @@ impl<'a> Door<'a> {
             );
         }
         self.sprite
-            .blit(context, layer, dest, DoorLayer::Frame as u32, 0, false);
+            .blit(context, layer, dest, 0, DoorLayer::Frame as u32, false);
     }
 
     pub fn is_inside(&self, player_rect: Rect) -> bool {

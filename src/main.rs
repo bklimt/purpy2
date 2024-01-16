@@ -92,10 +92,6 @@ fn run_game(_args: Args) -> Result<()> {
 
         input_manager.update();
 
-        if input_manager.is_on(inputmanager::BinaryInput::Cancel) {
-            break 'running;
-        }
-
         if !stage_manager.update(&input_manager, &image_manager, &sound_manager)? {
             break 'running;
         }
@@ -105,7 +101,9 @@ fn run_game(_args: Args) -> Result<()> {
         context.render(&mut canvas)?;
         canvas.present();
 
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        // 120 Hz
+        // TODO: Make this more accurate.
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 120));
         frame += 1;
     }
 
