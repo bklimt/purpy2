@@ -21,6 +21,7 @@ pub struct LevelSelect {
 
 impl LevelSelect {
     pub fn new(directory: &Path) -> Result<LevelSelect> {
+        println!("Scanning directory {:?}", directory);
         let mut files = Vec::new();
         let file_list =
             fs::read_dir(&directory).context(format!("unable to read {:?}", directory))?;
@@ -35,6 +36,7 @@ impl LevelSelect {
                 .to_str()
                 .context(format!("unable to encode name {:?}", path))?
                 .to_owned();
+            println!("Found directory entry {:?} named {}", path, &name);
             files.push((path, name));
         }
         let directory = directory.to_owned();
@@ -59,7 +61,7 @@ impl<'a> Scene<'a> for LevelSelect {
             self.current = (self.current + 1) % self.files.len() as i32;
         }
         if inputs.is_on(BinaryInput::Ok) {
-            let new_path = self.directory.join(&self.files[self.current as usize].0);
+            let new_path = self.files[self.current as usize].0.clone();
             if new_path.is_dir() {
                 SceneResult::PushLevelSelect { path: new_path }
             } else {

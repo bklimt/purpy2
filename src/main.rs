@@ -25,7 +25,7 @@ use std::{fs, path::Path, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
-use constants::{RENDER_HEIGHT, RENDER_WIDTH};
+use constants::{RENDER_HEIGHT, RENDER_WIDTH, SUBPIXELS};
 use imagemanager::ImageManager;
 use inputmanager::InputManager;
 use rendercontext::{RenderContext, RenderLayer};
@@ -64,14 +64,18 @@ fn run_game(_args: Args) -> Result<()> {
     let image_manager = ImageManager::new(&texture_creator)?;
     let mut frame = 0;
 
-    canvas.set_logical_size(RENDER_WIDTH, RENDER_HEIGHT)?;
+    // TODO: This should not be multiplied times the subpixels.
+    canvas.set_logical_size(
+        RENDER_WIDTH * SUBPIXELS as u32,
+        RENDER_HEIGHT * SUBPIXELS as u32,
+    )?;
     canvas.set_draw_color(Color::RGB(40, 40, 40));
     canvas.clear();
     canvas.present();
 
     let mut input_manager = InputManager::new();
     let mut stage_manager = StageManager::new(&image_manager)?;
-    let mut sound_manager = SoundManager {};
+    let sound_manager = SoundManager {};
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {

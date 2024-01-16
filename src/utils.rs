@@ -78,15 +78,15 @@ impl FromStr for Color {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = if s.starts_with("#") { &s[1..] } else { s };
         if s.len() == 6 {
-            let r = s[0..2].parse()?;
-            let g = s[2..4].parse()?;
-            let b = s[4..6].parse()?;
+            let r = u8::from_str_radix(&s[0..2], 16)?;
+            let g = u8::from_str_radix(&s[2..4], 16)?;
+            let b = u8::from_str_radix(&s[4..6], 16)?;
             Ok(Color { r, g, b, a: 255 })
         } else if s.len() == 8 {
-            let r = s[0..2].parse()?;
-            let g = s[2..4].parse()?;
-            let b = s[4..6].parse()?;
-            let a = s[6..8].parse()?;
+            let r = u8::from_str_radix(&s[0..2], 16)?;
+            let g = u8::from_str_radix(&s[2..4], 16)?;
+            let b = u8::from_str_radix(&s[4..6], 16)?;
+            let a = u8::from_str_radix(&s[6..8], 16)?;
             Ok(Color { r, g, b, a })
         } else {
             Err(anyhow!("invalid color: {}", s))

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ops::{Index, IndexMut};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::str::FromStr;
 use std::{fs, path::Path};
@@ -173,7 +174,10 @@ impl TileLayer {
             }
             let mut row = Vec::new();
             for part in line.split(",") {
-                row.push(part.parse()?);
+                if part.len() == 0 {
+                    continue;
+                }
+                row.push(part.parse().context(format!("parsing {:?}", part))?);
             }
             if row.len() as u32 != width {
                 bail!("row len = {}, but width = {}", row.len(), width);
@@ -429,8 +433,23 @@ impl<'a> TileMap<'a> {
         let height = xml.height;
         let tilewidth: i32 = xml.tilewidth;
         let tileheight: i32 = xml.tileheight;
-        let backgroundcolor = xml.backgroundcolor.parse()?;
-        let tileset = TileSet::from_file(path, images)?;
+        let backgroundcolor = xml.backgroundcolor.parse().context(format!(
+            "parsing background color {:?}",
+            &xml.backgroundcolor
+        ))?;
+
+        let mut tileset_path: Option<PathBuf> = None;
+        for field in xml.fields.iter() {
+            if let TileMapXmlField::TileSet(tileset) = field {
+                tileset_path = Some(
+                    path.parent()
+                        .context("cannot load root as map")?
+                        .join(tileset.source.clone()),
+                );
+            }
+        }
+        let tileset_path = tileset_path.context("at least one tileset must be present")?;
+        let tileset = TileSet::from_file(&tileset_path, images)?;
 
         let mut player_layer: Option<i32> = None;
         let mut layers = Vec::new();
