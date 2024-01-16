@@ -27,7 +27,7 @@ impl<'a> ImageManager<'a> {
     }
 
     fn load_surface(&self, path: &Path) -> Result<Surface<'static>> {
-        Surface::from_file(path).map_err(|s: String| anyhow!("{}", s))
+        Surface::from_file(path).map_err(|s: String| anyhow!("unable to load {:?}: {}", path, s))
     }
 
     pub fn load_sprite(&self, path: &Path) -> Result<Rc<Sprite<'a>>> {

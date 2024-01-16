@@ -250,7 +250,13 @@ pub struct AnimationStateMachine {
 
 impl AnimationStateMachine {
     pub fn from_file(path: &Path) -> Result<AnimationStateMachine> {
-        let s = fs::read_to_string(path)?;
+        let s = fs::read_to_string(path).map_err(|e| {
+            anyhow!(
+                "unable to load animation state machine at {:?}: {}",
+                path,
+                e
+            )
+        })?;
         AnimationStateMachine::new(&s)
     }
 

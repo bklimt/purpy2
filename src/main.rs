@@ -101,9 +101,9 @@ fn run_game(_args: Args) -> Result<()> {
         context.render(&mut canvas)?;
         canvas.present();
 
-        // 120 Hz
+        // 60 Hz
         // TODO: Make this more accurate.
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 120));
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 70));
         frame += 1;
     }
 
