@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use anyhow::Result;
-
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
 use crate::rendercontext::RenderContext;
@@ -9,7 +7,6 @@ use crate::soundmanager::SoundManager;
 
 pub enum SceneResult {
     Continue,
-    Quit,
     Pop,
     PushLevelSelect { path: PathBuf },
     PushLevel { path: PathBuf },

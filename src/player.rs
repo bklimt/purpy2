@@ -64,7 +64,7 @@ impl<'a> Player<'a> {
         })
     }
 
-    fn update_sprite(&mut self) -> Result<()> {
+    pub fn update_sprite(&mut self) -> Result<()> {
         self.facing_right = if self.dx < 0 {
             false
         } else if self.dx > 0 {

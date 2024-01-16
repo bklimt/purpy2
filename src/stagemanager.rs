@@ -18,7 +18,7 @@ pub struct StageManager<'a> {
 }
 
 impl<'a> StageManager<'a> {
-    pub fn new<'b>(images: &'b ImageManager<'a>) -> Result<StageManager<'a>>
+    pub fn new<'b>(_images: &'b ImageManager<'a>) -> Result<StageManager<'a>>
     where
         'a: 'b,
     {
@@ -42,7 +42,6 @@ impl<'a> StageManager<'a> {
         let result = self.current.update(inputs, sounds);
         Ok(match result {
             SceneResult::Continue => true,
-            SceneResult::Quit => false,
             SceneResult::Pop => {
                 if let Some(next) = self.stack.pop() {
                     self.current = next;

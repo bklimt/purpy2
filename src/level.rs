@@ -634,7 +634,7 @@ impl<'a> Level<'a> {
             self.player.is_dead = true;
         } else {
             match self.player.state {
-                PlayerState::Crouching | PlayerState::WallSliding | PlayerState::Stopped => {}
+                PlayerState::Crouching | PlayerState::Stopped => {}
                 PlayerState::Standing => {
                     let launch = if let Some(Platform {
                         subtype: PlatformType::Spring(spring),
@@ -792,6 +792,9 @@ impl<'a> Scene<'a> for Level<'a> {
 
         let start_state: PlayerState = self.player.state.clone();
         self.update_player_state(movement);
+        self.player
+            .update_sprite()
+            .expect("state machine should be valid");
 
         // Make sure you aren't stuck in a wall.
         let player_rect = self.player.get_target_bounds_rect(Direction::None);
