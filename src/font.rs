@@ -9,8 +9,8 @@ use crate::utils::{Point, Rect};
 
 pub struct Font<'a> {
     tileset: TileSet<'a>,
-    char_width: i32,
-    char_height: i32,
+    pub char_width: i32,
+    pub char_height: i32,
 }
 
 impl<'a> Font<'a> {

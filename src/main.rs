@@ -4,6 +4,7 @@ mod font;
 mod imagemanager;
 mod inputmanager;
 mod level;
+mod levelselect;
 mod platform;
 mod player;
 mod properties;
@@ -24,6 +25,7 @@ use std::{fs, path::Path, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
+use constants::{RENDER_HEIGHT, RENDER_WIDTH};
 use imagemanager::ImageManager;
 use inputmanager::InputManager;
 use rendercontext::{RenderContext, RenderLayer};
@@ -31,7 +33,9 @@ use sdl2::event::Event;
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
+use soundmanager::SoundManager;
 use sprite::AnimationStateMachine;
+use stagemanager::StageManager;
 use utils::Rect;
 
 #[derive(Parser, Debug)]
@@ -58,26 +62,16 @@ fn run_game(_args: Args) -> Result<()> {
     let texture_creator = canvas.texture_creator();
 
     let image_manager = ImageManager::new(&texture_creator)?;
-    let space = image_manager.load_sprite(Path::new("../purpy/assets/space.png"))?;
-
-    let mut animation =
-        image_manager.load_animation(Path::new("../purpy/assets/sprites/skelly2.png"), 24, 24)?;
-
-    let player_sprite =
-        image_manager.load_spritesheet(Path::new("../purpy/assets/sprites/skelly2.png"), 24, 24)?;
-    let animation_state_machine = AnimationStateMachine::new(&fs::read_to_string(
-        "../purpy/assets/sprites/skelly2_states.txt",
-    )?)?;
-    let mut current_frame = 0;
-
     let mut frame = 0;
 
-    canvas.set_logical_size(space.width(), space.height())?;
+    canvas.set_logical_size(RENDER_WIDTH, RENDER_HEIGHT)?;
     canvas.set_draw_color(Color::RGB(40, 40, 40));
     canvas.clear();
     canvas.present();
 
     let mut input_manager = InputManager::new();
+    let mut stage_manager = StageManager::new(&image_manager)?;
+    let mut sound_manager = SoundManager {};
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
@@ -102,44 +96,11 @@ fn run_game(_args: Args) -> Result<()> {
             break 'running;
         }
 
-        let dest = Rect {
-            x: 0,
-            y: 0,
-            w: canvas.logical_size().0 as i32,
-            h: canvas.logical_size().1 as i32,
-        };
-        let source = Rect {
-            x: 0,
-            y: 0,
-            w: space.width() as i32,
-            h: space.height() as i32,
-        };
-        context.draw(&space, RenderLayer::Player, dest, source);
+        if !stage_manager.update(&input_manager, &image_manager, &sound_manager)? {
+            break 'running;
+        }
 
-        let dest = Rect {
-            x: (space.width() / 2 - 24) as i32,
-            y: (space.height() / 2 - 24) as i32,
-            w: 24,
-            h: 24,
-        };
-        animation.blit(&mut context, RenderLayer::Player, dest, false);
-
-        let dest = Rect {
-            x: (space.width() / 2) as i32,
-            y: (space.height() / 2) as i32,
-            w: 24,
-            h: 24,
-        };
-
-        current_frame = animation_state_machine.next_frame(current_frame, "RUNNING")?;
-        player_sprite.blit(
-            &mut context,
-            RenderLayer::Player,
-            dest,
-            current_frame,
-            0,
-            false,
-        );
+        stage_manager.draw(&mut context, &image_manager);
 
         context.render(&mut canvas)?;
         canvas.present();
