@@ -88,7 +88,9 @@ impl<'a> Player<'a> {
                 PlayerState::WallSliding => "WALL_SLIDING",
                 PlayerState::Crouching => "CROUCHING",
                 PlayerState::Standing | PlayerState::Stopped => {
-                    if self.idle_counter > 0 {
+                    if self.dx != 0 {
+                        "RUNNING"
+                    } else if self.idle_counter > 0 {
                         self.idle_counter -= 1;
                         "STANDING"
                     } else {
