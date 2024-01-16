@@ -74,7 +74,7 @@ impl<'a> Platform<'a> {
 
     pub fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
     where
-        'b: 'a,
+        'a: 'b,
     {
         match &self.subtype {
             PlatformType::Bagel(bagel) => bagel.draw(self, context, layer, offset),
@@ -314,7 +314,7 @@ impl Bagel {
         layer: RenderLayer,
         offset: Point,
     ) where
-        'b: 'a,
+        'a: 'b,
     {
         let mut x = base.position.x + offset.x;
         let mut y = base.position.y + offset.y;
@@ -422,7 +422,7 @@ impl<'a> Spring<'a> {
         layer: RenderLayer,
         offset: Point,
     ) where
-        'b: 'a,
+        'a: 'b,
     {
         let x = base.position.x + offset.x;
         let y = base.position.y + offset.y;
@@ -564,7 +564,7 @@ impl<'a> Button<'a> {
         layer: RenderLayer,
         offset: Point,
     ) where
-        'b: 'a,
+        'a: 'b,
     {
         let x = base.position.x + offset.x;
         let y = self.original_y + offset.y();

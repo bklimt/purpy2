@@ -24,6 +24,12 @@ impl Point {
     }
 }
 
+impl From<(i32, i32)> for Point {
+    fn from(value: (i32, i32)) -> Self {
+        Point::new(value.0, value.1)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum Direction {
     None,
@@ -60,10 +66,10 @@ impl FromStr for Direction {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
 }
 
 impl FromStr for Color {

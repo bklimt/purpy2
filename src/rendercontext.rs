@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use anyhow::{anyhow, Result};
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::render::{Canvas, TextureCreator};
-use sdl2::video::{Window, WindowContext};
+use sdl2::render::Canvas;
+use sdl2::video::Window;
 
 use crate::sprite::Sprite;
 use crate::utils::{Color, Rect};
@@ -50,6 +50,7 @@ impl<'a> SpriteBatch<'a> {
 #[derive(Debug, Clone, Copy)]
 pub enum RenderLayer {
     Player,
+    Hud,
 }
 
 pub struct RenderContext<'a> {
@@ -75,6 +76,15 @@ impl<'a> RenderContext<'a> {
             pixel_format,
             frame,
         })
+    }
+
+    pub fn logical_area(&self) -> Rect {
+        Rect {
+            x: 0,
+            y: 0,
+            w: self.width as i32,
+            h: self.height as i32,
+        }
     }
 
     pub fn draw(&mut self, sprite: &Rc<Sprite<'a>>, layer: RenderLayer, dst: Rect, src: Rect) {

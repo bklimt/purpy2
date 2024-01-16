@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use anyhow::{Context, Result};
 use rand::random;
-use sdl2::render::RenderTarget;
 
 use crate::constants::SUBPIXELS;
 use crate::rendercontext::{RenderContext, RenderLayer};
@@ -41,12 +40,7 @@ impl<'a> Star<'a> {
         return intersect(self.area, player_rect);
     }
 
-    pub fn draw<T: RenderTarget>(
-        &self,
-        context: &'a mut RenderContext<'a>,
-        layer: RenderLayer,
-        offset: Point,
-    ) {
+    pub fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point) {
         let mut x = self.area.x + offset.x();
         let mut y = self.area.y + offset.y();
         x += star_rand() * SUBPIXELS;

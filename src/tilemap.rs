@@ -397,10 +397,10 @@ impl MapObject {
 }
 
 pub struct TileMap<'a> {
-    width: i32,
-    height: i32,
-    tilewidth: i32,
-    tileheight: i32,
+    pub width: i32,
+    pub height: i32,
+    pub tilewidth: i32,
+    pub tileheight: i32,
     backgroundcolor: Color,
     pub tileset: Rc<TileSet<'a>>,
     layers: Vec<Layer<'a>>,
@@ -645,7 +645,7 @@ impl<'a> TileMap<'a> {
         }
     }
 
-    fn draw_background<'b>(
+    pub fn draw_background<'b>(
         &self,
         context: &'b mut RenderContext<'a>,
         render_layer: RenderLayer,
@@ -664,7 +664,7 @@ impl<'a> TileMap<'a> {
         }
     }
 
-    fn draw_foreground<'b>(
+    pub fn draw_foreground<'b>(
         &self,
         context: &'b mut RenderContext<'a>,
         render_layer: RenderLayer,
@@ -672,7 +672,7 @@ impl<'a> TileMap<'a> {
         offset: Point,
         switches: &SwitchState,
     ) where
-        'b: 'a,
+        'a: 'b,
     {
         if self.player_layer.is_none() {
             return;
@@ -831,7 +831,7 @@ impl<'a> TileMap<'a> {
         result
     }
 
-    fn get_preferred_view(&self, player_rect: Rect) -> (Option<i32>, Option<i32>) {
+    pub fn get_preferred_view(&self, player_rect: Rect) -> (Option<i32>, Option<i32>) {
         let mut preferred_x = None;
         let mut preferred_y = None;
         for obj in self.objects.iter() {

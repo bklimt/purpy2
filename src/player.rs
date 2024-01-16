@@ -114,7 +114,7 @@ impl<'a> Player<'a> {
         Ok(())
     }
 
-    fn draw(&self, context: &'a mut RenderContext<'a>, layer: RenderLayer, pos: Point) {
+    pub fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, pos: Point) {
         let dest = Rect {
             x: pos.x(),
             y: pos.y(),

@@ -7,16 +7,17 @@ use sdl2::render::RenderTarget;
 use crate::constants::{
     COYOTE_TIME, FALL_ACCELERATION, FALL_MAX_GRAVITY, JUMP_ACCELERATION, JUMP_GRACE_TIME,
     JUMP_INITIAL_SPEED, JUMP_MAX_GRAVITY, SLIDE_SPEED_DECELERATION, SPRING_BOUNCE_DURATION,
-    SPRING_BOUNCE_VELOCITY, SPRING_JUMP_DURATION, SPRING_JUMP_VELOCITY, TARGET_WALK_SPEED,
-    TOAST_HEIGHT, TOAST_SPEED, TOAST_TIME, WALK_SPEED_ACCELERATION, WALK_SPEED_DECELERATION,
-    WALL_JUMP_HORIZONTAL_SPEED, WALL_JUMP_VERTICAL_SPEED, WALL_SLIDE_SPEED, WALL_SLIDE_TIME,
-    WALL_STICK_TIME,
+    SPRING_BOUNCE_VELOCITY, SPRING_JUMP_DURATION, SPRING_JUMP_VELOCITY, SUBPIXELS,
+    TARGET_WALK_SPEED, TOAST_HEIGHT, TOAST_SPEED, TOAST_TIME, VIEWPORT_PAN_SPEED,
+    WALK_SPEED_ACCELERATION, WALK_SPEED_DECELERATION, WALL_JUMP_HORIZONTAL_SPEED,
+    WALL_JUMP_VERTICAL_SPEED, WALL_SLIDE_SPEED, WALL_SLIDE_TIME, WALL_STICK_TIME,
 };
 use crate::door::Door;
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::{BinaryInput, InputManager};
 use crate::platform::{Bagel, Button, Conveyor, MovingPlatform, Platform, PlatformType, Spring};
 use crate::player::{Player, PlayerState};
+use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::scene::{Scene, SceneResult};
 use crate::smallintset::SmallIntSet;
 use crate::soundmanager::SoundManager;
@@ -24,7 +25,7 @@ use crate::star::Star;
 use crate::switchstate::SwitchState;
 use crate::tilemap::TileMap;
 use crate::tileset::{TileIndex, TileProperties, TileSetProperties};
-use crate::utils::{cmp_in_direction, Direction, Rect};
+use crate::utils::{cmp_in_direction, Color, Direction, Point, Rect};
 
 struct PlatformIntersectionResult {
     offset: i32,
@@ -87,7 +88,7 @@ struct Level<'a> {
     jump_grace_counter: i32,
     spring_counter: i32,
 
-    previous_map_offset: Option<(i32, i32)>,
+    previous_map_offset: Option<Point>,
     toast_text: String,
     toast_position: i32,
     toast_counter: i32,
@@ -849,6 +850,138 @@ impl<'a> Level<'a> {
         }
 
         SceneResult::Continue
+    }
+
+    fn draw<'b>(&mut self, context: &'b mut RenderContext<'a>, images: &'a ImageManager)
+    where
+        'a: 'b,
+    {
+        let dest = context.logical_area();
+
+        // Make sure the player is on the screen, and then center them if possible.
+        let player_rect = self.player.get_target_bounds_rect(Direction::None);
+        let (preferred_x, preferred_y) = self.map.get_preferred_view(player_rect);
+        let player_x = self.player.x;
+        let player_y = self.player.y;
+        let mut player_draw_x = dest.w / 2;
+        let mut player_draw_y = dest.h / 2;
+        // Don't waste space on the sides of the screen beyond the map.
+        if player_draw_x > player_x {
+            player_draw_x = player_x;
+        }
+        // The map is drawn 4 pixels from the top of the screen.
+        if player_draw_y > player_y + 4 {
+            player_draw_y = player_y + 4;
+        }
+        let right_limit = dest.w - (self.map.width * self.map.tilewidth * SUBPIXELS);
+        if player_draw_x < player_x + right_limit {
+            player_draw_x = player_x + right_limit;
+        }
+        let bottom_limit = dest.h - (self.map.height * self.map.tileheight * SUBPIXELS);
+        if player_draw_y < player_y + bottom_limit {
+            player_draw_y = player_y + bottom_limit;
+        }
+        let mut map_offset = Point::new(player_draw_x - player_x, player_draw_y - player_y);
+
+        if let Some(preferred_x) = preferred_x {
+            map_offset = (-preferred_x, map_offset.y).into();
+            player_draw_x = player_x + map_offset.x;
+        }
+        if let Some(preferred_y) = preferred_y {
+            map_offset = (map_offset.x, -preferred_y).into();
+            player_draw_y = player_y + map_offset.y;
+        }
+
+        // Don't let the viewport move too much in between frames.
+        if let Some(prev) = self.previous_map_offset.as_ref() {
+            if (map_offset.x - prev.x).abs() > VIEWPORT_PAN_SPEED {
+                if prev.x < map_offset.x {
+                    map_offset = (prev.x + VIEWPORT_PAN_SPEED, map_offset.y).into();
+                } else if prev.x > map_offset.x {
+                    map_offset = (prev.x - VIEWPORT_PAN_SPEED, map_offset.y).into();
+                }
+                player_draw_x = player_x + map_offset.x;
+            }
+            if (map_offset.y - prev.y).abs() > VIEWPORT_PAN_SPEED {
+                if prev.y < map_offset.y {
+                    map_offset = (map_offset.x, prev.y + VIEWPORT_PAN_SPEED).into()
+                } else if prev.y > map_offset.y {
+                    map_offset = (map_offset.x, prev.y - VIEWPORT_PAN_SPEED).into();
+                }
+                player_draw_y = player_y + map_offset.y;
+            }
+        }
+        self.previous_map_offset = Some(map_offset);
+
+        // Do the actual drawing.
+        self.map.draw_background(
+            context,
+            RenderLayer::Player,
+            dest,
+            map_offset,
+            &self.switches,
+        );
+        for door in self.doors.iter() {
+            door.draw_background(context, RenderLayer::Player, map_offset, images);
+        }
+        for platform in self.platforms.iter() {
+            platform.draw(context, RenderLayer::Player, map_offset);
+        }
+        for star in self.stars.iter() {
+            star.draw(context, RenderLayer::Player, map_offset);
+        }
+        self.player.draw(
+            context,
+            RenderLayer::Player,
+            (player_draw_x, player_draw_y).into(),
+        );
+        for door in self.doors.iter() {
+            door.draw_foreground(context, RenderLayer::Player, map_offset);
+        }
+        self.map.draw_foreground(
+            context,
+            RenderLayer::Player,
+            dest,
+            map_offset,
+            &self.switches,
+        );
+
+        // Draw the text overlay.
+        let top_bar_bgcolor = Color {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 127,
+        };
+        let top_bar_area = Rect {
+            x: dest.x,
+            y: dest.y + self.toast_position,
+            w: dest.w,
+            h: TOAST_HEIGHT,
+        };
+        if top_bar_area.bottom() > 0 {
+            context.fill_rect(top_bar_area, RenderLayer::Hud, top_bar_bgcolor);
+            images.font().draw_string(
+                context,
+                RenderLayer::Hud,
+                (
+                    top_bar_area.x + 2 * SUBPIXELS,
+                    top_bar_area.y + 2 * SUBPIXELS,
+                )
+                    .into(),
+                &self.toast_text,
+            );
+        }
+
+        // context.dark = self.map.is_dark;
+
+        /*
+        spotlight_pos = (
+            player_draw_x + 12 * SUBPIXELS,
+            player_draw_y + 12 * SUBPIXELS)
+        spotlight_radius = 120.0 * SUBPIXELS
+        context.add_light(spotlight_pos, spotlight_radius)
+        */
     }
 }
 

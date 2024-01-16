@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use anyhow::Result;
-use sdl2::render::RenderTarget;
 
 use crate::constants::{DOOR_CLOSING_FRAMES, DOOR_SPEED, DOOR_UNLOCKING_FRAMES, SUBPIXELS};
 use crate::imagemanager::ImageManager;
@@ -97,9 +96,9 @@ impl<'a> Door<'a> {
         self.frame = 0;
     }
 
-    fn draw_background<T: RenderTarget>(
+    pub fn draw_background<'b>(
         &self,
-        context: &'a mut RenderContext<'a>,
+        context: &'b mut RenderContext<'a>,
         layer: RenderLayer,
         offset: Point,
         images: &'a ImageManager,
@@ -139,9 +138,9 @@ impl<'a> Door<'a> {
         }
     }
 
-    fn draw_foreground(
+    pub fn draw_foreground<'b>(
         &self,
-        context: &'a mut RenderContext<'a>,
+        context: &'b mut RenderContext<'a>,
         layer: RenderLayer,
         offset: Point,
     ) {
