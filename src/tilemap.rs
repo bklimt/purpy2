@@ -363,7 +363,7 @@ impl MapObject {
     fn new(xml: ObjectXml, tileset: &TileSet) -> Result<MapObject> {
         let id = xml.id;
         let x = xml.x;
-        let mut y = xml.x;
+        let mut y = xml.y;
         let width = xml.width;
         let height = xml.height;
         let mut properties: PropertyMap = xml
