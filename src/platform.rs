@@ -48,7 +48,12 @@ impl<'a> Platform<'a> {
             id: obj.id,
             tileset: tileset,
             tile_id: obj.gid.context("gid required for platforms")? as TileIndex - 1,
-            position: obj.position,
+            position: Rect {
+                x: obj.position.x * SUBPIXELS,
+                y: obj.position.y * SUBPIXELS,
+                w: obj.position.w * SUBPIXELS,
+                h: obj.position.h * SUBPIXELS,
+            },
             dx: 0,
             dy: 0,
             solid: obj.properties.solid,
@@ -298,7 +303,7 @@ pub struct Bagel {
 
 impl Bagel {
     pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Platform<'b>> {
-        let original_y = obj.position.y;
+        let original_y = obj.position.y * SUBPIXELS;
         let bagel = Bagel {
             original_y,
             falling: false,
