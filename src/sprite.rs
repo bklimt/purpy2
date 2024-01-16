@@ -39,39 +39,9 @@ impl<'a> Sprite<'a> {
 
 pub struct SpriteSheet<'a> {
     surface: Rc<Sprite<'a>>,
-    reverse: Rc<Sprite<'a>>,
     sprite_width: u32,
     sprite_height: u32,
     columns: u32,
-}
-
-fn reverse_surface(surface: &Surface) -> Result<Surface<'static>> {
-    let w = surface.width();
-    let h = surface.height();
-    let pitch = surface.pitch();
-    let format = surface.pixel_format_enum();
-
-    let mut reverse = Surface::new(w, h, format).map_err(|s: String| anyhow!("{}", s))?;
-    let reverse_pitch = reverse.pitch() as usize;
-
-    let w = w as usize;
-    let h = h as usize;
-    let pitch = pitch as usize;
-
-    reverse.with_lock_mut(|dst| {
-        surface.with_lock(|src| {
-            for x in 0..w {
-                let dx = (w - 1) - x;
-                for y in 0..h {
-                    let sp = x + y * pitch;
-                    let dp = dx + y * reverse_pitch;
-                    dst[dp] = src[sp];
-                }
-            }
-        });
-    });
-
-    Ok(reverse)
 }
 
 impl<'a> SpriteSheet<'a> {
@@ -85,26 +55,19 @@ impl<'a> SpriteSheet<'a> {
         'c: 'b,
     {
         let w = surface.width();
-        let reverse = reverse_surface(&surface)?;
         let surface = Rc::new(Sprite::new(surface, texture_creator)?);
-        let reverse = Rc::new(Sprite::new(reverse, texture_creator)?);
         let columns = w / sprite_width;
         Ok(SpriteSheet {
             surface,
-            reverse,
             sprite_width,
             sprite_height,
             columns,
         })
     }
 
-    fn sprite(&self, index: u32, layer: u32, reverse: bool) -> Rect {
+    fn sprite(&self, index: u32, layer: u32) -> Rect {
         let row = (index / self.columns) + layer;
-        let column = if reverse {
-            (self.columns - 1) - (index % self.columns)
-        } else {
-            index % self.columns
-        };
+        let column = index % self.columns;
 
         let w = self.sprite_width as i32;
         let h = self.sprite_height as i32;
@@ -122,13 +85,12 @@ impl<'a> SpriteSheet<'a> {
         sprite_layer: u32,
         reverse: bool,
     ) {
-        let texture = if reverse {
-            &self.reverse
+        let sprite = self.sprite(index, sprite_layer);
+        if reverse {
+            context.draw_reversed(&self.surface, layer, dest, sprite);
         } else {
-            &self.surface
-        };
-        let sprite = self.sprite(index, sprite_layer, reverse);
-        context.draw(&texture, layer, dest, sprite);
+            context.draw(&self.surface, layer, dest, sprite);
+        }
     }
 }
 

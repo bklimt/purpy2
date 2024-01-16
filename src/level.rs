@@ -866,7 +866,7 @@ impl<'a> Scene<'a> for Level<'a> {
         'a: 'b,
         'a: 'c,
     {
-        let dest = context.logical_area();
+        let dest = context.logical_area_in_subpixels();
 
         // Make sure the player is on the screen, and then center them if possible.
         let player_rect = self.player.get_target_bounds_rect(Direction::None);

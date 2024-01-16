@@ -64,11 +64,7 @@ fn run_game(_args: Args) -> Result<()> {
     let image_manager = ImageManager::new(&texture_creator)?;
     let mut frame = 0;
 
-    // TODO: This should not be multiplied times the subpixels.
-    canvas.set_logical_size(
-        RENDER_WIDTH * SUBPIXELS as u32,
-        RENDER_HEIGHT * SUBPIXELS as u32,
-    )?;
+    canvas.set_logical_size(RENDER_WIDTH, RENDER_HEIGHT)?;
     canvas.set_draw_color(Color::RGB(40, 40, 40));
     canvas.clear();
     canvas.present();
@@ -104,10 +100,11 @@ fn run_game(_args: Args) -> Result<()> {
             break 'running;
         }
 
+        context.clear();
         stage_manager.draw(&mut context, &image_manager);
-
         context.render(&mut canvas)?;
         canvas.present();
+
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
         frame += 1;
     }
