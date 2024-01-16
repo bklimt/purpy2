@@ -74,7 +74,7 @@ struct PlayerMovementResult {
     crushed_by_platform: bool,
 }
 
-struct Level<'a> {
+pub struct Level<'a> {
     name: String,
     map_path: PathBuf,
     map: TileMap<'a>,
@@ -117,10 +117,10 @@ fn inc_player_y(player: &mut Player, offset: i32) {
 }
 
 impl<'a> Level<'a> {
-    fn new<'b, S: RenderTarget>(
-        map_path: &Path,
-        images: &'b ImageManager<'b>,
-    ) -> Result<Level<'b>> {
+    pub fn new<'b, 'c>(map_path: &Path, images: &'c ImageManager<'b>) -> Result<Level<'b>>
+    where
+        'b: 'c,
+    {
         let wall_stick_counter = WALL_STICK_TIME;
         let wall_stick_facing_right = false;
         let wall_slide_counter = WALL_SLIDE_TIME;
@@ -151,7 +151,7 @@ impl<'a> Level<'a> {
         let current_platform = None;
         let current_door = None;
 
-        let mut platforms: Vec<Platform> = Vec::new();
+        let mut platforms: Vec<Platform<'b>> = Vec::new();
         let mut stars = Vec::new();
         let mut doors = Vec::new();
 
@@ -761,8 +761,14 @@ impl<'a> Level<'a> {
             }
         }
     }
+}
 
-    fn update(&mut self, inputs: &InputManager, sounds: &SoundManager) -> SceneResult {
+impl<'a> Scene<'a> for Level<'a> {
+    fn update<'b, 'c>(
+        &mut self,
+        inputs: &'b InputManager,
+        sounds: &'c SoundManager,
+    ) -> SceneResult {
         if inputs.is_on(BinaryInput::Cancel) {
             return SceneResult::Pop;
         }
@@ -852,9 +858,10 @@ impl<'a> Level<'a> {
         SceneResult::Continue
     }
 
-    fn draw<'b>(&mut self, context: &'b mut RenderContext<'a>, images: &'a ImageManager)
+    fn draw<'b, 'c>(&mut self, context: &'b mut RenderContext<'a>, images: &'c ImageManager<'a>)
     where
         'a: 'b,
+        'a: 'c,
     {
         let dest = context.logical_area();
 
@@ -983,16 +990,4 @@ impl<'a> Level<'a> {
         context.add_light(spotlight_pos, spotlight_radius)
         */
     }
-}
-
-impl<'a> Scene for Level<'a> {
-    fn update(
-        &mut self,
-        inputs: &crate::inputmanager::InputManager,
-        sounds: crate::soundmanager::SoundManager,
-    ) -> Result<SceneResult> {
-        unimplemented!();
-    }
-
-    fn draw(&self, images: &ImageManager) {}
 }

@@ -390,11 +390,14 @@ pub struct Spring<'a> {
 }
 
 impl<'a> Spring<'a> {
-    pub fn new<'b>(
+    pub fn new<'b, 'c>(
         obj: &MapObject,
         tileset: Rc<TileSet<'b>>,
-        images: &'b ImageManager,
-    ) -> Result<Platform<'b>> {
+        images: &'c ImageManager<'b>,
+    ) -> Result<Platform<'b>>
+    where
+        'b: 'c,
+    {
         let path = Path::new("assets/sprites/spring.png");
         let sprite = images.load_spritesheet(path, 8, 8)?;
         let spring = Spring {
@@ -522,11 +525,14 @@ fn get_button_image_path(color: &str) -> String {
 }
 
 impl<'a> Button<'a> {
-    pub fn new<'b>(
+    pub fn new<'b, 'c>(
         obj: &MapObject,
         tileset: Rc<TileSet<'b>>,
-        images: &'b ImageManager<'b>,
-    ) -> Result<Platform<'b>> {
+        images: &'c ImageManager<'b>,
+    ) -> Result<Platform<'b>>
+    where
+        'b: 'c,
+    {
         let level = 0;
         let clicked = false;
         let was_occupied = false;

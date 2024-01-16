@@ -38,7 +38,10 @@ pub struct Door<'a> {
 }
 
 impl<'a> Door<'a> {
-    pub fn new<'b>(obj: &MapObject, images: &ImageManager<'b>) -> Result<Door<'b>> {
+    pub fn new<'b, 'c>(obj: &MapObject, images: &'c ImageManager<'b>) -> Result<Door<'b>>
+    where
+        'b: 'c,
+    {
         let sprite_path = obj
             .properties
             .sprite
@@ -96,13 +99,16 @@ impl<'a> Door<'a> {
         self.frame = 0;
     }
 
-    pub fn draw_background<'b>(
+    pub fn draw_background<'b, 'c>(
         &self,
         context: &'b mut RenderContext<'a>,
         layer: RenderLayer,
         offset: Point,
-        images: &'a ImageManager,
-    ) {
+        images: &'c ImageManager<'a>,
+    ) where
+        'a: 'b,
+        'a: 'c,
+    {
         let x = self.x + offset.x();
         let y = self.y + offset.y();
         let dest = Rect {

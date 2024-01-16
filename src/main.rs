@@ -13,6 +13,7 @@ mod slope;
 mod smallintset;
 mod soundmanager;
 mod sprite;
+mod stagemanager;
 mod star;
 mod switchstate;
 mod tilemap;

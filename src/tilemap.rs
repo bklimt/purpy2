@@ -410,7 +410,10 @@ pub struct TileMap<'a> {
 }
 
 impl<'a> TileMap<'a> {
-    pub fn from_file<'b>(path: &Path, images: &ImageManager<'b>) -> Result<TileMap<'b>> {
+    pub fn from_file<'b, 'c>(path: &Path, images: &'c ImageManager<'b>) -> Result<TileMap<'b>>
+    where
+        'b: 'c,
+    {
         println!("loading tilemap from {:?}", path);
         let text = fs::read_to_string(path)?;
         let xml = quick_xml::de::from_str::<TileMapXml>(&text)?;

@@ -39,7 +39,10 @@ pub struct Player<'a> {
 }
 
 impl<'a> Player<'a> {
-    pub fn new<'b>(images: &ImageManager<'b>) -> Result<Player<'b>> {
+    pub fn new<'b, 'c>(images: &'c ImageManager<'b>) -> Result<Player<'b>>
+    where
+        'b: 'c,
+    {
         let sprite = images.load_spritesheet(Path::new("assets/sprites/skelly2.png"), 24, 24)?;
         let animation_state_machine =
             AnimationStateMachine::from_file(Path::new("assets/sprites/skelly2_states.txt"))?;
