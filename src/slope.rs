@@ -1,3 +1,4 @@
+use crate::constants::SUBPIXELS;
 use crate::tileset::TileProperties;
 use crate::utils::{Direction, Rect, Subpixels};
 
@@ -10,8 +11,8 @@ pub struct Slope {
 
 impl Slope {
     pub fn new(properties: &TileProperties) -> Result<Self> {
-        let left_y = properties.left_y;
-        let right_y = properties.right_y;
+        let left_y = properties.left_y * SUBPIXELS;
+        let right_y = properties.right_y * SUBPIXELS;
         Ok(Slope { left_y, right_y })
     }
 

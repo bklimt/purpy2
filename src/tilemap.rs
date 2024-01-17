@@ -838,11 +838,10 @@ impl<'a> TileMap<'a> {
                     }
 
                     let soft_offset = try_move_to_bounds(player_rect, tile_bounds, direction);
-                    let hard_offset = soft_offset;
+                    let mut hard_offset = soft_offset;
 
                     if let Some(slope) = self.tileset.get_slope(index) {
-                        let hard_offset =
-                            slope.try_move_to_bounds(player_rect, tile_bounds, direction);
+                        hard_offset = slope.try_move_to_bounds(player_rect, tile_bounds, direction);
                     };
 
                     result.consider_tile(index, hard_offset, soft_offset, direction);
