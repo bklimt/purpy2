@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use clap::Parser;
-use constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH};
+use constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
 use imagemanager::ImageManager;
 use inputmanager::InputManager;
 use rendercontext::RenderContext;
@@ -41,8 +41,11 @@ use stagemanager::StageManager;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long)]
+    #[arg(long)]
     debug: bool,
+
+    #[arg(long)]
+    fullscreen: bool,
 }
 
 fn run_game(args: Args) -> Result<()> {
@@ -51,12 +54,12 @@ fn run_game(args: Args) -> Result<()> {
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
     // We create a window.
-    let window = video_subsystem
-        .window("sdl2 demo", 800, 600)
-        .resizable()
-        //.fullscreen_desktop()
-        .build()
-        .expect("failed to build window");
+    let title = "purpy2";
+    let mut window = video_subsystem.window(title, WINDOW_WIDTH, WINDOW_HEIGHT);
+    if args.fullscreen {
+        window.fullscreen_desktop();
+    }
+    let window = window.resizable().build().expect("failed to build window");
 
     // We get the canvas from which we can get the `TextureCreator`.
     let mut canvas: Canvas<Window> = window

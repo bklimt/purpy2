@@ -3,7 +3,7 @@ where
     K: Into<usize>,
 {
     // keys is currently unused, but useful for typing, and may be useful later
-    keys: Vec<Option<K>>,
+    _keys: Vec<Option<K>>,
     values: Vec<Option<V>>,
 }
 
@@ -13,7 +13,7 @@ where
 {
     pub fn new() -> Self {
         SmallIntMap {
-            keys: Vec::new(),
+            _keys: Vec::new(),
             values: Vec::new(),
         }
     }

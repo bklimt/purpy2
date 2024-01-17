@@ -56,8 +56,8 @@ struct MovePlayerXResult {
 
 struct MovePlayerYResult {
     on_ground: bool,
-    platforms: SmallIntSet<usize>,
-    tile_ids: SmallIntSet<TileIndex>,
+    _platforms: SmallIntSet<usize>,
+    _tile_ids: SmallIntSet<TileIndex>,
     stuck_in_wall: bool,
     crushed_by_platform: bool,
 }
@@ -69,12 +69,12 @@ struct PlayerMovementResult {
     jump_down: bool,
     jump_triggered: bool,
     crouch_down: bool,
-    stuck_in_wall: bool,
+    _stuck_in_wall: bool,
     crushed_by_platform: bool,
 }
 
 pub struct Level<'a> {
-    name: String,
+    _name: String,
     map_path: PathBuf,
     map: TileMap<'a>,
     player: Player<'a>,
@@ -186,7 +186,7 @@ impl<'a> Level<'a> {
         let previous_transition = "".to_owned();
 
         Ok(Level {
-            name,
+            _name: name,
             map_path,
             map,
             player,
@@ -271,7 +271,7 @@ impl<'a> Level<'a> {
         }
     }
 
-    fn update_player_trajectory_y(&mut self, inputs: &InputSnapshot) {
+    fn update_player_trajectory_y(&mut self) {
         match self.player.state {
             PlayerState::Standing | PlayerState::Crouching => {
                 // Fall at least one pixel so that we hit the ground again.
@@ -519,8 +519,8 @@ impl<'a> Level<'a> {
                 on_ground: move_result.on_ground,
                 crushed_by_platform: move_result.crushed_by_platform,
                 stuck_in_wall: move_result.stuck_in_wall,
-                platforms: SmallIntSet::new(),
-                tile_ids: SmallIntSet::new(),
+                _platforms: SmallIntSet::new(),
+                _tile_ids: SmallIntSet::new(),
             }
         } else {
             // Moving down.
@@ -533,8 +533,8 @@ impl<'a> Level<'a> {
 
             MovePlayerYResult {
                 on_ground: move_result.on_ground,
-                tile_ids: move_result.on_tile_ids,
-                platforms: move_result.on_platforms,
+                _tile_ids: move_result.on_tile_ids,
+                _platforms: move_result.on_platforms,
                 crushed_by_platform: move_result.crushed_by_platform,
                 stuck_in_wall: move_result.stuck_in_wall,
             }
@@ -603,7 +603,7 @@ impl<'a> Level<'a> {
         sounds: &mut SoundManager,
     ) -> PlayerMovementResult {
         self.update_player_trajectory_x(inputs);
-        self.update_player_trajectory_y(inputs);
+        self.update_player_trajectory_y();
 
         let x_result = self.move_player_x(inputs);
         let y_result = self.move_player_y(sounds);
@@ -614,7 +614,7 @@ impl<'a> Level<'a> {
             jump_down: inputs.player_jump_down,
             jump_triggered: inputs.player_jump_trigger,
             crouch_down: inputs.player_crouch,
-            stuck_in_wall: x_result.stuck_in_wall || y_result.stuck_in_wall,
+            _stuck_in_wall: x_result.stuck_in_wall || y_result.stuck_in_wall,
             crushed_by_platform: x_result.crushed_by_platform || y_result.crushed_by_platform,
         }
     }
@@ -637,7 +637,7 @@ impl<'a> Level<'a> {
             self.player.is_dead = true;
         } else {
             match self.player.state {
-                PlayerState::Crouching | PlayerState::Stopped => {}
+                PlayerState::Stopped => {}
                 PlayerState::Standing => {
                     let launch = if let Some(Platform {
                         subtype: PlatformType::Spring(spring),
@@ -788,7 +788,7 @@ impl<'a> Scene<'a> for Level<'a> {
                 jump_down: false,
                 jump_triggered: false,
                 crouch_down: false,
-                stuck_in_wall: false,
+                _stuck_in_wall: false,
                 crushed_by_platform: false,
             },
             _ => self.update_player_movement(inputs, sounds),
