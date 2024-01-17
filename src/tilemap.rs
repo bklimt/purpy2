@@ -61,9 +61,9 @@ struct ImageLayerXml {
     #[serde(rename = "@id")]
     _id: i32,
     #[serde(rename = "@offsetx")]
-    _offsetx: String,
+    _offsetx: Option<String>,
     #[serde(rename = "@offsety")]
-    _offsety: String,
+    _offsety: Option<String>,
 
     image: ImageXml,
 }

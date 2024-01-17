@@ -560,7 +560,7 @@ impl<'a> Button<'a> {
         let sprite = images.load_spritesheet(Path::new(&image_path), 8, 8)?;
         let button_type = obj.properties.button_type;
 
-        let original_y = obj.position.y;
+        let original_y = obj.position.y * SUBPIXELS;
         let button = Button {
             sprite,
             level,
@@ -587,7 +587,7 @@ impl<'a> Button<'a> {
         'a: 'b,
     {
         let x = base.position.x + offset.x;
-        let y = self.original_y + offset.y();
+        let y = self.original_y + offset.y;
         let dest = Rect {
             x,
             y,
