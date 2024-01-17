@@ -487,7 +487,7 @@ impl<'a> Level<'a> {
         slope_fall
     }
 
-    fn move_player_y(&mut self, sounds: &SoundManager) -> MovePlayerYResult {
+    fn move_player_y(&mut self, sounds: &mut SoundManager) -> MovePlayerYResult {
         let mut dy = self.player.dy;
         if let Some(current_platform) = self.current_platform {
             // This could be positive or negative.
@@ -573,7 +573,7 @@ impl<'a> Level<'a> {
         }
     }
 
-    fn handle_switch_tiles(&mut self, tiles: &SmallIntSet<TileIndex>, sounds: &SoundManager) {
+    fn handle_switch_tiles(&mut self, tiles: &SmallIntSet<TileIndex>, sounds: &mut SoundManager) {
         let new_switch_tiles = SmallIntSet::new();
         let previous = mem::replace(&mut self.current_switch_tiles, new_switch_tiles);
         for t in tiles.iter() {
@@ -596,7 +596,7 @@ impl<'a> Level<'a> {
     fn update_player_movement(
         &mut self,
         inputs: &InputSnapshot,
-        sounds: &SoundManager,
+        sounds: &mut SoundManager,
     ) -> PlayerMovementResult {
         self.update_player_trajectory_x(inputs);
         self.update_player_trajectory_y(inputs);
@@ -766,7 +766,7 @@ impl<'a> Scene<'a> for Level<'a> {
     fn update<'b, 'c>(
         &mut self,
         inputs: &'b InputSnapshot,
-        sounds: &'c SoundManager,
+        sounds: &'c mut SoundManager,
     ) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;

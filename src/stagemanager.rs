@@ -28,7 +28,7 @@ impl<'a> Scene<'a> for SceneTombstone {
     fn update<'b, 'c>(
         &mut self,
         _inputs: &'b InputSnapshot,
-        _sounds: &'c SoundManager,
+        _sounds: &'c mut SoundManager,
     ) -> SceneResult {
         unimplemented!()
     }
@@ -56,7 +56,7 @@ impl<'a> StageManager<'a> {
         &mut self,
         inputs: &'b InputSnapshot,
         images: &'c ImageManager<'a>,
-        sounds: &'d SoundManager,
+        sounds: &'d mut SoundManager,
     ) -> Result<bool>
     where
         'a: 'c,

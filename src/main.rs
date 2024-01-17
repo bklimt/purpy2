@@ -44,6 +44,7 @@ struct Args {}
 fn run_game(_args: Args) -> Result<()> {
     let sdl_context = sdl2::init().expect("failed to init SDL");
     let video_subsystem = sdl_context.video().expect("failed to get video context");
+    let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
     // We create a window.
     let window = video_subsystem
@@ -70,7 +71,8 @@ fn run_game(_args: Args) -> Result<()> {
 
     let mut input_manager = InputManager::new();
     let mut stage_manager = StageManager::new(&image_manager)?;
-    let sound_manager = SoundManager {};
+
+    let mut sound_manager = SoundManager::new(&audio_subsystem)?;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
@@ -91,7 +93,7 @@ fn run_game(_args: Args) -> Result<()> {
 
         let input_snapshot = input_manager.update();
 
-        if !stage_manager.update(&input_snapshot, &image_manager, &sound_manager)? {
+        if !stage_manager.update(&input_snapshot, &image_manager, &mut sound_manager)? {
             break 'running;
         }
 

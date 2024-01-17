@@ -52,7 +52,7 @@ impl LevelSelect {
 }
 
 impl<'a> Scene<'a> for LevelSelect {
-    fn update(&mut self, inputs: &InputSnapshot, sounds: &SoundManager) -> SceneResult {
+    fn update(&mut self, inputs: &InputSnapshot, sounds: &mut SoundManager) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;
         }

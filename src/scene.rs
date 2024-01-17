@@ -18,7 +18,7 @@ pub trait Scene<'a> {
     fn update<'b, 'c>(
         &mut self,
         inputs: &'b InputSnapshot,
-        sounds: &'c SoundManager,
+        sounds: &'c mut SoundManager,
     ) -> SceneResult;
 
     // TODO: It's unfortunate that draw has to be mutable for now.

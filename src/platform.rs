@@ -11,7 +11,7 @@ use crate::constants::{
 };
 use crate::imagemanager::ImageManager;
 use crate::rendercontext::{RenderContext, RenderLayer};
-use crate::soundmanager::SoundManager;
+use crate::soundmanager::{Sound, SoundManager};
 use crate::sprite::SpriteSheet;
 use crate::switchstate::SwitchState;
 use crate::tilemap::{ButtonType, ConveyorDirection, MapObject, Overflow};
@@ -62,7 +62,7 @@ impl<'a> Platform<'a> {
         })
     }
 
-    pub fn update(&mut self, switches: &mut SwitchState, sounds: &SoundManager) {
+    pub fn update(&mut self, switches: &mut SwitchState, sounds: &mut SoundManager) {
         // Temporarily swap out the subtype so we can pass both it and self as &mut.
         // Conveyor is just a subtype that is trivial to construct.
         let mut subtype = mem::replace(&mut self.subtype, PlatformType::Conveyor(Conveyor(())));
@@ -598,7 +598,12 @@ impl<'a> Button<'a> {
             .blit(context, layer, dest, self.level / BUTTON_DELAY, 0, false);
     }
 
-    fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, sounds: &SoundManager) {
+    fn update(
+        &mut self,
+        base: &mut Platform,
+        switches: &mut SwitchState,
+        sounds: &mut SoundManager,
+    ) {
         let was_clicked = self.clicked;
 
         if matches!(self.button_type, ButtonType::Smart) {
@@ -632,7 +637,7 @@ impl<'a> Button<'a> {
         base.position.y = self.original_y + ((self.level * SUBPIXELS as u32) / BUTTON_DELAY) as i32;
 
         if self.clicked != was_clicked {
-            // sounds.play(Sound.CLICK);
+            sounds.play(Sound::Click);
             if matches!(self.button_type, ButtonType::Smart) {
                 if self.clicked && base.occupied {
                     switches.apply_command(&self.color);
