@@ -22,11 +22,11 @@ mod tilemap;
 mod tileset;
 mod utils;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use clap::Parser;
-use constants::{RENDER_HEIGHT, RENDER_WIDTH};
+use constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH};
 use imagemanager::ImageManager;
 use inputmanager::InputManager;
 use rendercontext::RenderContext;
@@ -39,9 +39,12 @@ use stagemanager::StageManager;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {}
+struct Args {
+    #[arg(short, long)]
+    debug: bool,
+}
 
-fn run_game(_args: Args) -> Result<()> {
+fn run_game(args: Args) -> Result<()> {
     let sdl_context = sdl2::init().expect("failed to init SDL");
     let video_subsystem = sdl_context.video().expect("failed to get video context");
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
@@ -50,7 +53,7 @@ fn run_game(_args: Args) -> Result<()> {
     let window = video_subsystem
         .window("sdl2 demo", 800, 600)
         .resizable()
-        .fullscreen_desktop()
+        //.fullscreen_desktop()
         .build()
         .expect("failed to build window");
 
@@ -61,7 +64,7 @@ fn run_game(_args: Args) -> Result<()> {
         .expect("failed to build window's canvas");
     let texture_creator = canvas.texture_creator();
 
-    let image_manager = ImageManager::new(&texture_creator)?;
+    let image_manager = ImageManager::new(&texture_creator, args.debug)?;
     let mut frame = 0;
 
     canvas.set_logical_size(RENDER_WIDTH, RENDER_HEIGHT)?;
@@ -70,12 +73,14 @@ fn run_game(_args: Args) -> Result<()> {
     canvas.present();
 
     let mut input_manager = InputManager::new();
-    let mut stage_manager = StageManager::new(&image_manager)?;
+    let mut stage_manager = StageManager::new(&image_manager, args.debug)?;
 
-    let mut sound_manager = SoundManager::new(&audio_subsystem)?;
+    let mut sound_manager = SoundManager::new(&audio_subsystem, args.debug)?;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
+        let start_time = Instant::now();
+
         canvas.set_draw_color(Color::RGB(40, 40, 40));
         canvas.clear();
 
@@ -93,7 +98,12 @@ fn run_game(_args: Args) -> Result<()> {
 
         let input_snapshot = input_manager.update();
 
-        if !stage_manager.update(&input_snapshot, &image_manager, &mut sound_manager)? {
+        if !stage_manager.update(
+            &input_snapshot,
+            &image_manager,
+            &mut sound_manager,
+            args.debug,
+        )? {
             break 'running;
         }
 
@@ -102,10 +112,14 @@ fn run_game(_args: Args) -> Result<()> {
         context.render(&mut canvas)?;
         canvas.present();
 
-        // 60 Hz
-        // TODO: Make this more accurate.
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 70));
         frame += 1;
+        let target_duration = Duration::new(0, 1_000_000_000u32 / FRAME_RATE);
+        let actual_duration = start_time.elapsed();
+        if actual_duration > target_duration {
+            continue;
+        }
+        let remaining = target_duration - actual_duration;
+        ::std::thread::sleep(remaining);
     }
 
     Ok(())

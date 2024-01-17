@@ -2,27 +2,37 @@ use std::collections::HashSet;
 
 pub struct SwitchState {
     on: HashSet<String>,
+    debug: bool,
 }
 
 impl SwitchState {
-    pub fn new() -> Self {
-        SwitchState { on: HashSet::new() }
+    pub fn new(debug: bool) -> Self {
+        SwitchState {
+            on: HashSet::new(),
+            debug,
+        }
     }
 
     fn turn_on(&mut self, s: &str) {
-        println!("turning on {s}");
+        if self.debug {
+            println!("turning on {s}");
+        }
         self.on.insert(s.to_owned());
     }
 
     fn turn_off(&mut self, s: &str) {
-        println!("turning off {s}");
+        if self.debug {
+            println!("turning off {s}");
+        }
         if self.on.contains(s) {
             self.on.remove(s);
         }
     }
 
     pub fn toggle(&mut self, s: &str) {
-        println!("toggling {s}");
+        if self.debug {
+            println!("toggling {s}");
+        }
         if self.on.contains(s) {
             self.on.remove(s);
         } else {

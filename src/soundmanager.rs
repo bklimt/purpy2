@@ -85,10 +85,11 @@ fn load_wav(path: &Path, spec: &AudioSpec) -> Result<Vec<u8>> {
 
 pub struct SoundManager {
     device: AudioDevice<SoundCallback>,
+    debug: bool,
 }
 
 impl SoundManager {
-    pub fn new(audio: &AudioSubsystem) -> Result<SoundManager> {
+    pub fn new(audio: &AudioSubsystem, debug: bool) -> Result<SoundManager> {
         let desired_spec = AudioSpecDesired {
             freq: Some(44100),
             channels: Some(1),
@@ -105,7 +106,7 @@ impl SoundManager {
         SoundManager::load_sounds(&mut device)?;
 
         device.resume();
-        Ok(SoundManager { device })
+        Ok(SoundManager { device, debug })
     }
 
     fn load_sounds(device: &mut AudioDevice<SoundCallback>) -> Result<()> {
@@ -118,7 +119,9 @@ impl SoundManager {
     }
 
     pub fn play(&mut self, sound: Sound) {
-        println!("playing sound {:?}", sound);
+        if self.debug {
+            println!("playing sound {:?}", sound);
+        }
         let mut lock = self.device.lock();
         let callback = lock.deref_mut();
         if callback.playing.len() < MAX_SOUNDS {

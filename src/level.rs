@@ -116,7 +116,11 @@ fn inc_player_y(player: &mut Player, offset: i32) {
 }
 
 impl<'a> Level<'a> {
-    pub fn new<'b, 'c>(map_path: &Path, images: &'c ImageManager<'b>) -> Result<Level<'b>>
+    pub fn new<'b, 'c>(
+        map_path: &Path,
+        images: &'c ImageManager<'b>,
+        debug: bool,
+    ) -> Result<Level<'b>>
     where
         'b: 'c,
     {
@@ -138,13 +142,13 @@ impl<'a> Level<'a> {
             .to_string();
         let toast_text = name.clone();
         let previous_map_offset = None;
-        let map = TileMap::from_file(map_path, images)?;
+        let map = TileMap::from_file(map_path, images, debug)?;
         let mut player = Player::new(images)?;
         player.x = 128;
         player.y = 129;
 
         let star_count = 0;
-        let switches = SwitchState::new();
+        let switches = SwitchState::new(debug);
         let current_switch_tiles = SmallIntSet::new();
         let current_slopes = SmallIntSet::new();
         let current_platform = None;
@@ -767,6 +771,7 @@ impl<'a> Scene<'a> for Level<'a> {
         &mut self,
         inputs: &'b InputSnapshot,
         sounds: &'c mut SoundManager,
+        debug: bool,
     ) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;
@@ -827,7 +832,7 @@ impl<'a> Scene<'a> for Level<'a> {
             }
         }
 
-        if true {
+        if debug {
             // TODO: Include slopes.
             let attribs = format!(
                 "{:?}, idle={}, platform={:?}",
