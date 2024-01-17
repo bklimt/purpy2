@@ -534,7 +534,7 @@ pub struct Button<'a> {
 }
 
 fn get_button_image_path(color: &str) -> String {
-    let color = if color == "!white" { "black" } else { "white" };
+    let color = if color == "!white" { "black" } else { color };
     format!("assets/sprites/buttons/{color}.png")
 }
 
