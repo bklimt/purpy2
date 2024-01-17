@@ -3,7 +3,9 @@ use std::ops::DerefMut;
 use std::path::Path;
 
 use anyhow::{anyhow, bail, Result};
-use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired, AudioSpecWAV};
+use sdl2::audio::{
+    AudioCVT, AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired, AudioSpecWAV,
+};
 use sdl2::AudioSubsystem;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -15,11 +17,22 @@ pub enum Sound {
 const MAX_SOUNDS: usize = 4;
 
 struct SoundCallback {
-    playing: Vec<(Vec<u16>, usize)>,
+    clips: HashMap<Sound, Vec<u8>>,
+    playing: Vec<(Sound, usize)>,
+}
+
+impl SoundCallback {
+    fn load_wav(&mut self, sound: Sound, name: &str, spec: &AudioSpec) -> Result<()> {
+        let path_str = format!("./assets/sounds/{}.wav", name);
+        let path = Path::new(&path_str);
+        let wav = load_wav(path, spec)?;
+        self.clips.insert(sound, wav);
+        Ok(())
+    }
 }
 
 impl AudioCallback for SoundCallback {
-    type Channel = u16;
+    type Channel = u8;
 
     fn callback(&mut self, buffer: &mut [Self::Channel]) {
         for sample in buffer.iter_mut() {
@@ -27,57 +40,49 @@ impl AudioCallback for SoundCallback {
         }
 
         let playing = std::mem::replace(&mut self.playing, Vec::new());
-        for (clip, offset) in playing.into_iter() {
+        for (sound, offset) in playing.into_iter() {
+            let clip = self.clips.get(&sound).expect("all sounds should be loaded");
+
             for (i, sample) in buffer.iter_mut().enumerate() {
                 if offset + i >= clip.len() {
                     break;
                 }
-                *sample += clip[i + offset] / (MAX_SOUNDS as u16);
+                *sample += clip[i + offset] / (MAX_SOUNDS as u8);
             }
 
             let next_offset = offset + buffer.len();
             if next_offset < clip.len() {
-                self.playing.push((clip, next_offset));
+                self.playing.push((sound, next_offset));
             }
         }
     }
 }
 
-fn load_wav(path: &Path, _spec: &AudioSpec) -> Result<AudioSpecWAV> {
+fn load_wav(path: &Path, spec: &AudioSpec) -> Result<Vec<u8>> {
     let wav = AudioSpecWAV::load_wav(path)
         .map_err(|s| anyhow!("unable to load wav {:?}: {}", path, s))?;
 
-    // TODO: Use an audio converter to convert the data.
+    let cvt = AudioCVT::new(
+        wav.format,
+        wav.channels,
+        wav.freq,
+        spec.format,
+        spec.channels,
+        spec.freq,
+    )
+    .map_err(|s| anyhow!("unable to create audio converter: {}", s))?;
 
-    /*
-    if wav.freq != spec.freq {
-        bail!("incorrect frequency: {} vs {}", wav.freq, spec.freq);
-    }
-    if wav.format != spec.format {
-        bail!("incorrect format: {:?} vs {:?}", wav.format, spec.format);
-    }
-    if wav.channels != spec.channels {
-        bail!("incorrect channels: {} vs {}", wav.channels, spec.channels);
-    }
-    if wav.format != AudioFormat::S16LSB {
-        bail!(
-            "incorrect format: {:?} vs {:?}",
-            wav.format,
-            AudioFormat::S16LSB
-        );
-    }
-    */
+    let buffer = cvt.convert(wav.buffer().into());
 
     if wav.buffer().len() % 2 != 0 {
         bail!("wav parity error");
     }
 
-    Ok(wav)
+    Ok(buffer)
 }
 
 pub struct SoundManager {
     device: AudioDevice<SoundCallback>,
-    sounds: HashMap<Sound, AudioSpecWAV>,
 }
 
 impl SoundManager {
@@ -88,48 +93,34 @@ impl SoundManager {
             samples: Some(512),
         };
 
-        let device = audio
+        let mut device = audio
             .open_playback(None, &desired_spec, |_spec| SoundCallback {
+                clips: HashMap::new(),
                 playing: Vec::new(),
             })
             .map_err(|s| anyhow!("error initializing audio device: {}", s))?;
 
-        let sounds = HashMap::new();
-        let mut manager = SoundManager { device, sounds };
+        SoundManager::load_sounds(&mut device)?;
 
-        manager.load_wav(Sound::Click, "click")?;
-        manager.load_wav(Sound::Star, "star")?;
-
-        manager.device.resume();
-        Ok(manager)
+        device.resume();
+        Ok(SoundManager { device })
     }
 
-    fn load_wav(&mut self, sound: Sound, name: &str) -> Result<()> {
-        let path_str = format!("./assets/sounds/{}.wav", name);
-        let path = Path::new(&path_str);
-        let wav = load_wav(path, self.device.spec())?;
-        self.sounds.insert(sound, wav);
+    fn load_sounds(device: &mut AudioDevice<SoundCallback>) -> Result<()> {
+        let spec = device.spec().clone();
+        let mut lock = device.lock();
+        let callback = lock.deref_mut();
+        callback.load_wav(Sound::Click, "click", &spec)?;
+        callback.load_wav(Sound::Star, "star", &spec)?;
         Ok(())
     }
 
     pub fn play(&mut self, sound: Sound) {
         println!("playing sound {:?}", sound);
-        let wav = self.sounds.get(&sound).expect("all sounds are in map");
-        // TODO: Investigate how difficult it would be to remove this copy.
-        let buffer = wav.buffer();
-        let mut data = Vec::new();
-        for i in 0..buffer.len() {
-            if i % 2 == 0 {
-                let bytes = [buffer[i], buffer[i + 1]];
-                let word = u16::from_le_bytes(bytes);
-                data.push(word);
-            }
-        }
-
         let mut lock = self.device.lock();
         let callback = lock.deref_mut();
         if callback.playing.len() < MAX_SOUNDS {
-            callback.playing.push((data, 0))
+            callback.playing.push((sound, 0));
         }
     }
 }
