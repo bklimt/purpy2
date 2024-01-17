@@ -10,14 +10,14 @@ use sdl2::AudioSubsystem;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sound {
-    Click,
+    Click = 0,
     Star,
 }
 
 const MAX_SOUNDS: usize = 4;
 
 struct SoundCallback {
-    clips: HashMap<Sound, Vec<u8>>,
+    clips: Vec<Vec<u8>>,
     playing: Vec<(Sound, usize)>,
 }
 
@@ -26,7 +26,10 @@ impl SoundCallback {
         let path_str = format!("./assets/sounds/{}.wav", name);
         let path = Path::new(&path_str);
         let wav = load_wav(path, spec)?;
-        self.clips.insert(sound, wav);
+        if self.clips.len() != sound as usize {
+            bail!("sounds must be loaded in order");
+        }
+        self.clips.push(wav);
         Ok(())
     }
 }
@@ -41,7 +44,7 @@ impl AudioCallback for SoundCallback {
 
         let playing = std::mem::replace(&mut self.playing, Vec::new());
         for (sound, offset) in playing.into_iter() {
-            let clip = self.clips.get(&sound).expect("all sounds should be loaded");
+            let clip = &self.clips[sound as usize];
 
             for (i, sample) in buffer.iter_mut().enumerate() {
                 if offset + i >= clip.len() {
@@ -95,7 +98,7 @@ impl SoundManager {
 
         let mut device = audio
             .open_playback(None, &desired_spec, |_spec| SoundCallback {
-                clips: HashMap::new(),
+                clips: Vec::new(),
                 playing: Vec::new(),
             })
             .map_err(|s| anyhow!("error initializing audio device: {}", s))?;
