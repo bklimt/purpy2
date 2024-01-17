@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::imagemanager::ImageManager;
-use crate::inputmanager::InputManager;
+use crate::inputmanager::InputSnapshot;
 use crate::rendercontext::RenderContext;
 use crate::soundmanager::SoundManager;
 
@@ -15,8 +15,11 @@ pub enum SceneResult {
 }
 
 pub trait Scene<'a> {
-    fn update<'b, 'c>(&mut self, inputs: &'b InputManager, sounds: &'c SoundManager)
-        -> SceneResult;
+    fn update<'b, 'c>(
+        &mut self,
+        inputs: &'b InputSnapshot,
+        sounds: &'c SoundManager,
+    ) -> SceneResult;
 
     // TODO: It's unfortunate that draw has to be mutable for now.
     fn draw<'b, 'c>(&mut self, context: &'b mut RenderContext<'a>, images: &'c ImageManager<'a>)

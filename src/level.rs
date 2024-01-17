@@ -2,7 +2,6 @@ use std::mem;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use sdl2::render::RenderTarget;
 
 use crate::constants::{
     COYOTE_TIME, FALL_ACCELERATION, FALL_MAX_GRAVITY, JUMP_ACCELERATION, JUMP_GRACE_TIME,
@@ -14,7 +13,7 @@ use crate::constants::{
 };
 use crate::door::Door;
 use crate::imagemanager::ImageManager;
-use crate::inputmanager::{BinaryInput, InputManager};
+use crate::inputmanager::InputSnapshot;
 use crate::platform::{Bagel, Button, Conveyor, MovingPlatform, Platform, PlatformType, Spring};
 use crate::player::{Player, PlayerState};
 use crate::rendercontext::{RenderContext, RenderLayer};
@@ -24,7 +23,7 @@ use crate::soundmanager::SoundManager;
 use crate::star::Star;
 use crate::switchstate::SwitchState;
 use crate::tilemap::TileMap;
-use crate::tileset::{TileIndex, TileProperties, TileSetProperties};
+use crate::tileset::{TileIndex, TileProperties};
 use crate::utils::{cmp_in_direction, Color, Direction, Point, Rect};
 
 struct PlatformIntersectionResult {
@@ -216,7 +215,7 @@ impl<'a> Level<'a> {
      * Movement.
      */
 
-    fn update_player_trajectory_x(&mut self, inputs: &InputManager) {
+    fn update_player_trajectory_x(&mut self, inputs: &InputSnapshot) {
         if matches!(self.player.state, PlayerState::Crouching) {
             if self.player.dx > 0 {
                 self.player.dx = (self.player.dx - SLIDE_SPEED_DECELERATION).max(0);
@@ -228,9 +227,9 @@ impl<'a> Level<'a> {
 
         // Apply controller input.
         let mut target_dx = 0;
-        if inputs.is_on(BinaryInput::PlayerLeft) && !inputs.is_on(BinaryInput::PlayerRight) {
+        if inputs.player_left && !inputs.player_right {
             target_dx = -1 * TARGET_WALK_SPEED;
-        } else if inputs.is_on(BinaryInput::PlayerRight) && !inputs.is_on(BinaryInput::PlayerLeft) {
+        } else if inputs.player_right && !inputs.player_left {
             target_dx = TARGET_WALK_SPEED;
         }
 
@@ -268,7 +267,7 @@ impl<'a> Level<'a> {
         }
     }
 
-    fn update_player_trajectory_y(&mut self, inputs: &InputManager) {
+    fn update_player_trajectory_y(&mut self, inputs: &InputSnapshot) {
         match self.player.state {
             PlayerState::Standing | PlayerState::Crouching => {
                 // Fall at least one pixel so that we hit the ground again.
@@ -428,7 +427,7 @@ impl<'a> Level<'a> {
         result
     }
 
-    fn move_player_x(&mut self, inputs: &InputManager) -> MovePlayerXResult {
+    fn move_player_x(&mut self, inputs: &InputSnapshot) -> MovePlayerXResult {
         let mut dx = self.player.dx;
         if let Some(current_platform) = self.current_platform {
             dx += self.platforms[current_platform].dx();
@@ -438,12 +437,12 @@ impl<'a> Level<'a> {
         let (move_result, pushing) = if dx < 0 || (dx == 0 && !self.player.facing_right) {
             // Moving left.
             let move_result = self.move_and_check(Direction::Left, inc_player_x);
-            let pushing = inputs.is_on(BinaryInput::PlayerLeft);
+            let pushing = inputs.player_left;
             (move_result, pushing)
         } else {
             // Moving right.
             let move_result = self.move_and_check(Direction::Right, inc_player_x);
-            let pushing = inputs.is_on(BinaryInput::PlayerRight);
+            let pushing = inputs.player_right;
             (move_result, pushing)
         };
 
@@ -596,7 +595,7 @@ impl<'a> Level<'a> {
 
     fn update_player_movement(
         &mut self,
-        inputs: &InputManager,
+        inputs: &InputSnapshot,
         sounds: &SoundManager,
     ) -> PlayerMovementResult {
         self.update_player_trajectory_x(inputs);
@@ -608,9 +607,9 @@ impl<'a> Level<'a> {
         PlayerMovementResult {
             on_ground: y_result.on_ground,
             pushing_against_wall: x_result.pushing_against_wall,
-            jump_down: inputs.is_on(BinaryInput::PlayerJumpDown),
-            jump_triggered: inputs.is_on(BinaryInput::PlayerJumpTrigger),
-            crouch_down: inputs.is_on(BinaryInput::PlayerCrouch),
+            jump_down: inputs.player_jump_down,
+            jump_triggered: inputs.player_jump_trigger,
+            crouch_down: inputs.player_crouch,
             stuck_in_wall: x_result.stuck_in_wall || y_result.stuck_in_wall,
             crushed_by_platform: x_result.crushed_by_platform || y_result.crushed_by_platform,
         }
@@ -766,10 +765,10 @@ impl<'a> Level<'a> {
 impl<'a> Scene<'a> for Level<'a> {
     fn update<'b, 'c>(
         &mut self,
-        inputs: &'b InputManager,
+        inputs: &'b InputSnapshot,
         sounds: &'c SoundManager,
     ) -> SceneResult {
-        if inputs.is_on(BinaryInput::Cancel) {
+        if inputs.cancel {
             return SceneResult::Pop;
         }
 

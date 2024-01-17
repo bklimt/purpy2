@@ -4,8 +4,7 @@ use std::{fs, path::PathBuf};
 use anyhow::{Context, Result};
 
 use crate::imagemanager::ImageManager;
-use crate::inputmanager::BinaryInput;
-use crate::inputmanager::InputManager;
+use crate::inputmanager::InputSnapshot;
 use crate::rendercontext::RenderContext;
 use crate::rendercontext::RenderLayer;
 use crate::scene::Scene;
@@ -53,17 +52,17 @@ impl LevelSelect {
 }
 
 impl<'a> Scene<'a> for LevelSelect {
-    fn update(&mut self, inputs: &InputManager, sounds: &SoundManager) -> SceneResult {
-        if inputs.is_on(BinaryInput::Cancel) {
+    fn update(&mut self, inputs: &InputSnapshot, sounds: &SoundManager) -> SceneResult {
+        if inputs.cancel {
             return SceneResult::Pop;
         }
-        if inputs.is_on(BinaryInput::MenuUp) {
+        if inputs.menu_up {
             self.current = ((self.current - 1) + self.files.len() as i32) % self.files.len() as i32;
         }
-        if inputs.is_on(BinaryInput::MenuDown) {
+        if inputs.menu_down {
             self.current = (self.current + 1) % self.files.len() as i32;
         }
-        if inputs.is_on(BinaryInput::Ok) {
+        if inputs.ok {
             let new_path = self.files[self.current as usize].0.clone();
             if new_path.is_dir() {
                 SceneResult::PushLevelSelect { path: new_path }

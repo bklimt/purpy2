@@ -1,9 +1,8 @@
-use std::mem;
 use std::rc::Rc;
 
 use anyhow::{anyhow, Result};
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::render::Canvas;
+use sdl2::render::{BlendMode, Canvas};
 use sdl2::video::Window;
 
 use crate::constants::SUBPIXELS;
@@ -101,15 +100,6 @@ impl<'a> RenderContext<'a> {
         })
     }
 
-    fn logical_area(&self) -> Rect {
-        Rect {
-            x: 0,
-            y: 0,
-            w: self.width as i32,
-            h: self.height as i32,
-        }
-    }
-
     pub fn logical_area_in_subpixels(&self) -> Rect {
         Rect {
             x: 0,
@@ -151,6 +141,7 @@ impl<'a> RenderContext<'a> {
         let mut player_texture =
             texture_creator.create_texture_target(self.pixel_format, self.width, self.height)?;
 
+        canvas.set_blend_mode(BlendMode::Blend);
         canvas.with_texture_canvas(&mut player_texture, |canvas| {
             for entry in self.player_batch.entries.iter() {
                 match entry {

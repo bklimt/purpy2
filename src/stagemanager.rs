@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use crate::{
     imagemanager::ImageManager,
-    inputmanager::InputManager,
+    inputmanager::InputSnapshot,
     killscreen::KillScreen,
     level::Level,
     levelselect::LevelSelect,
@@ -27,7 +27,7 @@ impl<'a> Scene<'a> for SceneTombstone {
 
     fn update<'b, 'c>(
         &mut self,
-        _inputs: &'b InputManager,
+        _inputs: &'b InputSnapshot,
         _sounds: &'c SoundManager,
     ) -> SceneResult {
         unimplemented!()
@@ -54,7 +54,7 @@ impl<'a> StageManager<'a> {
 
     pub fn update<'b, 'c, 'd>(
         &mut self,
-        inputs: &'b InputManager,
+        inputs: &'b InputSnapshot,
         images: &'c ImageManager<'a>,
         sounds: &'d SoundManager,
     ) -> Result<bool>

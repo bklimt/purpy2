@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
-use crate::rendercontext::RenderLayer;
+use crate::imagemanager::ImageManager;
+use crate::inputmanager::InputSnapshot;
+use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::scene::{Scene, SceneResult};
+use crate::soundmanager::SoundManager;
 use crate::utils::Color;
 
 pub struct KillScreen<'a> {
@@ -16,11 +19,8 @@ impl<'a> KillScreen<'a> {
 }
 
 impl<'a> Scene<'a> for KillScreen<'a> {
-    fn draw<'b, 'c>(
-        &mut self,
-        context: &'b mut crate::rendercontext::RenderContext<'a>,
-        images: &'c crate::imagemanager::ImageManager<'a>,
-    ) where
+    fn draw<'b, 'c>(&mut self, context: &'b mut RenderContext<'a>, images: &'c ImageManager<'a>)
+    where
         'a: 'b,
         'a: 'c,
     {
@@ -47,13 +47,15 @@ impl<'a> Scene<'a> for KillScreen<'a> {
 
     fn update<'b, 'c>(
         &mut self,
-        inputs: &'b crate::inputmanager::InputManager,
-        _sounds: &'c crate::soundmanager::SoundManager,
-    ) -> crate::scene::SceneResult {
-        if inputs.is_on(crate::inputmanager::BinaryInput::Ok) {
+        inputs: &'b InputSnapshot,
+        _sounds: &'c SoundManager,
+    ) -> SceneResult {
+        if inputs.ok {
             SceneResult::SwitchToLevel {
                 path: self.next.clone(),
             }
+        } else if inputs.cancel {
+            SceneResult::Pop
         } else {
             SceneResult::Continue
         }

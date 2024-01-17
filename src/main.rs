@@ -89,9 +89,9 @@ fn run_game(_args: Args) -> Result<()> {
             }
         }
 
-        input_manager.update();
+        let input_snapshot = input_manager.update();
 
-        if !stage_manager.update(&input_manager, &image_manager, &sound_manager)? {
+        if !stage_manager.update(&input_snapshot, &image_manager, &sound_manager)? {
             break 'running;
         }
 

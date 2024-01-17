@@ -2,8 +2,6 @@ use std::{collections::HashMap, fmt::Binary};
 
 use sdl2::{event::Event, joystick::HatState, keyboard::Keycode, mouse::MouseButton};
 
-use crate::utils::Point;
-
 // TODO: Consider changing most of these to not be hashmaps.
 struct InputState {
     keys_down: HashMap<Keycode, bool>,
@@ -11,7 +9,6 @@ struct InputState {
     joy_axes: HashMap<u8, i16>,
     joy_hats: HashMap<u8, HatState>,
     mouse_buttons_down: HashMap<MouseButton, bool>,
-    mouse_position: Point,
 }
 
 impl InputState {
@@ -22,7 +19,6 @@ impl InputState {
             joy_axes: HashMap::new(),
             joy_hats: HashMap::new(),
             mouse_buttons_down: HashMap::new(),
-            mouse_position: Point::new(0, 0),
         }
     }
 
@@ -283,63 +279,6 @@ impl TransientBinaryInput for JoystickThresholdInput {
     }
 }
 
-/*
-          }
-            if self.low_threshold is not None and hat < self.low_threshold:
-                return True
-            if self.high_threshold is not None and hat > self.high_threshold:
-                return True
-        axis = self.get_axis(state)
-        if axis is not None:
-            if self.low_threshold is not None and axis < self.low_threshold:
-                return True
-            if self.high_threshold is not None and axis > self.high_threshold:
-                return True
-        return False
-    }
-}*/
-
-/*
-class JoystickThresholdInput(CachedBinaryInput):
-    def __init__(self, axis: int, low_threshold: float | None, high_threshold: float | None):
-        self.axis = axis
-        self.low_threshold = low_threshold
-        self.high_threshold = high_threshold
-
-    def get_hat(self, state: InputState) -> float | None:
-        if state.joystick is None:
-            return None
-        if state.joystick.get_numhats() < 1:
-            return None
-        hat = state.joystick.get_hat(0)
-        value = hat[self.axis]
-        if self.axis == 1:
-            value *= -1
-        return value
-
-    def get_axis(self, state: InputState) -> float | None:
-        if state.joystick is None:
-            return None
-        if state.joystick.get_numaxes() < 2:
-            return None
-        return state.joystick.get_axis(self.axis)
-
-    def update_on(self, state: InputState) -> bool:
-        hat = self.get_hat(state)
-        if hat is not None:
-            if self.low_threshold is not None and hat < self.low_threshold:
-                return True
-            if self.high_threshold is not None and hat > self.high_threshold:
-                return True
-        axis = self.get_axis(state)
-        if axis is not None:
-            if self.low_threshold is not None and axis < self.low_threshold:
-                return True
-            if self.high_threshold is not None and axis > self.high_threshold:
-                return True
-        return False
-*/
-
 struct AnyOfInput(Vec<Box<dyn StatefulBinaryInput>>);
 
 impl StatefulBinaryInput for AnyOfInput {
@@ -360,7 +299,7 @@ impl StatefulBinaryInput for AnyOfInput {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum BinaryInput {
+enum BinaryInput {
     Ok,
     Cancel,
     PlayerLeft,
@@ -456,6 +395,18 @@ fn create_input(input: BinaryInput) -> AnyOfInput {
     })
 }
 
+pub struct InputSnapshot {
+    pub ok: bool,
+    pub cancel: bool,
+    pub player_left: bool,
+    pub player_right: bool,
+    pub player_crouch: bool,
+    pub player_jump_trigger: bool,
+    pub player_jump_down: bool,
+    pub menu_down: bool,
+    pub menu_up: bool,
+}
+
 pub struct InputManager {
     state: InputState,
     binary_hooks: HashMap<BinaryInput, AnyOfInput>,
@@ -473,13 +424,24 @@ impl InputManager {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> InputSnapshot {
         for (_, input) in self.binary_hooks.iter_mut() {
             input.update(&self.state);
         }
+        InputSnapshot {
+            ok: self.is_on(BinaryInput::Ok),
+            cancel: self.is_on(BinaryInput::Cancel),
+            player_left: self.is_on(BinaryInput::PlayerLeft),
+            player_right: self.is_on(BinaryInput::PlayerRight),
+            player_crouch: self.is_on(BinaryInput::PlayerCrouch),
+            player_jump_trigger: self.is_on(BinaryInput::PlayerJumpTrigger),
+            player_jump_down: self.is_on(BinaryInput::PlayerJumpDown),
+            menu_down: self.is_on(BinaryInput::MenuDown),
+            menu_up: self.is_on(BinaryInput::MenuUp),
+        }
     }
 
-    pub fn is_on(&self, hook: BinaryInput) -> bool {
+    fn is_on(&self, hook: BinaryInput) -> bool {
         self.binary_hooks
             .get(&hook)
             .expect("all inputs should be configured")
