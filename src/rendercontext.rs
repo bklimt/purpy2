@@ -177,19 +177,6 @@ impl<'a> RenderContext<'a> {
             }
         })?;
 
-        let src = Rect {
-            x: 0,
-            y: 0,
-            w: self.width as i32,
-            h: self.height as i32,
-        };
-        let dst = Rect {
-            x: 0,
-            y: 0,
-            w: self.width as i32 * SUBPIXELS,
-            h: self.height as i32 * SUBPIXELS,
-        };
-
         canvas
             .copy(&player_texture, None, None)
             .map_err(|s| anyhow!("unable to copy player texture to window canvas: {}", s))?;

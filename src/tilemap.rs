@@ -628,12 +628,14 @@ impl<'a> TileMap<'a> {
                     continue;
                 }
 
+                // TODO: Trim the dest separately so that we don't have subpixel rounding errors.
+
                 // Draw the rest of the turtle.
                 let destination = Rect {
                     x: pos_x,
                     y: pos_y,
-                    w: tilewidth,
-                    h: tileheight,
+                    w: source.w * SUBPIXELS,
+                    h: source.h * SUBPIXELS,
                 };
                 if let Some(animation) = self.tileset.animations.get(&index) {
                     animation.blit(context, render_layer, destination, false);
