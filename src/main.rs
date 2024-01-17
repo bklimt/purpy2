@@ -12,6 +12,7 @@ mod properties;
 mod rendercontext;
 mod scene;
 mod slope;
+mod smallintmap;
 mod smallintset;
 mod soundmanager;
 mod sprite;

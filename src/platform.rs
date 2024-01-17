@@ -93,7 +93,7 @@ impl<'a> Platform<'a> {
                     w: self.position.w,
                     h: self.position.h,
                 };
-                if let Some(anim) = self.tileset.animations.get(&self.tile_id) {
+                if let Some(anim) = self.tileset.animations.get(self.tile_id) {
                     anim.blit(context, layer, dest, false);
                 } else {
                     let src = self.tileset.get_source_rect(self.tile_id);

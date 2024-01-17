@@ -644,7 +644,7 @@ impl<'a> TileMap<'a> {
                     w: source.w * SUBPIXELS,
                     h: source.h * SUBPIXELS,
                 };
-                if let Some(animation) = self.tileset.animations.get(&index) {
+                if let Some(animation) = self.tileset.animations.get(index) {
                     animation.blit(context, render_layer, destination, false);
                 } else {
                     context.draw(&self.tileset.sprite, render_layer, destination, source);

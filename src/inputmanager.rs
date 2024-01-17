@@ -1,37 +1,60 @@
-use std::collections::HashMap;
-
 use sdl2::{event::Event, joystick::HatState, keyboard::Keycode, mouse::MouseButton};
 
-// TODO: Consider changing most of these to not be hashmaps.
+use crate::smallintmap::SmallIntMap;
+
+struct KeycodeIndex(Keycode);
+
+impl Into<usize> for KeycodeIndex {
+    fn into(self) -> usize {
+        let mut val = self.0 as usize;
+        // SDL keycodes for non-printable characters have the next to topmost bit set.
+        // Getting rid of it completely would be ambiguous. But it should be safe to
+        // move it down into bit 8.
+        if val & 0x40000000 != 0 {
+            val &= !0x40000000;
+            val |= 0x80;
+        }
+        val
+    }
+}
+
+struct MouseButtonIndex(MouseButton);
+
+impl Into<usize> for MouseButtonIndex {
+    fn into(self) -> usize {
+        self.0 as usize
+    }
+}
+
 struct InputState {
-    keys_down: HashMap<Keycode, bool>,
-    joystick_buttons_down: HashMap<u8, bool>,
-    joy_axes: HashMap<u8, i16>,
-    joy_hats: HashMap<u8, HatState>,
-    mouse_buttons_down: HashMap<MouseButton, bool>,
+    keys_down: SmallIntMap<KeycodeIndex, bool>,
+    joystick_buttons_down: SmallIntMap<u8, bool>,
+    joy_axes: SmallIntMap<u8, i16>,
+    joy_hats: SmallIntMap<u8, HatState>,
+    mouse_buttons_down: SmallIntMap<MouseButtonIndex, bool>,
 }
 
 impl InputState {
     fn new() -> InputState {
         InputState {
-            keys_down: HashMap::new(),
-            joystick_buttons_down: HashMap::new(),
-            joy_axes: HashMap::new(),
-            joy_hats: HashMap::new(),
-            mouse_buttons_down: HashMap::new(),
+            keys_down: SmallIntMap::new(),
+            joystick_buttons_down: SmallIntMap::new(),
+            joy_axes: SmallIntMap::new(),
+            joy_hats: SmallIntMap::new(),
+            mouse_buttons_down: SmallIntMap::new(),
         }
     }
 
     fn set_key_down(&mut self, key: Keycode) {
-        self.keys_down.insert(key, true);
+        self.keys_down.insert(KeycodeIndex(key), true);
     }
 
     fn set_key_up(&mut self, key: Keycode) {
-        self.keys_down.insert(key, false);
+        self.keys_down.insert(KeycodeIndex(key), false);
     }
 
     fn is_key_down(&self, key: Keycode) -> bool {
-        *self.keys_down.get(&key).unwrap_or(&false)
+        *self.keys_down.get(KeycodeIndex(key)).unwrap_or(&false)
     }
 
     fn set_joystick_button_down(&mut self, button: u8) {
@@ -43,19 +66,24 @@ impl InputState {
     }
 
     fn is_joystick_button_down(&self, button: u8) -> bool {
-        *self.joystick_buttons_down.get(&button).unwrap_or(&false)
+        *self.joystick_buttons_down.get(button).unwrap_or(&false)
     }
 
     fn set_mouse_button_down(&mut self, button: MouseButton) {
-        self.mouse_buttons_down.insert(button, true);
+        self.mouse_buttons_down
+            .insert(MouseButtonIndex(button), true);
     }
 
     fn set_mouse_button_up(&mut self, button: MouseButton) {
-        self.mouse_buttons_down.insert(button, false);
+        self.mouse_buttons_down
+            .insert(MouseButtonIndex(button), false);
     }
 
     fn is_mouse_button_down(&self, button: MouseButton) -> bool {
-        *self.mouse_buttons_down.get(&button).unwrap_or(&false)
+        *self
+            .mouse_buttons_down
+            .get(MouseButtonIndex(button))
+            .unwrap_or(&false)
     }
 
     fn set_joy_axis(&mut self, axis: u8, value: i16) {
@@ -214,7 +242,7 @@ impl JoystickThresholdInput {
 
     fn get_hat(&self, state: &InputState) -> Option<f32> {
         let diag = 0.7;
-        state.joy_hats.get(&0).map(|hat| match self.axis {
+        state.joy_hats.get(0).map(|hat| match self.axis {
             JoystickAxis::Horizontal => match hat {
                 HatState::Centered => 0.0,
                 HatState::Up => 0.0,
@@ -241,7 +269,7 @@ impl JoystickThresholdInput {
     }
 
     fn get_axis(&self, state: &InputState) -> Option<f32> {
-        state.joy_axes.get(&0).map(|n| *n as f32 / i16::MAX as f32)
+        state.joy_axes.get(0).map(|n| *n as f32 / i16::MAX as f32)
     }
 }
 
@@ -296,7 +324,7 @@ impl StatefulBinaryInput for AnyOfInput {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum BinaryInput {
-    Ok,
+    Ok = 0,
     Cancel,
     PlayerLeft,
     PlayerRight,
@@ -305,6 +333,12 @@ enum BinaryInput {
     PlayerJumpDown,
     MenuDown,
     MenuUp,
+}
+
+impl Into<usize> for BinaryInput {
+    fn into(self) -> usize {
+        self as usize
+    }
 }
 
 fn all_binary_inputs() -> Vec<BinaryInput> {
@@ -405,24 +439,30 @@ pub struct InputSnapshot {
 
 pub struct InputManager {
     state: InputState,
-    binary_hooks: HashMap<BinaryInput, AnyOfInput>,
+    binary_hooks: SmallIntMap<BinaryInput, AnyOfInput>,
+    all_binary_hooks: Vec<BinaryInput>,
 }
 
 impl InputManager {
     pub fn new() -> InputManager {
-        let mut binary_hooks = HashMap::new();
-        for hook in all_binary_inputs() {
-            binary_hooks.insert(hook.clone(), create_input(hook));
+        let mut binary_hooks = SmallIntMap::new();
+        let all_binary_hooks = all_binary_inputs();
+        for hook in all_binary_hooks.iter() {
+            binary_hooks.insert(hook.clone(), create_input(hook.clone()));
         }
         InputManager {
             state: InputState::new(),
             binary_hooks,
+            all_binary_hooks,
         }
     }
 
     pub fn update(&mut self) -> InputSnapshot {
-        for (_, input) in self.binary_hooks.iter_mut() {
-            input.update(&self.state);
+        for input in self.all_binary_hooks.iter() {
+            self.binary_hooks
+                .get_mut(input.clone())
+                .expect("all inputs should be configured")
+                .update(&self.state);
         }
         InputSnapshot {
             ok: self.is_on(BinaryInput::Ok),
@@ -439,7 +479,7 @@ impl InputManager {
 
     fn is_on(&self, hook: BinaryInput) -> bool {
         self.binary_hooks
-            .get(&hook)
+            .get(hook)
             .expect("all inputs should be configured")
             .is_on()
     }

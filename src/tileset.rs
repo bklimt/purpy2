@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::rc::Rc;
@@ -9,6 +8,7 @@ use serde::Deserialize;
 use crate::imagemanager::ImageManager;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::slope::Slope;
+use crate::smallintmap::SmallIntMap;
 use crate::sprite::{Animation, Sprite};
 use crate::utils::Rect;
 
@@ -125,10 +125,10 @@ pub struct TileSet<'a> {
     tilecount: i32,
     columns: i32,
     pub sprite: Rc<Sprite<'a>>,
-    slopes: HashMap<TileIndex, Slope>,
-    pub animations: HashMap<TileIndex, Animation<'a>>,
+    slopes: SmallIntMap<TileIndex, Slope>,
+    pub animations: SmallIntMap<TileIndex, Animation<'a>>,
     pub properties: TileSetProperties,
-    tile_properties: HashMap<TileIndex, TileProperties>,
+    tile_properties: SmallIntMap<TileIndex, TileProperties>,
 }
 
 impl<'a> TileSet<'a> {
@@ -159,8 +159,8 @@ impl<'a> TileSet<'a> {
 
         let mut sprite: Option<Rc<Sprite>> = None;
         let mut properties = PropertyMap::new();
-        let mut slopes = HashMap::new();
-        let mut tile_properties = HashMap::new();
+        let mut slopes = SmallIntMap::new();
+        let mut tile_properties = SmallIntMap::new();
 
         for field in xml.fields {
             match field {
@@ -192,7 +192,7 @@ impl<'a> TileSet<'a> {
         let sprite = sprite.context("missing image")?;
         let properties: TileSetProperties = properties.try_into()?;
 
-        let mut animations = HashMap::new();
+        let mut animations = SmallIntMap::new();
         if let Some(animations_path) = properties.animation_path.as_ref() {
             let animations_path = path
                 .parent()
@@ -216,7 +216,7 @@ impl<'a> TileSet<'a> {
     }
 
     pub fn get_slope(&self, tile_id: TileIndex) -> Option<&Slope> {
-        self.slopes.get(&tile_id)
+        self.slopes.get(tile_id)
     }
 
     fn _rows(&self) -> i32 {
@@ -241,7 +241,7 @@ impl<'a> TileSet<'a> {
     }
 
     pub fn get_tile_properties(&self, tile_id: TileIndex) -> Option<&TileProperties> {
-        self.tile_properties.get(&tile_id)
+        self.tile_properties.get(tile_id)
     }
 }
 
@@ -249,7 +249,7 @@ impl<'a> TileSet<'a> {
 fn load_tile_animations<'b>(
     path: &Path,
     images: &ImageManager<'b>,
-    animations: &mut HashMap<TileIndex, Animation<'b>>,
+    animations: &mut SmallIntMap<TileIndex, Animation<'b>>,
     debug: bool,
 ) -> Result<()> {
     if debug {
