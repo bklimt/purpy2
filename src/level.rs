@@ -19,7 +19,7 @@ use crate::player::{Player, PlayerState};
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::scene::{Scene, SceneResult};
 use crate::smallintset::SmallIntSet;
-use crate::soundmanager::SoundManager;
+use crate::soundmanager::{Sound, SoundManager};
 use crate::star::Star;
 use crate::switchstate::SwitchState;
 use crate::tilemap::TileMap;
@@ -588,7 +588,7 @@ impl<'a> Level<'a> {
             if previous.contains(*t) {
                 continue;
             }
-            // sounds.play(Sound.CLICK);
+            sounds.play(Sound::Click);
             self.switches.apply_command(switch);
         }
     }
@@ -818,7 +818,7 @@ impl<'a> Scene<'a> for Level<'a> {
         let old_stars = mem::replace(&mut self.stars, Vec::new());
         for star in old_stars.into_iter() {
             if star.intersects(player_rect) {
-                //sounds.play(Sound.STAR);
+                sounds.play(Sound::Star);
                 self.star_count += 1;
                 self.toast_text = format!("STARS x {}", self.star_count);
                 self.toast_counter = TOAST_TIME;
