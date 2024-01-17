@@ -38,7 +38,7 @@ impl AudioCallback for SoundCallback {
 
     fn callback(&mut self, buffer: &mut [Self::Channel]) {
         for sample in buffer.iter_mut() {
-            *sample = 0;
+            *sample = 127;
         }
 
         let playing = std::mem::replace(&mut self.playing, Vec::new());
@@ -49,6 +49,7 @@ impl AudioCallback for SoundCallback {
                 if offset + i >= clip.len() {
                     break;
                 }
+                *sample -= 127 / (MAX_SOUNDS as u8);
                 *sample += clip[i + offset] / (MAX_SOUNDS as u8);
             }
 
