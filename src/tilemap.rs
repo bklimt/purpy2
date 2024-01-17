@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::ops::{Index, IndexMut};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -18,7 +17,6 @@ use crate::utils::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
-use sdl2::render::RenderTarget;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -30,7 +28,7 @@ struct TileSetSourceXml {
 #[derive(Debug, Deserialize)]
 struct DataXml {
     #[serde(rename = "@encoding")]
-    encoding: String,
+    _encoding: String,
 
     #[serde(rename = "$value")]
     data: String,
@@ -61,11 +59,11 @@ struct ImageXml {
 #[derive(Debug, Deserialize)]
 struct ImageLayerXml {
     #[serde(rename = "@id")]
-    id: i32,
+    _id: i32,
     #[serde(rename = "@offsetx")]
-    offsetx: String,
+    _offsetx: String,
     #[serde(rename = "@offsety")]
-    offsety: String,
+    _offsety: String,
 
     image: ImageXml,
 }
@@ -147,10 +145,10 @@ impl<'a> ImageLayer<'a> {
 }
 
 struct TileLayer {
-    id: u32,
-    name: String,
-    width: u32,
-    height: u32,
+    _id: u32,
+    _name: String,
+    _width: u32,
+    _height: u32,
     data: Vec<Vec<TileIndex>>,
     player: bool,
 }
@@ -189,10 +187,10 @@ impl TileLayer {
         }
 
         Ok(TileLayer {
-            id,
-            name,
-            width,
-            height,
+            _id: id,
+            _name: name,
+            _width: width,
+            _height: height,
             data,
             player,
         })
@@ -284,6 +282,7 @@ impl FromStr for ButtonType {
     }
 }
 
+#[derive(Debug)]
 pub struct MapObjectProperties {
     // Types
     pub platform: bool,
@@ -311,7 +310,7 @@ pub struct MapObjectProperties {
     pub sprite: Option<String>,
     pub destination: Option<String>,
     pub stars_needed: i32,
-    raw: PropertyMap,
+    _raw: PropertyMap,
 }
 
 impl TryFrom<PropertyMap> for MapObjectProperties {
@@ -347,7 +346,7 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
             sprite: properties.get_string("sprite")?.map(str::to_string),
             destination: properties.get_string("destination")?.map(str::to_string),
             stars_needed: properties.get_int("stars_needed")?.unwrap_or(0),
-            raw: properties,
+            _raw: properties,
         })
     }
 }
@@ -376,7 +375,7 @@ impl MapObject {
         if let Some(gid) = gid {
             // TODO: Figure this part out.
             if let Some(props) = tileset.get_tile_properties(gid as TileIndex - 1) {
-                properties.copy_from(&props.raw);
+                properties.set_defaults(&props.raw);
             }
             // For some reason, the position is the bottom left sometimes?
             y -= height;

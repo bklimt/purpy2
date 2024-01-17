@@ -29,6 +29,7 @@ enum PropertyValue {
     Bool(bool),
 }
 
+#[derive(Debug)]
 pub struct PropertyMap(HashMap<String, PropertyValue>);
 
 impl PropertyMap {
@@ -36,9 +37,11 @@ impl PropertyMap {
         PropertyMap(HashMap::new())
     }
 
-    pub fn copy_from(&mut self, other: &PropertyMap) {
+    pub fn set_defaults(&mut self, other: &PropertyMap) {
         for (k, v) in other.0.iter() {
-            self.0.insert(k.clone(), v.clone());
+            if !self.0.contains_key(k) {
+                self.0.insert(k.clone(), v.clone());
+            }
         }
     }
 

@@ -27,7 +27,7 @@ pub enum PlatformType<'a> {
 }
 
 pub struct Platform<'a> {
-    id: i32,
+    _id: i32,
     tileset: Rc<TileSet<'a>>,
     tile_id: TileIndex,
     position: Rect,
@@ -45,7 +45,7 @@ impl<'a> Platform<'a> {
         subtype: PlatformType<'b>,
     ) -> Result<Platform<'b>> {
         Ok(Platform {
-            id: obj.id,
+            _id: obj.id,
             tileset: tileset,
             tile_id: obj.gid.context("gid required for platforms")? as TileIndex - 1,
             position: Rect {
@@ -148,11 +148,11 @@ pub struct MovingPlatform {
 
 impl MovingPlatform {
     pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Platform<'b>> {
-        let (dist_mult, dx, dy) = match obj.properties.direction {
-            Direction::Up => (tileset.tileheight, 0, -obj.properties.distance),
-            Direction::Down => (tileset.tileheight, 0, obj.properties.distance),
-            Direction::Left => (tileset.tilewidth, -obj.properties.distance, 0),
-            Direction::Right => (tileset.tilewidth, obj.properties.distance, 0),
+        let (dist_mult, sx, sy) = match obj.properties.direction {
+            Direction::Up => (tileset.tileheight, 0, -1),
+            Direction::Down => (tileset.tileheight, 0, 1),
+            Direction::Left => (tileset.tilewidth, -1, 0),
+            Direction::Right => (tileset.tilewidth, 1, 0),
             Direction::None => (0, 0, 0),
         };
 
@@ -162,10 +162,10 @@ impl MovingPlatform {
         let dist_mult = dist_mult * SUBPIXELS;
         let distance = obj.properties.distance * dist_mult;
         let direction = obj.properties.direction;
-        let start_x = obj.position.x;
-        let start_y = obj.position.y;
-        let end_x = start_x + dx;
-        let end_y = start_y + dy;
+        let start_x = obj.position.x * SUBPIXELS;
+        let start_y = obj.position.y * SUBPIXELS;
+        let end_x = start_x + sx * distance;
+        let end_y = start_y + sy * distance;
         let moving_forward = true;
         let condition = obj.properties.condition.clone();
         let overflow = obj.properties.overflow;
