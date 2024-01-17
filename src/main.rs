@@ -3,6 +3,7 @@ mod door;
 mod font;
 mod imagemanager;
 mod inputmanager;
+mod killscreen;
 mod level;
 mod levelselect;
 mod platform;
@@ -21,22 +22,20 @@ mod tilemap;
 mod tileset;
 mod utils;
 
-use std::{fs, path::Path, time::Duration};
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser;
-use constants::{RENDER_HEIGHT, RENDER_WIDTH, SUBPIXELS};
+use constants::{RENDER_HEIGHT, RENDER_WIDTH};
 use imagemanager::ImageManager;
 use inputmanager::InputManager;
-use rendercontext::{RenderContext, RenderLayer};
+use rendercontext::RenderContext;
 use sdl2::event::Event;
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 use soundmanager::SoundManager;
-use sprite::AnimationStateMachine;
 use stagemanager::StageManager;
-use utils::Rect;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

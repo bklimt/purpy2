@@ -5,12 +5,34 @@ use anyhow::Result;
 use crate::{
     imagemanager::ImageManager,
     inputmanager::InputManager,
+    killscreen::KillScreen,
     level::Level,
     levelselect::LevelSelect,
     rendercontext::RenderContext,
     scene::{Scene, SceneResult},
     soundmanager::SoundManager,
 };
+
+// A placeholder to use when swapping out scenes.
+struct SceneTombstone(());
+
+impl<'a> Scene<'a> for SceneTombstone {
+    fn draw<'b, 'c>(&mut self, _context: &'b mut RenderContext<'a>, _images: &'c ImageManager<'a>)
+    where
+        'a: 'b,
+        'a: 'c,
+    {
+        unimplemented!()
+    }
+
+    fn update<'b, 'c>(
+        &mut self,
+        _inputs: &'b InputManager,
+        _sounds: &'c SoundManager,
+    ) -> SceneResult {
+        unimplemented!()
+    }
+}
 
 pub struct StageManager<'a> {
     current: Box<dyn Scene<'a> + 'a>,
@@ -68,7 +90,14 @@ impl<'a> StageManager<'a> {
                 self.stack.push(previous);
                 true
             }
-            SceneResult::SwitchToKillScreen { path } => unimplemented!(),
+            SceneResult::SwitchToKillScreen { path } => {
+                let mut previous: Box<dyn Scene<'a> + 'a> = Box::new(SceneTombstone(()));
+                mem::swap(&mut self.current, &mut previous);
+                let kill_screen = KillScreen::new(previous, path);
+                let kill_screen = Box::new(kill_screen);
+                self.current = kill_screen;
+                true
+            }
         })
     }
 
