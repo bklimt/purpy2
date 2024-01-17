@@ -88,7 +88,12 @@ impl<'a> Platform<'a> {
             _ => {
                 let x = self.position.x + offset.x();
                 let y = self.position.y + offset.y();
-                let dest = self.position;
+                let dest = Rect {
+                    x,
+                    y,
+                    w: self.position.w,
+                    h: self.position.h,
+                };
                 if let Some(anim) = self.tileset.animations.get(&self.tile_id) {
                     anim.blit(context, layer, dest, false);
                 } else {
@@ -100,6 +105,10 @@ impl<'a> Platform<'a> {
     }
 
     pub fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
+        if let PlatformType::Spring(spring) = &self.subtype {
+            return spring.try_move_to(self, player_rect, direction, is_backwards);
+        }
+
         let area = if self.solid {
             self.position
         } else {
@@ -483,7 +492,7 @@ impl<'a> Spring<'a> {
 
     fn try_move_to(
         &self,
-        base: &mut Platform,
+        base: &Platform,
         player_rect: Rect,
         direction: Direction,
         is_backwards: bool,
