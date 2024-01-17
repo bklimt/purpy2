@@ -19,9 +19,9 @@ struct ImageXml {
     #[serde(rename = "@source")]
     source: String,
     #[serde(rename = "@width")]
-    width: i32,
+    _width: i32,
     #[serde(rename = "@height")]
-    height: i32,
+    _height: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,13 +35,13 @@ struct TileXml {
 #[derive(Debug, Deserialize)]
 struct TransformationsXml {
     #[serde(rename = "@hflip")]
-    hflip: i32,
+    _hflip: i32,
     #[serde(rename = "@vflip")]
-    vflip: i32,
+    _vflip: i32,
     #[serde(rename = "@rotate")]
-    rotate: i32,
+    _rotate: i32,
     #[serde(rename = "@preferuntransformed")]
-    preferuntransformed: i32,
+    _preferuntransformed: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -119,7 +119,7 @@ impl TryFrom<PropertyMap> for TileSetProperties {
 }
 
 pub struct TileSet<'a> {
-    name: String,
+    _name: String,
     pub tilewidth: i32,
     pub tileheight: i32,
     tilecount: i32,
@@ -195,7 +195,7 @@ impl<'a> TileSet<'a> {
         }
 
         Ok(TileSet {
-            name,
+            _name: name,
             tilewidth,
             tileheight,
             tilecount,
@@ -212,7 +212,7 @@ impl<'a> TileSet<'a> {
         self.slopes.get(&tile_id)
     }
 
-    fn rows(&self) -> i32 {
+    fn _rows(&self) -> i32 {
         (self.tilecount as f32 / self.columns as f32).ceil() as i32
     }
 

@@ -9,7 +9,7 @@ use sdl2::render::{Texture, TextureCreator};
 use sdl2::surface::Surface;
 
 use crate::rendercontext::{RenderContext, RenderLayer};
-use crate::utils::{Color, Rect};
+use crate::utils::Rect;
 
 pub struct Sprite<'a> {
     surface: Surface<'a>,

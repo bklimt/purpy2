@@ -520,9 +520,8 @@ impl<'a> TileMap<'a> {
         layer: &ImageLayer<'a>,
         context: &'b mut RenderContext<'a>,
         render_layer: RenderLayer,
-        dest: Rect,
+        _dest: Rect,
         offset: Point,
-        switches: &SwitchState,
     ) where
         'a: 'b,
     {
@@ -658,7 +657,7 @@ impl<'a> TileMap<'a> {
     {
         match layer {
             Layer::Image(layer) => {
-                self.draw_image_layer(layer, context, render_layer, dest, offset, switches)
+                self.draw_image_layer(layer, context, render_layer, dest, offset)
             }
             Layer::Tile(layer) => {
                 self.draw_tile_layer(layer, context, render_layer, dest, offset, switches)

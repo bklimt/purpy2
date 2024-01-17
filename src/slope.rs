@@ -39,31 +39,25 @@ impl Slope {
             return 0;
         };
 
-        let mut target_y = actor.bottom();
         let actor_center_x = (actor.left() + actor.right()) / 2;
 
-        if actor_center_x < target.left() {
-            target_y = target.top() + left_y;
+        let target_y = if actor_center_x < target.left() {
+            target.top() + left_y
         } else if actor_center_x > target.right() {
-            target_y = target.top() + right_y;
+            target.top() + right_y
         } else {
             let x_offset = actor_center_x - target.x;
             let slope = (right_y - left_y) / target.w;
-            target_y = target.y + slope * x_offset + left_y;
-
             if false {
                 println!("");
                 println!("direction = {:?}", direction);
                 println!("center_x = {actor_center_x}");
                 println!("x_offset = {}", x_offset / 16);
                 println!("slope = {slope}");
-                println!("target_y = {}", target_y / 16);
                 println!("actor_bottom = {}", actor.bottom() / 16);
-                if target_y < actor.bottom() {
-                    println!("pushing actor by {}", target_y - actor.bottom());
-                }
             }
-        }
+            target.y + slope * x_offset + left_y
+        };
 
         if target_y < actor.bottom() {
             target_y - actor.bottom()

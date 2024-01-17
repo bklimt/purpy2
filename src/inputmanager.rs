@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Binary};
+use std::collections::HashMap;
 
 use sdl2::{event::Event, joystick::HatState, keyboard::Keycode, mouse::MouseButton};
 
@@ -184,11 +184,7 @@ struct MouseButtonInput {
     button: MouseButton,
 }
 
-impl MouseButtonInput {
-    fn new(button: MouseButton) -> Self {
-        MouseButtonInput { button }
-    }
-}
+impl MouseButtonInput {}
 
 impl TransientBinaryInput for MouseButtonInput {
     fn is_on(&self, state: &InputState) -> bool {
@@ -469,7 +465,7 @@ impl InputManager {
             } => self.state.set_joy_axis(*axis, *value),
             Event::JoyHatMotion {
                 hat_idx: hat,
-                state: state,
+                state,
                 ..
             } => self.state.set_joy_hat(*hat, *state),
             Event::MouseButtonDown {

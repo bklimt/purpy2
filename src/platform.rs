@@ -72,7 +72,6 @@ impl<'a> Platform<'a> {
             PlatformType::Conveyor(_) => {}
             PlatformType::Spring(spring) => spring.update(self, switches, sounds),
             PlatformType::Button(button) => button.update(self, switches, sounds),
-            _ => unimplemented!(),
         }
         self.subtype = subtype;
     }
@@ -198,7 +197,7 @@ impl MovingPlatform {
         )?)
     }
 
-    fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, sounds: &SoundManager) {
+    fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, _sounds: &SoundManager) {
         if let Some(condition) = self.condition.as_deref() {
             if !switches.is_condition_true(&condition) {
                 self.moving_forward = false;
@@ -346,7 +345,7 @@ impl Bagel {
         context.draw(&base.tileset.sprite, layer, rect, area);
     }
 
-    fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, sounds: &SoundManager) {
+    fn update(&mut self, base: &mut Platform, _switches: &mut SwitchState, _sounds: &SoundManager) {
         if self.falling {
             self.remaining -= 1;
             if self.remaining == 0 {
@@ -453,7 +452,7 @@ impl<'a> Spring<'a> {
             .blit(context, layer, dest, self.frame() as u32, 0, false);
     }
 
-    fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, sounds: &SoundManager) {
+    fn update(&mut self, base: &mut Platform, _switches: &mut SwitchState, _sounds: &SoundManager) {
         base.dx = 0;
         base.dy = 0;
         self.launch = false;

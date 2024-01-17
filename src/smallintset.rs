@@ -18,18 +18,6 @@ where
         self.items.contains(&item)
     }
 
-    pub fn remove(&mut self, item: T) {
-        let mut len = self.items.len();
-        let mut i = 0;
-        while i < len {
-            if self.items[i] == item {
-                len -= 1;
-                self.items.swap(i, len);
-            }
-        }
-        self.items.truncate(len);
-    }
-
     pub fn clear(&mut self) {
         self.items.clear();
     }

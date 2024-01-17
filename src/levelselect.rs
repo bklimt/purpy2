@@ -52,7 +52,7 @@ impl LevelSelect {
 }
 
 impl<'a> Scene<'a> for LevelSelect {
-    fn update(&mut self, inputs: &InputSnapshot, sounds: &mut SoundManager) -> SceneResult {
+    fn update(&mut self, inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;
         }
@@ -104,7 +104,7 @@ impl<'a> Scene<'a> for LevelSelect {
                 .font()
                 .draw_string(context, layer, (x, y).into(), " ...")
         }
-        y += (font_height + line_spacing);
+        y += font_height + line_spacing;
 
         for i in self.start..self.start + 11 {
             if i < 0 || i >= self.files.len() as i32 {
