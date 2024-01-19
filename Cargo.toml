@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 clap = {version="4.4.12", features=["derive"]}
+gilrs = "0.10.4"
 quick-xml = {version="0.31.0", features=["serialize"]}
 rand = "0.8.5"
 sdl2 = {version="0.36.0", features=["image"]}

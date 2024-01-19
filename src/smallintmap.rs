@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct SmallIntMap<K, V>
 where
     K: Into<usize>,

@@ -1,3 +1,5 @@
+use anyhow::{anyhow, bail, Result};
+use gilrs::{Axis, Button, GamepadId, Gilrs};
 use sdl2::{event::Event, joystick::HatState, keyboard::Keycode, mouse::MouseButton};
 
 use crate::smallintmap::SmallIntMap;
@@ -26,10 +28,46 @@ impl Into<usize> for MouseButtonIndex {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum JoystickAxis {
+    Vertical = 0,
+    Horizontal,
+}
+
+impl From<JoystickAxis> for usize {
+    fn from(value: JoystickAxis) -> Self {
+        value as usize
+    }
+}
+
+impl TryInto<JoystickAxis> for gilrs::Axis {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<JoystickAxis, Self::Error> {
+        Ok(match self {
+            gilrs::Axis::LeftStickX => JoystickAxis::Horizontal,
+            gilrs::Axis::LeftStickY => JoystickAxis::Vertical,
+            _ => bail!("invalid axis: {:?}", self),
+        })
+    }
+}
+
+impl TryInto<JoystickAxis> for u8 {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<JoystickAxis, Self::Error> {
+        Ok(match self {
+            0 => JoystickAxis::Vertical,
+            1 => JoystickAxis::Horizontal,
+            _ => bail!("invalid axis: {:?}", self),
+        })
+    }
+}
+
 struct InputState {
     keys_down: SmallIntMap<KeycodeIndex, bool>,
     joystick_buttons_down: SmallIntMap<u8, bool>,
-    joy_axes: SmallIntMap<u8, i16>,
+    joy_axes: SmallIntMap<JoystickAxis, f32>,
     joy_hats: SmallIntMap<u8, HatState>,
     mouse_buttons_down: SmallIntMap<MouseButtonIndex, bool>,
 }
@@ -86,7 +124,7 @@ impl InputState {
             .unwrap_or(&false)
     }
 
-    fn set_joy_axis(&mut self, axis: u8, value: i16) {
+    fn set_joy_axis(&mut self, axis: JoystickAxis, value: f32) {
         self.joy_axes.insert(axis, value);
     }
 
@@ -220,11 +258,6 @@ impl TransientBinaryInput for MouseButtonInput {
     }
 }
 
-enum JoystickAxis {
-    Vertical,
-    Horizontal,
-}
-
 struct JoystickThresholdInput {
     axis: JoystickAxis,
     low_threshold: Option<f32>,
@@ -269,7 +302,7 @@ impl JoystickThresholdInput {
     }
 
     fn get_axis(&self, state: &InputState) -> Option<f32> {
-        state.joy_axes.get(0).map(|n| *n as f32 / i16::MAX as f32)
+        state.joy_axes.get(self.axis).copied()
     }
 }
 
@@ -381,6 +414,16 @@ fn joystick_threshold(
     )))
 }
 
+fn joystick_trigger(
+    axis: JoystickAxis,
+    low: Option<f32>,
+    high: Option<f32>,
+) -> Box<TriggerInput<JoystickThresholdInput>> {
+    Box::new(TriggerInput::from(JoystickThresholdInput::new(
+        axis, low, high,
+    )))
+}
+
 fn create_input(input: BinaryInput) -> AnyOfInput {
     AnyOfInput(match input {
         BinaryInput::Ok => vec![key_trigger(Keycode::Return), joystick_button_trigger(0)],
@@ -415,16 +458,17 @@ fn create_input(input: BinaryInput) -> AnyOfInput {
         BinaryInput::MenuDown => vec![
             key_trigger(Keycode::Down),
             key_trigger(Keycode::S),
-            joystick_threshold(JoystickAxis::Vertical, None, Some(0.5)),
+            joystick_trigger(JoystickAxis::Vertical, None, Some(0.5)),
         ],
         BinaryInput::MenuUp => vec![
             key_trigger(Keycode::W),
             key_trigger(Keycode::Up),
-            joystick_threshold(JoystickAxis::Vertical, Some(-0.5), None),
+            joystick_trigger(JoystickAxis::Vertical, Some(-0.5), None),
         ],
     })
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct InputSnapshot {
     pub ok: bool,
     pub cancel: bool,
@@ -439,32 +483,64 @@ pub struct InputSnapshot {
 
 pub struct InputManager {
     state: InputState,
+    previous_snapshot: Option<InputSnapshot>,
     binary_hooks: SmallIntMap<BinaryInput, AnyOfInput>,
     all_binary_hooks: Vec<BinaryInput>,
+    gilrs: Gilrs,
+    current_gamepad: Option<GamepadId>,
 }
 
 impl InputManager {
-    pub fn new() -> InputManager {
+    pub fn new(debug: bool) -> Result<InputManager> {
         let mut binary_hooks = SmallIntMap::new();
         let all_binary_hooks = all_binary_inputs();
         for hook in all_binary_hooks.iter() {
             binary_hooks.insert(hook.clone(), create_input(hook.clone()));
         }
-        InputManager {
+
+        if debug {
+            println!("Initializing gamepads");
+        }
+        let gilrs = Gilrs::new().map_err(|e| anyhow!("unable to load game library: {}", e))?;
+        let mut current_gamepad = None;
+        for (id, gamepad) in gilrs.gamepads() {
+            if debug {
+                println!(
+                    "Gamepad found: {} {} {:?}",
+                    id,
+                    gamepad.name(),
+                    gamepad.power_info()
+                );
+                if current_gamepad.is_none() {
+                    current_gamepad = Some(id);
+                }
+            }
+        }
+
+        Ok(InputManager {
             state: InputState::new(),
+            previous_snapshot: None,
             binary_hooks,
             all_binary_hooks,
-        }
+            gilrs,
+            current_gamepad,
+        })
     }
 
-    pub fn update(&mut self) -> InputSnapshot {
+    pub fn update(&mut self, debug: bool) -> InputSnapshot {
+        while let Some(event) = self.gilrs.next_event() {
+            self.handle_gilrs_event(event, debug);
+        }
+        self.gilrs.inc();
+
         for input in self.all_binary_hooks.iter() {
             self.binary_hooks
                 .get_mut(input.clone())
                 .expect("all inputs should be configured")
                 .update(&self.state);
         }
-        InputSnapshot {
+
+        let snapshot = InputSnapshot {
             ok: self.is_on(BinaryInput::Ok),
             cancel: self.is_on(BinaryInput::Cancel),
             player_left: self.is_on(BinaryInput::PlayerLeft),
@@ -474,7 +550,13 @@ impl InputManager {
             player_jump_down: self.is_on(BinaryInput::PlayerJumpDown),
             menu_down: self.is_on(BinaryInput::MenuDown),
             menu_up: self.is_on(BinaryInput::MenuUp),
+        };
+        if debug {
+            if Some(snapshot) != self.previous_snapshot {
+                self.previous_snapshot = Some(snapshot);
+            }
         }
+        snapshot
     }
 
     fn is_on(&self, hook: BinaryInput) -> bool {
@@ -484,7 +566,57 @@ impl InputManager {
             .is_on()
     }
 
-    pub fn handle_event(&mut self, event: &Event) {
+    fn handle_gilrs_event(&mut self, event: gilrs::Event, debug: bool) {
+        let gilrs::Event { id, event, .. } = event;
+        //println!("Gamepad event from {}: {:?}", id, event);
+        match event {
+            gilrs::EventType::Connected => {
+                if self.current_gamepad.is_none() {
+                    if debug {
+                        println!("Using new gamepad {}", id);
+                    }
+                    self.current_gamepad = Some(id);
+                }
+            }
+            gilrs::EventType::Disconnected => {
+                if self.current_gamepad == Some(id) {
+                    if debug {
+                        println!("Lost gamepad {}", id);
+                    }
+                    self.current_gamepad = None;
+                }
+            }
+            gilrs::EventType::ButtonPressed(button, _) => {
+                if let Some(index) = match button {
+                    Button::South => Some(0),
+                    _ => None,
+                } {
+                    self.state.set_joystick_button_down(index);
+                }
+            }
+            gilrs::EventType::ButtonReleased(button, _) => {
+                if let Some(index) = match button {
+                    Button::South => Some(0),
+                    _ => None,
+                } {
+                    self.state.set_joystick_button_up(index);
+                }
+            }
+            gilrs::EventType::AxisChanged(axis, amount, _) => {
+                if let Some((axis, polarity)) = match axis {
+                    Axis::LeftStickY => Some((0, -1.0)),
+                    Axis::LeftStickX => Some((1, 1.0)),
+                    _ => None,
+                } {
+                    let axis = axis.try_into().expect("should be valid");
+                    self.state.set_joy_axis(axis, amount * polarity);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn handle_sdl_event(&mut self, event: &Event) {
         match event {
             Event::KeyDown {
                 keycode: Some(key), ..
@@ -502,7 +634,13 @@ impl InputManager {
                 axis_idx: axis,
                 value,
                 ..
-            } => self.state.set_joy_axis(*axis, *value),
+            } => {
+                let axis = *axis;
+                if let Ok(axis) = axis.try_into() {
+                    let value = *value as f32 / i16::MAX as f32;
+                    self.state.set_joy_axis(axis, value);
+                }
+            }
             Event::JoyHatMotion {
                 hat_idx: hat,
                 state,

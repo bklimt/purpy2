@@ -76,7 +76,7 @@ fn run_game(args: Args) -> Result<()> {
     canvas.clear();
     canvas.present();
 
-    let mut input_manager = InputManager::new();
+    let mut input_manager = InputManager::new(args.debug)?;
     let mut stage_manager = StageManager::new(&image_manager, args.debug)?;
 
     let mut sound_manager = SoundManager::new(&audio_subsystem, args.debug)?;
@@ -93,14 +93,14 @@ fn run_game(args: Args) -> Result<()> {
         let mut context = RenderContext::new(width, height, pixel_format, frame)?;
 
         for event in event_pump.poll_iter() {
-            input_manager.handle_event(&event);
+            input_manager.handle_sdl_event(&event);
             match event {
                 Event::Quit { .. } => break 'running,
                 _ => {}
             }
         }
 
-        let input_snapshot = input_manager.update();
+        let input_snapshot = input_manager.update(args.debug);
 
         if !stage_manager.update(
             &input_snapshot,
