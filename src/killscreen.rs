@@ -49,7 +49,6 @@ impl<'a> Scene<'a> for KillScreen<'a> {
         &mut self,
         inputs: &'b InputSnapshot,
         _sounds: &'c mut SoundManager,
-        _debug: bool,
     ) -> SceneResult {
         if inputs.ok {
             SceneResult::SwitchToLevel {

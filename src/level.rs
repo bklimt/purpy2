@@ -2,6 +2,7 @@ use std::mem;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use log::{info, log_enabled};
 
 use crate::constants::{
     COYOTE_TIME, FALL_ACCELERATION, FALL_MAX_GRAVITY, JUMP_ACCELERATION, JUMP_GRACE_TIME,
@@ -116,11 +117,7 @@ fn inc_player_y(player: &mut Player, offset: i32) {
 }
 
 impl<'a> Level<'a> {
-    pub fn new<'b, 'c>(
-        map_path: &Path,
-        images: &'c ImageManager<'b>,
-        debug: bool,
-    ) -> Result<Level<'b>>
+    pub fn new<'b, 'c>(map_path: &Path, images: &'c ImageManager<'b>) -> Result<Level<'b>>
     where
         'b: 'c,
     {
@@ -142,13 +139,13 @@ impl<'a> Level<'a> {
             .to_string();
         let toast_text = name.clone();
         let previous_map_offset = None;
-        let map = TileMap::from_file(map_path, images, debug)?;
+        let map = TileMap::from_file(map_path, images)?;
         let mut player = Player::new(images)?;
         player.x = 128;
         player.y = 129;
 
         let star_count = 0;
-        let switches = SwitchState::new(debug);
+        let switches = SwitchState::new();
         let current_switch_tiles = SmallIntSet::new();
         let current_slopes = SmallIntSet::new();
         let current_platform = None;
@@ -771,7 +768,6 @@ impl<'a> Scene<'a> for Level<'a> {
         &mut self,
         inputs: &'b InputSnapshot,
         sounds: &'c mut SoundManager,
-        debug: bool,
     ) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;
@@ -832,7 +828,7 @@ impl<'a> Scene<'a> for Level<'a> {
             }
         }
 
-        if debug {
+        if log_enabled!(log::Level::Info) {
             // TODO: Include slopes.
             let attribs = format!(
                 "{:?}, idle={}, platform={:?}",
@@ -841,7 +837,7 @@ impl<'a> Scene<'a> for Level<'a> {
             let transition = format!("{:?} x {} -> {:?}", start_state, attribs, self.player.state);
             if transition != self.previous_transition {
                 self.previous_transition = transition;
-                println!("{}", self.previous_transition);
+                info!("{}", self.previous_transition);
             }
         }
 

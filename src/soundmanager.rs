@@ -2,6 +2,7 @@ use std::ops::DerefMut;
 use std::path::Path;
 
 use anyhow::{anyhow, bail, Result};
+use log::debug;
 use sdl2::audio::{
     AudioCVT, AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired, AudioSpecWAV,
 };
@@ -86,11 +87,10 @@ fn load_wav(path: &Path, spec: &AudioSpec) -> Result<Vec<u8>> {
 
 pub struct SoundManager {
     device: AudioDevice<SoundCallback>,
-    debug: bool,
 }
 
 impl SoundManager {
-    pub fn new(audio: &AudioSubsystem, debug: bool) -> Result<SoundManager> {
+    pub fn new(audio: &AudioSubsystem) -> Result<SoundManager> {
         let desired_spec = AudioSpecDesired {
             freq: Some(44100),
             channels: Some(1),
@@ -107,7 +107,7 @@ impl SoundManager {
         SoundManager::load_sounds(&mut device)?;
 
         device.resume();
-        Ok(SoundManager { device, debug })
+        Ok(SoundManager { device })
     }
 
     fn load_sounds(device: &mut AudioDevice<SoundCallback>) -> Result<()> {
@@ -120,9 +120,7 @@ impl SoundManager {
     }
 
     pub fn play(&mut self, sound: Sound) {
-        if self.debug {
-            println!("playing sound {:?}", sound);
-        }
+        debug!("playing sound {:?}", sound);
         let mut lock = self.device.lock();
         let callback = lock.deref_mut();
         if callback.playing.len() < MAX_SOUNDS {

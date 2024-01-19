@@ -17,6 +17,7 @@ use crate::utils::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
+use log::info;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -413,27 +414,20 @@ pub struct TileMap<'a> {
 }
 
 impl<'a> TileMap<'a> {
-    pub fn from_file<'b, 'c>(
-        path: &Path,
-        images: &'c ImageManager<'b>,
-        debug: bool,
-    ) -> Result<TileMap<'b>>
+    pub fn from_file<'b, 'c>(path: &Path, images: &'c ImageManager<'b>) -> Result<TileMap<'b>>
     where
         'b: 'c,
     {
-        if debug {
-            println!("loading tilemap from {:?}", path);
-        }
+        info!("loading tilemap from {:?}", path);
         let text = fs::read_to_string(path)?;
         let xml = quick_xml::de::from_str::<TileMapXml>(&text)?;
-        Self::from_xml(xml, path, images, debug)
+        Self::from_xml(xml, path, images)
     }
 
     fn from_xml<'b>(
         xml: TileMapXml,
         path: &Path,
         images: &ImageManager<'b>,
-        debug: bool,
     ) -> Result<TileMap<'b>> {
         let width = xml.width;
         let height = xml.height;
@@ -455,7 +449,7 @@ impl<'a> TileMap<'a> {
             }
         }
         let tileset_path = tileset_path.context("at least one tileset must be present")?;
-        let tileset = TileSet::from_file(&tileset_path, images, debug)?;
+        let tileset = TileSet::from_file(&tileset_path, images)?;
 
         let mut player_layer: Option<i32> = None;
         let mut layers = Vec::new();

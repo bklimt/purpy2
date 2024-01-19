@@ -29,7 +29,6 @@ impl<'a> Scene<'a> for SceneTombstone {
         &mut self,
         _inputs: &'b InputSnapshot,
         _sounds: &'c mut SoundManager,
-        _debug: bool,
     ) -> SceneResult {
         unimplemented!()
     }
@@ -41,12 +40,12 @@ pub struct StageManager<'a> {
 }
 
 impl<'a> StageManager<'a> {
-    pub fn new<'b>(_images: &'b ImageManager<'a>, debug: bool) -> Result<StageManager<'a>>
+    pub fn new<'b>(_images: &'b ImageManager<'a>) -> Result<StageManager<'a>>
     where
         'a: 'b,
     {
         let path = Path::new("../purpy/assets/levels");
-        let level_select = LevelSelect::new(&path, debug)?;
+        let level_select = LevelSelect::new(&path)?;
         Ok(StageManager {
             current: Box::new(level_select),
             stack: Vec::new(),
@@ -58,12 +57,11 @@ impl<'a> StageManager<'a> {
         inputs: &'b InputSnapshot,
         images: &'c ImageManager<'a>,
         sounds: &'d mut SoundManager,
-        debug: bool,
     ) -> Result<bool>
     where
         'a: 'c,
     {
-        let result = self.current.update(inputs, sounds, debug);
+        let result = self.current.update(inputs, sounds);
         Ok(match result {
             SceneResult::Continue => true,
             SceneResult::Pop => {
@@ -75,18 +73,18 @@ impl<'a> StageManager<'a> {
                 }
             }
             SceneResult::PushLevel { path } => {
-                let level = Level::new(&path, &images, debug)?;
+                let level = Level::new(&path, &images)?;
                 let level = Box::new(level);
                 let previous = mem::replace(&mut self.current, level);
                 self.stack.push(previous);
                 true
             }
             SceneResult::SwitchToLevel { path } => {
-                self.current = Box::new(Level::new(&path, &images, debug)?);
+                self.current = Box::new(Level::new(&path, &images)?);
                 true
             }
             SceneResult::PushLevelSelect { path } => {
-                let level_select = LevelSelect::new(&path, debug)?;
+                let level_select = LevelSelect::new(&path)?;
                 let level_select = Box::new(level_select);
                 let previous = mem::replace(&mut self.current, level_select);
                 self.stack.push(previous);

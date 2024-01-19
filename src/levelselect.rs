@@ -2,6 +2,7 @@ use std::path::Path;
 use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
+use log::debug;
 
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputSnapshot;
@@ -19,10 +20,8 @@ pub struct LevelSelect {
 }
 
 impl LevelSelect {
-    pub fn new(directory: &Path, debug: bool) -> Result<LevelSelect> {
-        if debug {
-            println!("Scanning directory {:?}", directory);
-        }
+    pub fn new(directory: &Path) -> Result<LevelSelect> {
+        debug!("Scanning directory {:?}", directory);
         let mut files = Vec::new();
         let file_list =
             fs::read_dir(&directory).context(format!("unable to read {:?}", directory))?;
@@ -37,9 +36,7 @@ impl LevelSelect {
                 .to_str()
                 .context(format!("unable to encode name {:?}", path))?
                 .to_owned();
-            if debug {
-                println!("Found directory entry {:?} named {}", path, &name);
-            }
+            debug!("Found directory entry {:?} named {}", path, &name);
             files.push((path, name));
         }
 
@@ -56,12 +53,7 @@ impl LevelSelect {
 }
 
 impl<'a> Scene<'a> for LevelSelect {
-    fn update(
-        &mut self,
-        inputs: &InputSnapshot,
-        _sounds: &mut SoundManager,
-        debug: bool,
-    ) -> SceneResult {
+    fn update(&mut self, inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;
         }

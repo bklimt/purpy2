@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Result};
 use gilrs::{Axis, Button, GamepadId, Gilrs};
+use log::{debug, info};
 use sdl2::{event::Event, joystick::HatState, keyboard::Keycode, mouse::MouseButton};
 
 use crate::smallintmap::SmallIntMap;
@@ -491,29 +492,25 @@ pub struct InputManager {
 }
 
 impl InputManager {
-    pub fn new(debug: bool) -> Result<InputManager> {
+    pub fn new() -> Result<InputManager> {
         let mut binary_hooks = SmallIntMap::new();
         let all_binary_hooks = all_binary_inputs();
         for hook in all_binary_hooks.iter() {
             binary_hooks.insert(hook.clone(), create_input(hook.clone()));
         }
 
-        if debug {
-            println!("Initializing gamepads");
-        }
+        debug!("Initializing gamepads");
         let gilrs = Gilrs::new().map_err(|e| anyhow!("unable to load game library: {}", e))?;
         let mut current_gamepad = None;
         for (id, gamepad) in gilrs.gamepads() {
-            if debug {
-                println!(
-                    "Gamepad found: {} {} {:?}",
-                    id,
-                    gamepad.name(),
-                    gamepad.power_info()
-                );
-                if current_gamepad.is_none() {
-                    current_gamepad = Some(id);
-                }
+            info!(
+                "Gamepad found: {} {} {:?}",
+                id,
+                gamepad.name(),
+                gamepad.power_info()
+            );
+            if current_gamepad.is_none() {
+                current_gamepad = Some(id);
             }
         }
 
@@ -527,9 +524,9 @@ impl InputManager {
         })
     }
 
-    pub fn update(&mut self, debug: bool) -> InputSnapshot {
+    pub fn update(&mut self) -> InputSnapshot {
         while let Some(event) = self.gilrs.next_event() {
-            self.handle_gilrs_event(event, debug);
+            self.handle_gilrs_event(event);
         }
         self.gilrs.inc();
 
@@ -551,10 +548,9 @@ impl InputManager {
             menu_down: self.is_on(BinaryInput::MenuDown),
             menu_up: self.is_on(BinaryInput::MenuUp),
         };
-        if debug {
-            if Some(snapshot) != self.previous_snapshot {
-                self.previous_snapshot = Some(snapshot);
-            }
+        if Some(snapshot) != self.previous_snapshot {
+            debug!("{:?}", snapshot);
+            self.previous_snapshot = Some(snapshot);
         }
         snapshot
     }
@@ -566,23 +562,19 @@ impl InputManager {
             .is_on()
     }
 
-    fn handle_gilrs_event(&mut self, event: gilrs::Event, debug: bool) {
+    fn handle_gilrs_event(&mut self, event: gilrs::Event) {
         let gilrs::Event { id, event, .. } = event;
-        //println!("Gamepad event from {}: {:?}", id, event);
+        debug!("Gamepad event from {}: {:?}", id, event);
         match event {
             gilrs::EventType::Connected => {
                 if self.current_gamepad.is_none() {
-                    if debug {
-                        println!("Using new gamepad {}", id);
-                    }
+                    info!("Using new gamepad {}", id);
                     self.current_gamepad = Some(id);
                 }
             }
             gilrs::EventType::Disconnected => {
                 if self.current_gamepad == Some(id) {
-                    if debug {
-                        println!("Lost gamepad {}", id);
-                    }
+                    info!("Lost gamepad {}", id);
                     self.current_gamepad = None;
                 }
             }

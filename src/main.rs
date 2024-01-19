@@ -42,13 +42,12 @@ use stagemanager::StageManager;
 #[command(author, version, about, long_about = None)]
 struct Args {
     #[arg(long)]
-    debug: bool,
-
-    #[arg(long)]
     fullscreen: bool,
 }
 
 fn run_game(args: Args) -> Result<()> {
+    env_logger::init();
+
     let sdl_context = sdl2::init().expect("failed to init SDL");
     let video_subsystem = sdl_context.video().expect("failed to get video context");
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
@@ -68,7 +67,7 @@ fn run_game(args: Args) -> Result<()> {
         .expect("failed to build window's canvas");
     let texture_creator = canvas.texture_creator();
 
-    let image_manager = ImageManager::new(&texture_creator, args.debug)?;
+    let image_manager = ImageManager::new(&texture_creator)?;
     let mut frame = 0;
 
     canvas.set_logical_size(RENDER_WIDTH, RENDER_HEIGHT)?;
@@ -76,10 +75,10 @@ fn run_game(args: Args) -> Result<()> {
     canvas.clear();
     canvas.present();
 
-    let mut input_manager = InputManager::new(args.debug)?;
-    let mut stage_manager = StageManager::new(&image_manager, args.debug)?;
+    let mut input_manager = InputManager::new()?;
+    let mut stage_manager = StageManager::new(&image_manager)?;
 
-    let mut sound_manager = SoundManager::new(&audio_subsystem, args.debug)?;
+    let mut sound_manager = SoundManager::new(&audio_subsystem)?;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
@@ -100,14 +99,9 @@ fn run_game(args: Args) -> Result<()> {
             }
         }
 
-        let input_snapshot = input_manager.update(args.debug);
+        let input_snapshot = input_manager.update();
 
-        if !stage_manager.update(
-            &input_snapshot,
-            &image_manager,
-            &mut sound_manager,
-            args.debug,
-        )? {
+        if !stage_manager.update(&input_snapshot, &image_manager, &mut sound_manager)? {
             break 'running;
         }
 

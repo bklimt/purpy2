@@ -3,6 +3,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use anyhow::{anyhow, Context, Error, Result};
+use log::{debug, info};
 use serde::Deserialize;
 
 use crate::imagemanager::ImageManager;
@@ -132,24 +133,17 @@ pub struct TileSet<'a> {
 }
 
 impl<'a> TileSet<'a> {
-    pub fn from_file<'b>(
-        path: &Path,
-        images: &ImageManager<'b>,
-        debug: bool,
-    ) -> Result<TileSet<'b>> {
-        if debug {
-            println!("loading tileset from {:?}", path);
-        }
+    pub fn from_file<'b>(path: &Path, images: &ImageManager<'b>) -> Result<TileSet<'b>> {
+        info!("loading tileset from {:?}", path);
         let text = fs::read_to_string(path)?;
         let xml = quick_xml::de::from_str::<TileSetXml>(&text)?;
-        Self::from_xml(xml, path, images, debug)
+        Self::from_xml(xml, path, images)
     }
 
     fn from_xml<'b>(
         xml: TileSetXml,
         path: &Path,
         images: &ImageManager<'b>,
-        debug: bool,
     ) -> Result<TileSet<'b>> {
         let name = xml.name;
         let tilewidth = xml.tilewidth;
@@ -198,7 +192,7 @@ impl<'a> TileSet<'a> {
                 .parent()
                 .context("tileset path is root")?
                 .join(animations_path);
-            load_tile_animations(&animations_path, images, &mut animations, debug)?;
+            load_tile_animations(&animations_path, images, &mut animations)?;
         }
 
         Ok(TileSet {
@@ -250,18 +244,13 @@ fn load_tile_animations<'b>(
     path: &Path,
     images: &ImageManager<'b>,
     animations: &mut SmallIntMap<TileIndex, Animation<'b>>,
-    debug: bool,
 ) -> Result<()> {
-    if debug {
-        println!("loading tile animations from {:?}", path);
-    }
+    info!("loading tile animations from {:?}", path);
     let files = fs::read_dir(path)?;
     for file in files {
         let file = file?;
         if !file.file_type()?.is_file() {
-            if debug {
-                println!("skipping non-file {:?}", file);
-            }
+            debug!("skipping non-file {:?}", file);
             continue;
         }
         let filename = file.file_name();
@@ -269,19 +258,15 @@ fn load_tile_animations<'b>(
             .to_str()
             .context(format!("invalid file name: {:?}", file))?;
         if !filename.ends_with(".png") {
-            if debug {
-                println!("skipping non-file {:?}", file);
-            }
+            debug!("skipping non-file {:?}", file);
             continue;
         }
         let tile_id = filename[..filename.len() - 4].parse::<TileIndex>()?;
-        if debug {
-            println!(
-                "loading animation for tile {:?} from {:?}",
-                tile_id,
-                file.path()
-            );
-        }
+        info!(
+            "loading animation for tile {:?} from {:?}",
+            tile_id,
+            file.path()
+        );
         let animation = images.load_animation(&file.path(), 8, 8)?;
         animations.insert(tile_id, animation);
     }

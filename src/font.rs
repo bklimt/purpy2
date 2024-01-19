@@ -14,9 +14,9 @@ pub struct Font<'a> {
 }
 
 impl<'a> Font<'a> {
-    pub fn new<'b>(path: &Path, images: &ImageManager<'b>, debug: bool) -> Result<Font<'b>> {
+    pub fn new<'b>(path: &Path, images: &ImageManager<'b>) -> Result<Font<'b>> {
         Ok(Font {
-            tileset: TileSet::from_file(path, images, debug)?,
+            tileset: TileSet::from_file(path, images)?,
             char_width: 8 * SUBPIXELS,
             char_height: 8 * SUBPIXELS,
         })

@@ -16,15 +16,12 @@ pub struct ImageManager<'a> {
 }
 
 impl<'a> ImageManager<'a> {
-    pub fn new<'b>(
-        canvas: &'b TextureCreator<WindowContext>,
-        debug: bool,
-    ) -> Result<ImageManager<'b>> {
+    pub fn new<'b>(canvas: &'b TextureCreator<WindowContext>) -> Result<ImageManager<'b>> {
         let mut im = ImageManager {
             texture_creator: canvas,
             font: None,
         };
-        let font = Font::new(Path::new("assets/8bitfont.tsx"), &im, debug)?;
+        let font = Font::new(Path::new("assets/8bitfont.tsx"), &im)?;
         im.font = Some(font);
         Ok(im)
     }

@@ -19,7 +19,6 @@ pub trait Scene<'a> {
         &mut self,
         inputs: &'b InputSnapshot,
         sounds: &'c mut SoundManager,
-        debug: bool,
     ) -> SceneResult;
 
     // TODO: It's unfortunate that draw has to be mutable for now.
