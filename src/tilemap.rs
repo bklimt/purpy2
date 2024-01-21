@@ -126,16 +126,12 @@ struct TileMapXml {
     properties: Option<PropertiesXml>,
 }
 
-struct ImageLayer<'a> {
-    surface: Rc<Sprite<'a>>,
+struct ImageLayer {
+    surface: Sprite,
 }
 
-impl<'a> ImageLayer<'a> {
-    fn from_xml<'b>(
-        xml: ImageLayerXml,
-        path: &Path,
-        images: &ImageManager<'b>,
-    ) -> Result<ImageLayer<'b>> {
+impl ImageLayer {
+    fn from_xml(xml: ImageLayerXml, path: &Path, images: &ImageManager) -> Result<ImageLayer> {
         let path = path
             .parent()
             .context("xml file is root")?
@@ -221,9 +217,9 @@ impl IndexMut<(usize, usize)> for TileLayer {
     }
 }
 
-enum Layer<'a> {
+enum Layer {
     Tile(TileLayer),
-    Image(ImageLayer<'a>),
+    Image(ImageLayer),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -400,35 +396,28 @@ impl MapObject {
     }
 }
 
-pub struct TileMap<'a> {
+pub struct TileMap {
     pub width: i32,
     pub height: i32,
     pub tilewidth: i32,
     pub tileheight: i32,
     backgroundcolor: Color,
-    pub tileset: Rc<TileSet<'a>>,
-    layers: Vec<Layer<'a>>,
+    pub tileset: Rc<TileSet>,
+    layers: Vec<Layer>,
     player_layer: Option<i32>, // TODO: Should just be i32.
     pub objects: Vec<MapObject>,
     is_dark: bool,
 }
 
-impl<'a> TileMap<'a> {
-    pub fn from_file<'b, 'c>(path: &Path, images: &'c ImageManager<'b>) -> Result<TileMap<'b>>
-    where
-        'b: 'c,
-    {
+impl TileMap {
+    pub fn from_file(path: &Path, images: &ImageManager) -> Result<TileMap> {
         info!("loading tilemap from {:?}", path);
         let text = fs::read_to_string(path)?;
         let xml = quick_xml::de::from_str::<TileMapXml>(&text)?;
         Self::from_xml(xml, path, images)
     }
 
-    fn from_xml<'b>(
-        xml: TileMapXml,
-        path: &Path,
-        images: &ImageManager<'b>,
-    ) -> Result<TileMap<'b>> {
+    fn from_xml(xml: TileMapXml, path: &Path, images: &ImageManager) -> Result<TileMap> {
         let width = xml.width;
         let height = xml.height;
         let tilewidth: i32 = xml.tilewidth;
@@ -516,21 +505,19 @@ impl<'a> TileMap<'a> {
         switches.is_condition_true(condition)
     }
 
-    fn draw_image_layer<'b>(
+    fn draw_image_layer(
         &self,
-        layer: &ImageLayer<'a>,
-        context: &'b mut RenderContext<'a>,
+        layer: &ImageLayer,
+        context: &mut RenderContext,
         render_layer: RenderLayer,
         _dest: Rect,
         offset: Point,
-    ) where
-        'a: 'b,
-    {
+    ) {
         let dest = Rect {
             x: offset.x(),
             y: offset.y(),
-            w: layer.surface.width() as i32 * SUBPIXELS,
-            h: layer.surface.height() as i32 * SUBPIXELS,
+            w: layer.surface.width as i32 * SUBPIXELS,
+            h: layer.surface.height as i32 * SUBPIXELS,
         };
         let source = Rect {
             x: 0,
@@ -538,20 +525,18 @@ impl<'a> TileMap<'a> {
             w: dest.w,
             h: dest.h,
         };
-        context.draw(&layer.surface, render_layer, dest, source);
+        context.draw(layer.surface, render_layer, dest, source);
     }
 
-    fn draw_tile_layer<'b>(
+    fn draw_tile_layer(
         &self,
         layer: &TileLayer,
-        context: &'b mut RenderContext<'a>,
+        context: &mut RenderContext,
         render_layer: RenderLayer,
         dest: Rect,
         offset: Point,
         switches: &SwitchState,
-    ) where
-        'a: 'b,
-    {
+    ) {
         let offset_x = offset.x();
         let offset_y = offset.y();
         let tileheight = self.tileheight * SUBPIXELS;
@@ -641,23 +626,21 @@ impl<'a> TileMap<'a> {
                 if let Some(animation) = self.tileset.animations.get(index) {
                     animation.blit(context, render_layer, destination, false);
                 } else {
-                    context.draw(&self.tileset.sprite, render_layer, destination, source);
+                    context.draw(self.tileset.sprite, render_layer, destination, source);
                 }
             }
         }
     }
 
-    fn draw_layer<'b>(
+    fn draw_layer(
         &self,
-        layer: &Layer<'a>,
-        context: &'b mut RenderContext<'a>,
+        layer: &Layer,
+        context: &mut RenderContext,
         render_layer: RenderLayer,
         dest: Rect,
         offset: Point,
         switches: &SwitchState,
-    ) where
-        'a: 'b,
-    {
+    ) {
         match layer {
             Layer::Image(layer) => {
                 self.draw_image_layer(layer, context, render_layer, dest, offset)
@@ -668,16 +651,14 @@ impl<'a> TileMap<'a> {
         }
     }
 
-    pub fn draw_background<'b>(
+    pub fn draw_background(
         &self,
-        context: &'b mut RenderContext<'a>,
+        context: &mut RenderContext,
         render_layer: RenderLayer,
         dest: Rect,
         offset: Point,
         switches: &SwitchState,
-    ) where
-        'a: 'b,
-    {
+    ) {
         context.fill_rect(dest.clone(), render_layer, self.backgroundcolor);
         for layer in self.layers.iter() {
             self.draw_layer(layer, context, render_layer, dest, offset, switches);
@@ -687,16 +668,14 @@ impl<'a> TileMap<'a> {
         }
     }
 
-    pub fn draw_foreground<'b>(
+    pub fn draw_foreground(
         &self,
-        context: &'b mut RenderContext<'a>,
+        context: &mut RenderContext,
         render_layer: RenderLayer,
         dest: Rect,
         offset: Point,
         switches: &SwitchState,
-    ) where
-        'a: 'b,
-    {
+    ) {
         if self.player_layer.is_none() {
             return;
         }

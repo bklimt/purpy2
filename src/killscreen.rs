@@ -7,23 +7,19 @@ use crate::scene::{Scene, SceneResult};
 use crate::soundmanager::SoundManager;
 use crate::utils::Color;
 
-pub struct KillScreen<'a> {
-    previous: Box<dyn Scene<'a> + 'a>,
+pub struct KillScreen {
+    previous: Box<dyn Scene>,
     next: PathBuf,
 }
 
-impl<'a> KillScreen<'a> {
-    pub fn new<'b>(previous: Box<dyn Scene<'b> + 'b>, next: PathBuf) -> KillScreen<'b> {
+impl<'a> KillScreen {
+    pub fn new(previous: Box<dyn Scene>, next: PathBuf) -> KillScreen {
         KillScreen { previous, next }
     }
 }
 
-impl<'a> Scene<'a> for KillScreen<'a> {
-    fn draw<'b, 'c>(&mut self, context: &'b mut RenderContext<'a>, images: &'c ImageManager<'a>)
-    where
-        'a: 'b,
-        'a: 'c,
-    {
+impl Scene for KillScreen {
+    fn draw(&mut self, context: &mut RenderContext, images: &ImageManager) {
         let dest = context.logical_area_in_subpixels();
         self.previous.draw(context, images);
 

@@ -1,61 +1,69 @@
-use std::path::Path;
-use std::rc::Rc;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Result};
-use sdl2::image::LoadSurface;
-use sdl2::render::TextureCreator;
-use sdl2::surface::Surface;
-use sdl2::video::WindowContext;
+use anyhow::Result;
 
 use crate::font::Font;
+use crate::rendercontext::RenderContext;
+use crate::renderer::Renderer;
 use crate::sprite::{Animation, Sprite, SpriteSheet};
 
 pub struct ImageManager<'a> {
-    texture_creator: &'a TextureCreator<WindowContext>,
-    font: Option<Font<'a>>,
+    path_to_sprite: HashMap<PathBuf, Sprite>,
+    renderer: &'a mut dyn Renderer,
+    font: Option<Font>,
 }
 
 impl<'a> ImageManager<'a> {
-    pub fn new<'b>(canvas: &'b TextureCreator<WindowContext>) -> Result<ImageManager<'b>> {
+    pub fn new(renderer: &'a mut dyn Renderer) -> Result<Self> {
+        let path_to_sprite = HashMap::new();
+
         let mut im = ImageManager {
-            texture_creator: canvas,
+            path_to_sprite,
+            renderer,
             font: None,
         };
+
         let font = Font::new(Path::new("assets/8bitfont.tsx"), &im)?;
         im.font = Some(font);
+
         Ok(im)
     }
 
-    fn load_surface(&self, path: &Path) -> Result<Surface<'static>> {
-        Surface::from_file(path).map_err(|s: String| anyhow!("unable to load {:?}: {}", path, s))
-    }
-
-    pub fn load_sprite(&self, path: &Path) -> Result<Rc<Sprite<'a>>> {
-        let surface = self.load_surface(path)?;
-        Ok(Rc::new(Sprite::new(surface, self.texture_creator)?))
+    pub fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
+        if let Some(existing) = self.path_to_sprite.get(path) {
+            return Ok(*existing);
+        }
+        let sprite = self.renderer.load_sprite(path)?;
+        self.path_to_sprite.insert(path.to_owned(), sprite);
+        Ok(sprite)
     }
 
     pub fn load_spritesheet(
-        &self,
+        &mut self,
         path: &Path,
         sprite_width: u32,
         sprite_height: u32,
-    ) -> Result<SpriteSheet<'a>> {
-        let surface = self.load_surface(path)?;
-        SpriteSheet::new(surface, sprite_width, sprite_height, self.texture_creator)
+    ) -> Result<SpriteSheet> {
+        let sprite = self.load_sprite(path)?;
+        SpriteSheet::new(sprite, sprite_width, sprite_height)
     }
 
     pub fn load_animation(
-        &self,
+        &mut self,
         path: &Path,
         sprite_width: u32,
         sprite_height: u32,
-    ) -> Result<Animation<'a>> {
-        let surface = self.load_surface(path)?;
-        Animation::new(surface, sprite_width, sprite_height, self.texture_creator)
+    ) -> Result<Animation> {
+        let sprite = self.load_sprite(path)?;
+        Animation::new(sprite, sprite_width, sprite_height)
     }
 
-    pub fn font(&self) -> &Font<'a> {
+    pub fn render(&self, context: &RenderContext) -> Result<()> {
+        self.renderer.render(context)
+    }
+
+    pub fn font(&self) -> &Font {
         self.font
             .as_ref()
             .expect("should have been initialized in new()")

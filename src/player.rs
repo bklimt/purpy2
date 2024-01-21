@@ -20,7 +20,7 @@ pub enum PlayerState {
     Jumping,
 }
 
-pub struct Player<'a> {
+pub struct Player {
     pub x: i32,
     pub y: i32,
     pub dx: i32,
@@ -31,18 +31,15 @@ pub struct Player<'a> {
     pub is_idle: bool,
     pub is_dead: bool,
 
-    sprite: SpriteSheet<'a>,
+    sprite: SpriteSheet,
     animation_state_machine: AnimationStateMachine,
     frame: u32,
     frames_to_next_frame: i32,
     idle_counter: i32,
 }
 
-impl<'a> Player<'a> {
-    pub fn new<'b, 'c>(images: &'c ImageManager<'b>) -> Result<Player<'b>>
-    where
-        'b: 'c,
-    {
+impl Player {
+    pub fn new(images: &ImageManager) -> Result<Player> {
         let sprite = images.load_spritesheet(Path::new("assets/sprites/skelly2.png"), 24, 24)?;
         let animation_state_machine =
             AnimationStateMachine::from_file(Path::new("assets/sprites/skelly2_states.txt"))?;
@@ -119,7 +116,7 @@ impl<'a> Player<'a> {
         Ok(())
     }
 
-    pub fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, pos: Point) {
+    pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, pos: Point) {
         let dest = Rect {
             x: pos.x(),
             y: pos.y(),

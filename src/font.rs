@@ -7,14 +7,14 @@ use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::tileset::{TileIndex, TileSet};
 use crate::utils::{Point, Rect};
 
-pub struct Font<'a> {
-    tileset: TileSet<'a>,
+pub struct Font {
+    tileset: TileSet,
     pub char_width: i32,
     pub char_height: i32,
 }
 
-impl<'a> Font<'a> {
-    pub fn new<'b>(path: &Path, images: &ImageManager<'b>) -> Result<Font<'b>> {
+impl Font {
+    pub fn new(path: &Path, images: &ImageManager) -> Result<Font> {
         Ok(Font {
             tileset: TileSet::from_file(path, images)?,
             char_width: 8 * SUBPIXELS,
@@ -22,15 +22,13 @@ impl<'a> Font<'a> {
         })
     }
 
-    pub fn draw_string<'b>(
+    pub fn draw_string(
         &self,
-        context: &'b mut RenderContext<'a>,
+        context: &mut RenderContext,
         layer: RenderLayer,
         pos: Point,
         s: &str,
-    ) where
-        'a: 'b,
-    {
+    ) {
         let mut pos = pos;
         for c in s.chars() {
             let c = (c as u32).min(127) as TileIndex;
@@ -44,7 +42,7 @@ impl<'a> Font<'a> {
             if dest.bottom() <= 0 || dest.right() <= 0 {
                 continue;
             }
-            context.draw(&self.tileset.sprite, layer, dest, area);
+            context.draw(self.tileset.sprite, layer, dest, area);
             pos = Point::new(pos.x() + self.char_width, pos.y());
         }
     }

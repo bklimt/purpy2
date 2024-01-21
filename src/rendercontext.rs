@@ -1,17 +1,12 @@
-use std::rc::Rc;
-
-use anyhow::{anyhow, Result};
-use sdl2::pixels::PixelFormatEnum;
-use sdl2::render::{BlendMode, Canvas};
-use sdl2::video::Window;
+use anyhow::Result;
 
 use crate::constants::SUBPIXELS;
 use crate::sprite::Sprite;
 use crate::utils::{Color, Rect};
 
-enum SpriteBatchEntry<'a> {
+pub enum SpriteBatchEntry {
     Sprite {
-        sprite: Rc<Sprite<'a>>,
+        sprite: Sprite,
         source: Rect,
         destination: Rect,
         reversed: bool,
@@ -25,18 +20,18 @@ enum SpriteBatchEntry<'a> {
     },
 }
 
-pub struct SpriteBatch<'a> {
-    entries: Vec<SpriteBatchEntry<'a>>,
+pub struct SpriteBatch {
+    pub entries: Vec<SpriteBatchEntry>,
 }
 
-impl<'a> SpriteBatch<'a> {
-    pub fn new<'b>() -> SpriteBatch<'b> {
+impl SpriteBatch {
+    pub fn new() -> SpriteBatch {
         SpriteBatch {
             entries: Vec::new(),
         }
     }
 
-    pub fn draw(&mut self, sprite: &Rc<Sprite<'a>>, dst: Rect, src: Rect, reversed: bool) {
+    pub fn draw(&mut self, sprite: Sprite, dst: Rect, src: Rect, reversed: bool) {
         let dst = Rect {
             x: dst.x / SUBPIXELS,
             y: dst.y / SUBPIXELS,
@@ -75,27 +70,20 @@ pub enum RenderLayer {
     Hud,
 }
 
-pub struct RenderContext<'a> {
-    player_batch: SpriteBatch<'a>,
-    width: u32,
-    height: u32,
-    pixel_format: PixelFormatEnum,
+pub struct RenderContext {
+    pub player_batch: SpriteBatch,
+    pub width: u32,
+    pub height: u32,
     pub frame: u32,
 }
 
-impl<'a> RenderContext<'a> {
-    pub fn new<'b>(
-        width: u32,
-        height: u32,
-        pixel_format: PixelFormatEnum,
-        frame: u32,
-    ) -> Result<RenderContext<'b>> {
+impl RenderContext {
+    pub fn new(width: u32, height: u32, frame: u32) -> Result<RenderContext> {
         let player_batch = SpriteBatch::new();
         Ok(RenderContext {
             player_batch,
             width,
             height,
-            pixel_format,
             frame,
         })
     }
@@ -109,17 +97,13 @@ impl<'a> RenderContext<'a> {
         }
     }
 
-    pub fn draw(&mut self, sprite: &Rc<Sprite<'a>>, layer: RenderLayer, dst: Rect, src: Rect) {
+    // TODO: Get rid of these.
+
+    pub fn draw(&mut self, sprite: Sprite, layer: RenderLayer, dst: Rect, src: Rect) {
         self.player_batch.draw(sprite, dst, src, false)
     }
 
-    pub fn draw_reversed(
-        &mut self,
-        sprite: &Rc<Sprite<'a>>,
-        layer: RenderLayer,
-        dst: Rect,
-        src: Rect,
-    ) {
+    pub fn draw_reversed(&mut self, sprite: Sprite, layer: RenderLayer, dst: Rect, src: Rect) {
         self.player_batch.draw(sprite, dst, src, true)
     }
 
@@ -134,53 +118,5 @@ impl<'a> RenderContext<'a> {
             b: 80,
             a: 255,
         });
-    }
-
-    pub fn render(&self, canvas: &mut Canvas<Window>) -> Result<()> {
-        let texture_creator = canvas.texture_creator();
-        let mut player_texture =
-            texture_creator.create_texture_target(self.pixel_format, self.width, self.height)?;
-
-        canvas.set_blend_mode(BlendMode::Blend);
-        canvas.with_texture_canvas(&mut player_texture, |canvas| {
-            for entry in self.player_batch.entries.iter() {
-                match entry {
-                    SpriteBatchEntry::Sprite {
-                        sprite,
-                        source,
-                        destination,
-                        reversed,
-                    } => canvas
-                        .copy_ex(
-                            &sprite.texture,
-                            *source,
-                            *destination,
-                            0.0,
-                            None,
-                            *reversed,
-                            false,
-                        )
-                        .map_err(|s| anyhow!("unable to copy sprite: {}", s))
-                        .expect("must succeed"),
-                    SpriteBatchEntry::FillRect { destination, color } => {
-                        canvas.set_draw_color(*color);
-                        canvas
-                            .fill_rect(*destination)
-                            .map_err(|s| anyhow!("unable to fill rect: {}", s))
-                            .expect("must succeed");
-                    }
-                    SpriteBatchEntry::Clear { color } => {
-                        canvas.set_draw_color(*color);
-                        canvas.clear();
-                    }
-                }
-            }
-        })?;
-
-        canvas
-            .copy(&player_texture, None, None)
-            .map_err(|s| anyhow!("unable to copy player texture to window canvas: {}", s))?;
-
-        Ok(())
     }
 }

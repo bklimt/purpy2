@@ -9,9 +9,9 @@ use crate::tilemap::MapObject;
 use crate::tileset::{TileIndex, TileSet};
 use crate::utils::{intersect, Point, Rect};
 
-pub struct Star<'a> {
+pub struct Star {
     area: Rect,
-    tileset: Rc<TileSet<'a>>,
+    tileset: Rc<TileSet>,
     source: Rect,
 }
 
@@ -19,8 +19,8 @@ fn star_rand() -> i32 {
     ((((random::<i32>() % 41) - 20) as f32) / 20.0).trunc() as i32
 }
 
-impl<'a> Star<'a> {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Star<'b>> {
+impl Star {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet>) -> Result<Star> {
         let gid = obj.gid.context("star must have gid")?;
         let source = tileset.get_source_rect(gid as TileIndex - 1);
         let area = Rect {
@@ -40,7 +40,7 @@ impl<'a> Star<'a> {
         return intersect(self.area, player_rect);
     }
 
-    pub fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point) {
+    pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, offset: Point) {
         let mut x = self.area.x + offset.x();
         let mut y = self.area.y + offset.y();
         x += star_rand() * SUBPIXELS;
@@ -51,7 +51,7 @@ impl<'a> Star<'a> {
             w: self.area.w,
             h: self.area.h,
         };
-        let sprite = &self.tileset.sprite;
+        let sprite = self.tileset.sprite;
         context.draw(sprite, layer, rect, self.source);
         // TODO: Add lights.
     }

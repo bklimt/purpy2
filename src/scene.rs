@@ -14,16 +14,9 @@ pub enum SceneResult {
     SwitchToLevel { path: PathBuf },
 }
 
-pub trait Scene<'a> {
-    fn update<'b, 'c>(
-        &mut self,
-        inputs: &'b InputSnapshot,
-        sounds: &'c mut SoundManager,
-    ) -> SceneResult;
+pub trait Scene {
+    fn update(&mut self, inputs: &InputSnapshot, sounds: &mut SoundManager) -> SceneResult;
 
     // TODO: It's unfortunate that draw has to be mutable for now.
-    fn draw<'b, 'c>(&mut self, context: &'b mut RenderContext<'a>, images: &'c ImageManager<'a>)
-    where
-        'a: 'b,
-        'a: 'c;
+    fn draw(&mut self, context: &mut RenderContext, images: &ImageManager);
 }

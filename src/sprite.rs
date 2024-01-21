@@ -2,70 +2,39 @@ use std::collections::HashSet;
 use std::fs;
 use std::ops::RangeInclusive;
 use std::path::Path;
-use std::rc::Rc;
 
 use anyhow::{anyhow, bail, Context, Result};
-use sdl2::render::{Texture, TextureCreator};
-use sdl2::surface::Surface;
 
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::utils::Rect;
 
-pub struct Sprite<'a> {
-    surface: Surface<'a>,
-    pub texture: Texture<'a>,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Sprite {
+    pub id: usize,
+    pub width: u32,
+    pub height: u32,
 }
 
-impl<'a> Sprite<'a> {
-    pub fn new<'b, 'c, T>(
-        surface: Surface<'b>,
-        texture_creator: &'c TextureCreator<T>,
-    ) -> Result<Sprite<'b>>
-    where
-        'c: 'b,
-    {
-        let texture = surface.as_texture(texture_creator)?;
-        Ok(Sprite { surface, texture })
-    }
-
-    pub fn width(&self) -> u32 {
-        self.surface.width()
-    }
-
-    pub fn height(&self) -> u32 {
-        self.surface.width()
-    }
-}
-
-pub struct SpriteSheet<'a> {
-    surface: Rc<Sprite<'a>>,
+pub struct SpriteSheet {
+    sprite: Sprite,
     sprite_width: u32,
     sprite_height: u32,
     columns: u32,
 }
 
-impl<'a> SpriteSheet<'a> {
-    pub fn new<'b, 'c, T>(
-        surface: Surface<'b>,
-        sprite_width: u32,
-        sprite_height: u32,
-        texture_creator: &'c TextureCreator<T>,
-    ) -> Result<SpriteSheet<'b>>
-    where
-        'c: 'b,
-    {
-        let w = surface.width();
-        let surface = Rc::new(Sprite::new(surface, texture_creator)?);
+impl SpriteSheet {
+    pub fn new(sprite: Sprite, sprite_width: u32, sprite_height: u32) -> Result<SpriteSheet> {
+        let w = sprite.width;
         let columns = w / sprite_width;
         Ok(SpriteSheet {
-            surface,
+            sprite,
             sprite_width,
             sprite_height,
             columns,
         })
     }
 
-    fn sprite(&self, index: u32, layer: u32) -> Rect {
+    fn source_area(&self, index: u32, layer: u32) -> Rect {
         let row = (index / self.columns) + layer;
         let column = index % self.columns;
 
@@ -76,45 +45,37 @@ impl<'a> SpriteSheet<'a> {
         Rect { x, y, w, h }
     }
 
-    pub fn blit<'b>(
+    pub fn blit(
         &self,
-        context: &'b mut RenderContext<'a>,
+        context: &mut RenderContext,
         layer: RenderLayer,
         dest: Rect,
         index: u32,
         sprite_layer: u32,
         reverse: bool,
     ) {
-        let sprite = self.sprite(index, sprite_layer);
+        let source_area = self.source_area(index, sprite_layer);
         if reverse {
-            context.draw_reversed(&self.surface, layer, dest, sprite);
+            context.draw_reversed(self.sprite, layer, dest, source_area);
         } else {
-            context.draw(&self.surface, layer, dest, sprite);
+            context.draw(self.sprite, layer, dest, source_area);
         }
     }
 }
 
-pub struct Animation<'a> {
-    spritesheet: SpriteSheet<'a>,
+pub struct Animation {
+    spritesheet: SpriteSheet,
     frames: u32,
     frames_per_frame: u32,
 }
 
-impl<'a> Animation<'a> {
-    pub fn new<'b, 'c, T>(
-        surface: Surface<'b>,
-        sprite_width: u32,
-        sprite_height: u32,
-        texture_creator: &'c TextureCreator<T>,
-    ) -> Result<Animation<'b>>
-    where
-        'c: 'b,
-    {
-        if surface.height() != sprite_height {
+impl Animation {
+    pub fn new(sprite: Sprite, sprite_width: u32, sprite_height: u32) -> Result<Animation> {
+        if sprite.height != sprite_height {
             bail!("animations can only have one row");
         }
-        let w = surface.width();
-        let spritesheet = SpriteSheet::new(surface, sprite_width, sprite_height, texture_creator)?;
+        let w = sprite.width;
+        let spritesheet = SpriteSheet::new(sprite, sprite_width, sprite_height)?;
         let frames = w / sprite_width;
         let frames_per_frame = 2;
         Ok(Animation {
@@ -124,13 +85,7 @@ impl<'a> Animation<'a> {
         })
     }
 
-    pub fn blit<'b>(
-        &self,
-        context: &'b mut RenderContext<'a>,
-        layer: RenderLayer,
-        dest: Rect,
-        reverse: bool,
-    ) {
+    pub fn blit(&self, context: &mut RenderContext, layer: RenderLayer, dest: Rect, reverse: bool) {
         let index = (context.frame / self.frames_per_frame) % self.frames;
         self.spritesheet
             .blit(context, layer, dest, index, 0, reverse)

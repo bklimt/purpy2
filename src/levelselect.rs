@@ -52,7 +52,7 @@ impl LevelSelect {
     }
 }
 
-impl<'a> Scene<'a> for LevelSelect {
+impl Scene for LevelSelect {
     fn update(&mut self, inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;
@@ -75,11 +75,7 @@ impl<'a> Scene<'a> for LevelSelect {
         }
     }
 
-    fn draw<'b, 'c>(&mut self, context: &'b mut RenderContext<'a>, images: &'c ImageManager<'a>)
-    where
-        'a: 'b,
-        'a: 'c,
-    {
+    fn draw(&mut self, context: &mut RenderContext, images: &ImageManager) {
         let layer = RenderLayer::Hud;
         let font_height = images.font().char_height;
         let line_spacing = font_height / 2;
