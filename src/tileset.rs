@@ -1,12 +1,11 @@
 use std::fs;
 use std::path::Path;
-use std::rc::Rc;
 
 use anyhow::{anyhow, Context, Error, Result};
 use log::{debug, info};
 use serde::Deserialize;
 
-use crate::imagemanager::ImageManager;
+use crate::imagemanager::ImageLoader;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::slope::Slope;
 use crate::smallintmap::SmallIntMap;
@@ -133,14 +132,14 @@ pub struct TileSet {
 }
 
 impl TileSet {
-    pub fn from_file(path: &Path, images: &ImageManager) -> Result<TileSet> {
+    pub fn from_file(path: &Path, images: &mut dyn ImageLoader) -> Result<TileSet> {
         info!("loading tileset from {:?}", path);
         let text = fs::read_to_string(path)?;
         let xml = quick_xml::de::from_str::<TileSetXml>(&text)?;
         Self::from_xml(xml, path, images)
     }
 
-    fn from_xml(xml: TileSetXml, path: &Path, images: &ImageManager) -> Result<TileSet> {
+    fn from_xml(xml: TileSetXml, path: &Path, images: &mut dyn ImageLoader) -> Result<TileSet> {
         let name = xml.name;
         let tilewidth = xml.tilewidth;
         let tileheight = xml.tileheight;
@@ -236,9 +235,9 @@ impl TileSet {
 }
 
 // Loads a directory of animations to replace tiles. """
-fn load_tile_animations<'b>(
+fn load_tile_animations(
     path: &Path,
-    images: &ImageManager<'b>,
+    images: &mut dyn ImageLoader,
     animations: &mut SmallIntMap<TileIndex, Animation>,
 ) -> Result<()> {
     info!("loading tile animations from {:?}", path);

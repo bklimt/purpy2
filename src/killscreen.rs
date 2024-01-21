@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::imagemanager::ImageManager;
+use crate::font::Font;
 use crate::inputmanager::InputSnapshot;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::scene::{Scene, SceneResult};
@@ -19,9 +19,9 @@ impl<'a> KillScreen {
 }
 
 impl Scene for KillScreen {
-    fn draw(&mut self, context: &mut RenderContext, images: &ImageManager) {
+    fn draw(&mut self, context: &mut RenderContext, font: &Font) {
         let dest = context.logical_area_in_subpixels();
-        self.previous.draw(context, images);
+        self.previous.draw(context, font);
 
         let red_color = Color {
             r: 255,
@@ -33,12 +33,10 @@ impl Scene for KillScreen {
 
         let text = "DEAD";
         let text_pos = (
-            dest.w / 2 - text.len() as i32 * (images.font().char_width / 2),
-            dest.h / 2 - text.len() as i32 * (images.font().char_height / 2),
+            dest.w / 2 - text.len() as i32 * (font.char_width / 2),
+            dest.h / 2 - text.len() as i32 * (font.char_height / 2),
         );
-        images
-            .font()
-            .draw_string(context, RenderLayer::Hud, text_pos.into(), text);
+        font.draw_string(context, RenderLayer::Hud, text_pos.into(), text);
     }
 
     fn update<'b, 'c>(

@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::path::Path;
 
 use crate::constants::SUBPIXELS;
-use crate::imagemanager::ImageManager;
+use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::tileset::{TileIndex, TileSet};
 use crate::utils::{Point, Rect};
@@ -14,7 +14,7 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn new(path: &Path, images: &ImageManager) -> Result<Font> {
+    pub fn new(path: &Path, images: &mut dyn ImageLoader) -> Result<Font> {
         Ok(Font {
             tileset: TileSet::from_file(path, images)?,
             char_width: 8 * SUBPIXELS,

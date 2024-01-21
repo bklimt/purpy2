@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::imagemanager::ImageManager;
+use crate::font::Font;
 use crate::inputmanager::InputSnapshot;
 use crate::rendercontext::RenderContext;
 use crate::soundmanager::SoundManager;
@@ -18,5 +18,5 @@ pub trait Scene {
     fn update(&mut self, inputs: &InputSnapshot, sounds: &mut SoundManager) -> SceneResult;
 
     // TODO: It's unfortunate that draw has to be mutable for now.
-    fn draw(&mut self, context: &mut RenderContext, images: &ImageManager);
+    fn draw(&mut self, context: &mut RenderContext, font: &Font);
 }

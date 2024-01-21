@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use crate::{
     constants::{IDLE_TIME, PLAYER_FRAMES_PER_FRAME, SUBPIXELS},
-    imagemanager::ImageManager,
+    imagemanager::ImageLoader,
     rendercontext::{RenderContext, RenderLayer},
     sprite::{AnimationStateMachine, SpriteSheet},
     utils::{Direction, Point, Rect},
@@ -39,7 +39,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(images: &ImageManager) -> Result<Player> {
+    pub fn new(images: &mut dyn ImageLoader) -> Result<Player> {
         let sprite = images.load_spritesheet(Path::new("assets/sprites/skelly2.png"), 24, 24)?;
         let animation_state_machine =
             AnimationStateMachine::from_file(Path::new("assets/sprites/skelly2_states.txt"))?;

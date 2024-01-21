@@ -1,7 +1,6 @@
 use std::path::Path;
-use std::{collections::HashMap, path::PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 
 use sdl2::image::LoadSurface;
 use sdl2::render::{BlendMode, Canvas, Texture, TextureCreator};
@@ -13,21 +12,8 @@ use crate::renderer::Renderer;
 use crate::sprite::Sprite;
 
 struct SpriteInternal<'a> {
-    surface: Surface<'a>,
+    _surface: Surface<'a>,
     texture: Texture<'a>,
-}
-
-impl<'a> SpriteInternal<'a> {
-    fn new<'b, 'c, T>(
-        surface: Surface<'b>,
-        texture_creator: &'c TextureCreator<T>,
-    ) -> Result<SpriteInternal<'b>>
-    where
-        'c: 'b,
-    {
-        let texture = surface.as_texture(texture_creator)?;
-        Ok(SpriteInternal { surface, texture })
-    }
 }
 
 pub struct SdlRenderer<'a> {
@@ -110,7 +96,10 @@ impl Renderer for SdlRenderer<'_> {
         let height = surface.height();
 
         let texture = surface.as_texture(self.texture_creator)?;
-        let sprite_internal = SpriteInternal { surface, texture };
+        let sprite_internal = SpriteInternal {
+            _surface: surface,
+            texture,
+        };
 
         let id = self.sprites.len();
         self.sprites.push(sprite_internal);

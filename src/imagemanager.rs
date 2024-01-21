@@ -7,29 +7,55 @@ use crate::font::Font;
 use crate::renderer::Renderer;
 use crate::sprite::{Animation, Sprite, SpriteSheet};
 
-pub struct ImageManager<'a> {
-    path_to_sprite: HashMap<PathBuf, Sprite>,
-    renderer: &'a mut dyn Renderer,
-    font: Option<Font>,
+pub trait ImageLoader {
+    fn load_sprite(&mut self, path: &Path) -> Result<Sprite>;
+
+    fn load_spritesheet(
+        &mut self,
+        path: &Path,
+        sprite_width: u32,
+        sprite_height: u32,
+    ) -> Result<SpriteSheet>;
+
+    fn load_animation(
+        &mut self,
+        path: &Path,
+        sprite_width: u32,
+        sprite_height: u32,
+    ) -> Result<Animation>;
 }
 
-impl<'a> ImageManager<'a> {
-    pub fn new(renderer: &'a mut dyn Renderer) -> Result<Self> {
-        let path_to_sprite = HashMap::new();
+pub struct ImageManager<T: Renderer> {
+    path_to_sprite: HashMap<PathBuf, Sprite>,
+    renderer: T,
+}
 
-        let mut im = ImageManager {
+impl<T> ImageManager<T>
+where
+    T: Renderer,
+{
+    pub fn new(renderer: T) -> Result<Self> {
+        let path_to_sprite = HashMap::new();
+        Ok(ImageManager {
             path_to_sprite,
             renderer,
-            font: None,
-        };
-
-        let font = Font::new(Path::new("assets/8bitfont.tsx"), &im)?;
-        im.font = Some(font);
-
-        Ok(im)
+        })
     }
 
-    pub fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
+    pub fn load_font(&mut self) -> Result<Font> {
+        Font::new(Path::new("assets/8bitfont.tsx"), self)
+    }
+
+    pub fn renderer(&self) -> &T {
+        &self.renderer
+    }
+}
+
+impl<T> ImageLoader for ImageManager<T>
+where
+    T: Renderer,
+{
+    fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
         if let Some(existing) = self.path_to_sprite.get(path) {
             return Ok(*existing);
         }
@@ -38,7 +64,7 @@ impl<'a> ImageManager<'a> {
         Ok(sprite)
     }
 
-    pub fn load_spritesheet(
+    fn load_spritesheet(
         &mut self,
         path: &Path,
         sprite_width: u32,
@@ -48,7 +74,7 @@ impl<'a> ImageManager<'a> {
         SpriteSheet::new(sprite, sprite_width, sprite_height)
     }
 
-    pub fn load_animation(
+    fn load_animation(
         &mut self,
         path: &Path,
         sprite_width: u32,
@@ -56,11 +82,5 @@ impl<'a> ImageManager<'a> {
     ) -> Result<Animation> {
         let sprite = self.load_sprite(path)?;
         Animation::new(sprite, sprite_width, sprite_height)
-    }
-
-    pub fn font(&self) -> &Font {
-        self.font
-            .as_ref()
-            .expect("should have been initialized in new()")
     }
 }

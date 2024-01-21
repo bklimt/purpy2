@@ -3,7 +3,8 @@ use std::path::Path;
 use anyhow::Result;
 
 use crate::constants::{DOOR_CLOSING_FRAMES, DOOR_SPEED, DOOR_UNLOCKING_FRAMES, SUBPIXELS};
-use crate::imagemanager::ImageManager;
+use crate::font::Font;
+use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::sprite::SpriteSheet;
 use crate::tilemap::MapObject;
@@ -38,7 +39,7 @@ pub struct Door {
 }
 
 impl Door {
-    pub fn new(obj: &MapObject, images: &ImageManager) -> Result<Door> {
+    pub fn new(obj: &MapObject, images: &mut dyn ImageLoader) -> Result<Door> {
         let sprite_path = obj
             .properties
             .sprite
@@ -101,7 +102,7 @@ impl Door {
         context: &mut RenderContext,
         layer: RenderLayer,
         offset: Point,
-        images: &ImageManager,
+        font: &Font,
     ) {
         let x = self.x + offset.x();
         let y = self.y + offset.y();
@@ -134,7 +135,7 @@ impl Door {
         if self.stars_remaining > 0 {
             let s = format!("{:02}", self.stars_remaining);
             let pos = Point::new(x + 8 * SUBPIXELS, y + 12 * SUBPIXELS);
-            images.font().draw_string(context, layer, pos, &s);
+            font.draw_string(context, layer, pos, &s);
         }
     }
 

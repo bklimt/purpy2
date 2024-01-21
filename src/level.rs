@@ -13,7 +13,8 @@ use crate::constants::{
     WALL_JUMP_VERTICAL_SPEED, WALL_SLIDE_SPEED, WALL_SLIDE_TIME, WALL_STICK_TIME,
 };
 use crate::door::Door;
-use crate::imagemanager::ImageManager;
+use crate::font::Font;
+use crate::imagemanager::ImageLoader;
 use crate::inputmanager::InputSnapshot;
 use crate::platform::{Bagel, Button, Conveyor, MovingPlatform, Platform, PlatformType, Spring};
 use crate::player::{Player, PlayerState};
@@ -117,7 +118,7 @@ fn inc_player_y(player: &mut Player, offset: i32) {
 }
 
 impl Level {
-    pub fn new(map_path: &Path, images: &ImageManager) -> Result<Level> {
+    pub fn new(map_path: &Path, images: &mut dyn ImageLoader) -> Result<Level> {
         let wall_stick_counter = WALL_STICK_TIME;
         let wall_stick_facing_right = false;
         let wall_slide_counter = WALL_SLIDE_TIME;
@@ -854,7 +855,7 @@ impl Scene for Level {
         SceneResult::Continue
     }
 
-    fn draw(&mut self, context: &mut RenderContext, images: &ImageManager) {
+    fn draw(&mut self, context: &mut RenderContext, font: &Font) {
         let dest = context.logical_area_in_subpixels();
 
         // Make sure the player is on the screen, and then center them if possible.
@@ -921,7 +922,7 @@ impl Scene for Level {
             &self.switches,
         );
         for door in self.doors.iter() {
-            door.draw_background(context, RenderLayer::Player, map_offset, images);
+            door.draw_background(context, RenderLayer::Player, map_offset, font);
         }
         for platform in self.platforms.iter() {
             platform.draw(context, RenderLayer::Player, map_offset);
@@ -960,7 +961,7 @@ impl Scene for Level {
         };
         if top_bar_area.bottom() > 0 {
             context.fill_rect(top_bar_area, RenderLayer::Hud, top_bar_bgcolor);
-            images.font().draw_string(
+            font.draw_string(
                 context,
                 RenderLayer::Hud,
                 (

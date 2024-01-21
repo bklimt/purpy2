@@ -3,7 +3,8 @@ use std::{mem, path::Path};
 use anyhow::Result;
 
 use crate::{
-    imagemanager::ImageManager,
+    font::Font,
+    imagemanager::ImageLoader,
     inputmanager::InputSnapshot,
     killscreen::KillScreen,
     level::Level,
@@ -17,7 +18,7 @@ use crate::{
 struct SceneTombstone(());
 
 impl Scene for SceneTombstone {
-    fn draw(&mut self, _context: &mut RenderContext, _images: &ImageManager) {
+    fn draw(&mut self, _context: &mut RenderContext, _font: &Font) {
         unimplemented!()
     }
 
@@ -32,7 +33,7 @@ pub struct StageManager {
 }
 
 impl StageManager {
-    pub fn new(_images: &ImageManager) -> Result<StageManager> {
+    pub fn new(_images: &dyn ImageLoader) -> Result<StageManager> {
         let path = Path::new("../purpy/assets/levels");
         let level_select = LevelSelect::new(&path)?;
         Ok(StageManager {
@@ -44,7 +45,7 @@ impl StageManager {
     pub fn update(
         &mut self,
         inputs: &InputSnapshot,
-        images: &ImageManager,
+        images: &mut dyn ImageLoader,
         sounds: &mut SoundManager,
     ) -> Result<bool> {
         let result = self.current.update(inputs, sounds);
@@ -59,14 +60,14 @@ impl StageManager {
                 }
             }
             SceneResult::PushLevel { path } => {
-                let level = Level::new(&path, &images)?;
+                let level = Level::new(&path, images)?;
                 let level = Box::new(level);
                 let previous = mem::replace(&mut self.current, level);
                 self.stack.push(previous);
                 true
             }
             SceneResult::SwitchToLevel { path } => {
-                self.current = Box::new(Level::new(&path, &images)?);
+                self.current = Box::new(Level::new(&path, images)?);
                 true
             }
             SceneResult::PushLevelSelect { path } => {
@@ -87,7 +88,7 @@ impl StageManager {
         })
     }
 
-    pub fn draw(&mut self, context: &mut RenderContext, images: &ImageManager) {
-        self.current.draw(context, images)
+    pub fn draw(&mut self, context: &mut RenderContext, font: &Font) {
+        self.current.draw(context, font)
     }
 }

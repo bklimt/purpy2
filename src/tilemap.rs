@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::{fs, path::Path};
 
 use crate::constants::SUBPIXELS;
-use crate::imagemanager::ImageManager;
+use crate::imagemanager::ImageLoader;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::smallintset::SmallIntSet;
@@ -131,7 +131,11 @@ struct ImageLayer {
 }
 
 impl ImageLayer {
-    fn from_xml(xml: ImageLayerXml, path: &Path, images: &ImageManager) -> Result<ImageLayer> {
+    fn from_xml(
+        xml: ImageLayerXml,
+        path: &Path,
+        images: &mut dyn ImageLoader,
+    ) -> Result<ImageLayer> {
         let path = path
             .parent()
             .context("xml file is root")?
@@ -406,18 +410,18 @@ pub struct TileMap {
     layers: Vec<Layer>,
     player_layer: Option<i32>, // TODO: Should just be i32.
     pub objects: Vec<MapObject>,
-    is_dark: bool,
+    _is_dark: bool,
 }
 
 impl TileMap {
-    pub fn from_file(path: &Path, images: &ImageManager) -> Result<TileMap> {
+    pub fn from_file(path: &Path, images: &mut dyn ImageLoader) -> Result<TileMap> {
         info!("loading tilemap from {:?}", path);
         let text = fs::read_to_string(path)?;
         let xml = quick_xml::de::from_str::<TileMapXml>(&text)?;
         Self::from_xml(xml, path, images)
     }
 
-    fn from_xml(xml: TileMapXml, path: &Path, images: &ImageManager) -> Result<TileMap> {
+    fn from_xml(xml: TileMapXml, path: &Path, images: &mut dyn ImageLoader) -> Result<TileMap> {
         let width = xml.width;
         let height = xml.height;
         let tilewidth: i32 = xml.tilewidth;
@@ -487,12 +491,8 @@ impl TileMap {
             layers,
             player_layer,
             objects,
-            is_dark,
+            _is_dark: is_dark,
         })
-    }
-
-    fn is_dark(&self) -> bool {
-        self.is_dark
     }
 
     fn is_condition_met(&self, tile: TileIndex, switches: &SwitchState) -> bool {

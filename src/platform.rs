@@ -9,7 +9,7 @@ use crate::constants::{
     BAGEL_FALL_TIME, BAGEL_GRAVITY_ACCELERATION, BAGEL_MAX_GRAVITY, BAGEL_WAIT_TIME, BUTTON_DELAY,
     BUTTON_MAX_LEVEL, SPRING_SPEED, SPRING_STALL_FRAMES, SPRING_STEPS, SUBPIXELS,
 };
-use crate::imagemanager::ImageManager;
+use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::soundmanager::{Sound, SoundManager};
 use crate::sprite::SpriteSheet;
@@ -394,7 +394,11 @@ pub struct Spring {
 }
 
 impl Spring {
-    pub fn new(obj: &MapObject, tileset: Rc<TileSet>, images: &ImageManager) -> Result<Platform> {
+    pub fn new(
+        obj: &MapObject,
+        tileset: Rc<TileSet>,
+        images: &mut dyn ImageLoader,
+    ) -> Result<Platform> {
         let path = Path::new("assets/sprites/spring.png");
         let sprite = images.load_spritesheet(path, 8, 8)?;
         let spring = Spring {
@@ -520,7 +524,11 @@ fn get_button_image_path(color: &str) -> String {
 }
 
 impl<'a> Button {
-    pub fn new(obj: &MapObject, tileset: Rc<TileSet>, images: &ImageManager) -> Result<Platform> {
+    pub fn new(
+        obj: &MapObject,
+        tileset: Rc<TileSet>,
+        images: &mut dyn ImageLoader,
+    ) -> Result<Platform> {
         let level = 0;
         let clicked = false;
         let was_occupied = false;

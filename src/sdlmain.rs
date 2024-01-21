@@ -34,21 +34,23 @@ pub fn sdl_main(args: Args) -> Result<()> {
         .build()
         .expect("failed to build window's canvas");
     let texture_creator = canvas.texture_creator();
-    let mut renderer = SdlRenderer::new(&texture_creator);
-    let image_manager = ImageManager::new(&mut renderer)?;
-    let mut frame = 0;
+    let renderer = SdlRenderer::new(&texture_creator);
 
     canvas.set_logical_size(RENDER_WIDTH, RENDER_HEIGHT)?;
     canvas.set_draw_color(Color::RGB(40, 40, 40));
     canvas.clear();
     canvas.present();
 
+    let mut image_manager = ImageManager::new(renderer)?;
     let mut input_manager = InputManager::new()?;
     let mut stage_manager = StageManager::new(&image_manager)?;
-
     let mut sound_manager = SoundManager::new(&audio_subsystem)?;
-
     let mut event_pump = sdl_context.event_pump().unwrap();
+
+    let font = image_manager.load_font()?;
+
+    let mut frame = 0;
+
     'running: loop {
         let start_time = Instant::now();
 
@@ -68,13 +70,13 @@ pub fn sdl_main(args: Args) -> Result<()> {
 
         let input_snapshot = input_manager.update();
 
-        if !stage_manager.update(&input_snapshot, &image_manager, &mut sound_manager)? {
+        if !stage_manager.update(&input_snapshot, &mut image_manager, &mut sound_manager)? {
             break 'running;
         }
 
         context.clear();
-        stage_manager.draw(&mut context, &image_manager);
-        renderer.render(&mut canvas, &context);
+        stage_manager.draw(&mut context, &font);
+        image_manager.renderer().render(&mut canvas, &context)?;
         canvas.present();
 
         frame += 1;

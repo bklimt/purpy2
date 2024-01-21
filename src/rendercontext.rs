@@ -99,15 +99,15 @@ impl RenderContext {
 
     // TODO: Get rid of these.
 
-    pub fn draw(&mut self, sprite: Sprite, layer: RenderLayer, dst: Rect, src: Rect) {
+    pub fn draw(&mut self, sprite: Sprite, _layer: RenderLayer, dst: Rect, src: Rect) {
         self.player_batch.draw(sprite, dst, src, false)
     }
 
-    pub fn draw_reversed(&mut self, sprite: Sprite, layer: RenderLayer, dst: Rect, src: Rect) {
+    pub fn draw_reversed(&mut self, sprite: Sprite, _layer: RenderLayer, dst: Rect, src: Rect) {
         self.player_batch.draw(sprite, dst, src, true)
     }
 
-    pub fn fill_rect(&mut self, rect: Rect, layer: RenderLayer, color: Color) {
+    pub fn fill_rect(&mut self, rect: Rect, _layer: RenderLayer, color: Color) {
         self.player_batch.fill_rect(rect, color);
     }
 
