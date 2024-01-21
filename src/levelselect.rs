@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf};
 use anyhow::{Context, Result};
 use log::debug;
 
-use crate::imagemanager::ImageManager;
+use crate::font::Font;
 use crate::inputmanager::InputSnapshot;
 use crate::rendercontext::RenderContext;
 use crate::rendercontext::RenderLayer;
@@ -52,7 +52,7 @@ impl LevelSelect {
     }
 }
 
-impl<'a> Scene<'a> for LevelSelect {
+impl Scene for LevelSelect {
     fn update(&mut self, inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;
@@ -75,21 +75,15 @@ impl<'a> Scene<'a> for LevelSelect {
         }
     }
 
-    fn draw<'b, 'c>(&mut self, context: &'b mut RenderContext<'a>, images: &'c ImageManager<'a>)
-    where
-        'a: 'b,
-        'a: 'c,
-    {
+    fn draw(&mut self, context: &mut RenderContext, font: &Font) {
         let layer = RenderLayer::Hud;
-        let font_height = images.font().char_height;
+        let font_height = font.char_height;
         let line_spacing = font_height / 2;
 
         let x = line_spacing;
         let mut y = line_spacing;
         let dir_str = self.directory.to_string_lossy();
-        images
-            .font()
-            .draw_string(context, layer, (x, y).into(), &dir_str);
+        font.draw_string(context, layer, (x, y).into(), &dir_str);
         y += font_height + line_spacing;
 
         if self.current < self.start {
@@ -101,9 +95,7 @@ impl<'a> Scene<'a> for LevelSelect {
             self.start = self.current - 10;
         }
         if self.start != 0 {
-            images
-                .font()
-                .draw_string(context, layer, (x, y).into(), " ...")
+            font.draw_string(context, layer, (x, y).into(), " ...")
         }
         y += font_height + line_spacing;
 
@@ -112,7 +104,7 @@ impl<'a> Scene<'a> for LevelSelect {
                 continue;
             }
             let cursor = if i == self.current { '>' } else { ' ' };
-            images.font().draw_string(
+            font.draw_string(
                 context,
                 layer,
                 (x, y).into(),
@@ -122,9 +114,7 @@ impl<'a> Scene<'a> for LevelSelect {
         }
 
         if self.start + 12 <= self.files.len() as i32 {
-            images
-                .font()
-                .draw_string(context, layer, (x, y).into(), " ...");
+            font.draw_string(context, layer, (x, y).into(), " ...");
         }
     }
 }

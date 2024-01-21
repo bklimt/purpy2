@@ -3,7 +3,8 @@ use std::path::Path;
 use anyhow::Result;
 
 use crate::constants::{DOOR_CLOSING_FRAMES, DOOR_SPEED, DOOR_UNLOCKING_FRAMES, SUBPIXELS};
-use crate::imagemanager::ImageManager;
+use crate::font::Font;
+use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::sprite::SpriteSheet;
 use crate::tilemap::MapObject;
@@ -25,10 +26,10 @@ enum DoorState {
     Closed,
 }
 
-pub struct Door<'a> {
+pub struct Door {
     x: i32,
     y: i32,
-    sprite: SpriteSheet<'a>,
+    sprite: SpriteSheet,
     pub destination: Option<String>,
     stars_needed: i32,
     stars_remaining: i32,
@@ -37,11 +38,8 @@ pub struct Door<'a> {
     frame: u32,
 }
 
-impl<'a> Door<'a> {
-    pub fn new<'b, 'c>(obj: &MapObject, images: &'c ImageManager<'b>) -> Result<Door<'b>>
-    where
-        'b: 'c,
-    {
+impl Door {
+    pub fn new(obj: &MapObject, images: &mut dyn ImageLoader) -> Result<Door> {
         let sprite_path = obj
             .properties
             .sprite
@@ -99,16 +97,13 @@ impl<'a> Door<'a> {
         self.frame = 0;
     }
 
-    pub fn draw_background<'b, 'c>(
+    pub fn draw_background(
         &self,
-        context: &'b mut RenderContext<'a>,
+        context: &mut RenderContext,
         layer: RenderLayer,
         offset: Point,
-        images: &'c ImageManager<'a>,
-    ) where
-        'a: 'b,
-        'a: 'c,
-    {
+        font: &Font,
+    ) {
         let x = self.x + offset.x();
         let y = self.y + offset.y();
         let dest = Rect {
@@ -140,16 +135,11 @@ impl<'a> Door<'a> {
         if self.stars_remaining > 0 {
             let s = format!("{:02}", self.stars_remaining);
             let pos = Point::new(x + 8 * SUBPIXELS, y + 12 * SUBPIXELS);
-            images.font().draw_string(context, layer, pos, &s);
+            font.draw_string(context, layer, pos, &s);
         }
     }
 
-    pub fn draw_foreground<'b>(
-        &self,
-        context: &'b mut RenderContext<'a>,
-        layer: RenderLayer,
-        offset: Point,
-    ) {
+    pub fn draw_foreground(&self, context: &mut RenderContext, layer: RenderLayer, offset: Point) {
         let x = self.x + offset.x();
         let y = self.y + offset.y();
         let dest = Rect {

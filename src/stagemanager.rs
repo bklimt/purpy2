@@ -3,7 +3,8 @@ use std::{mem, path::Path};
 use anyhow::Result;
 
 use crate::{
-    imagemanager::ImageManager,
+    font::Font,
+    imagemanager::ImageLoader,
     inputmanager::InputSnapshot,
     killscreen::KillScreen,
     level::Level,
@@ -16,34 +17,23 @@ use crate::{
 // A placeholder to use when swapping out scenes.
 struct SceneTombstone(());
 
-impl<'a> Scene<'a> for SceneTombstone {
-    fn draw<'b, 'c>(&mut self, _context: &'b mut RenderContext<'a>, _images: &'c ImageManager<'a>)
-    where
-        'a: 'b,
-        'a: 'c,
-    {
+impl Scene for SceneTombstone {
+    fn draw(&mut self, _context: &mut RenderContext, _font: &Font) {
         unimplemented!()
     }
 
-    fn update<'b, 'c>(
-        &mut self,
-        _inputs: &'b InputSnapshot,
-        _sounds: &'c mut SoundManager,
-    ) -> SceneResult {
+    fn update(&mut self, _inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
         unimplemented!()
     }
 }
 
-pub struct StageManager<'a> {
-    current: Box<dyn Scene<'a> + 'a>,
-    stack: Vec<Box<dyn Scene<'a> + 'a>>,
+pub struct StageManager {
+    current: Box<dyn Scene>,
+    stack: Vec<Box<dyn Scene>>,
 }
 
-impl<'a> StageManager<'a> {
-    pub fn new<'b>(_images: &'b ImageManager<'a>) -> Result<StageManager<'a>>
-    where
-        'a: 'b,
-    {
+impl StageManager {
+    pub fn new(_images: &dyn ImageLoader) -> Result<StageManager> {
         let path = Path::new("../purpy/assets/levels");
         let level_select = LevelSelect::new(&path)?;
         Ok(StageManager {
@@ -52,15 +42,12 @@ impl<'a> StageManager<'a> {
         })
     }
 
-    pub fn update<'b, 'c, 'd>(
+    pub fn update(
         &mut self,
-        inputs: &'b InputSnapshot,
-        images: &'c ImageManager<'a>,
-        sounds: &'d mut SoundManager,
-    ) -> Result<bool>
-    where
-        'a: 'c,
-    {
+        inputs: &InputSnapshot,
+        images: &mut dyn ImageLoader,
+        sounds: &mut SoundManager,
+    ) -> Result<bool> {
         let result = self.current.update(inputs, sounds);
         Ok(match result {
             SceneResult::Continue => true,
@@ -73,14 +60,14 @@ impl<'a> StageManager<'a> {
                 }
             }
             SceneResult::PushLevel { path } => {
-                let level = Level::new(&path, &images)?;
+                let level = Level::new(&path, images)?;
                 let level = Box::new(level);
                 let previous = mem::replace(&mut self.current, level);
                 self.stack.push(previous);
                 true
             }
             SceneResult::SwitchToLevel { path } => {
-                self.current = Box::new(Level::new(&path, &images)?);
+                self.current = Box::new(Level::new(&path, images)?);
                 true
             }
             SceneResult::PushLevelSelect { path } => {
@@ -91,7 +78,7 @@ impl<'a> StageManager<'a> {
                 true
             }
             SceneResult::SwitchToKillScreen { path } => {
-                let mut previous: Box<dyn Scene<'a> + 'a> = Box::new(SceneTombstone(()));
+                let mut previous: Box<dyn Scene> = Box::new(SceneTombstone(()));
                 mem::swap(&mut self.current, &mut previous);
                 let kill_screen = KillScreen::new(previous, path);
                 let kill_screen = Box::new(kill_screen);
@@ -101,7 +88,7 @@ impl<'a> StageManager<'a> {
         })
     }
 
-    pub fn draw(&mut self, context: &mut RenderContext<'a>, images: &ImageManager<'a>) {
-        self.current.draw(context, images)
+    pub fn draw(&mut self, context: &mut RenderContext, font: &Font) {
+        self.current.draw(context, font)
     }
 }

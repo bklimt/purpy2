@@ -1,31 +1,27 @@
 use std::path::PathBuf;
 
-use crate::imagemanager::ImageManager;
+use crate::font::Font;
 use crate::inputmanager::InputSnapshot;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::scene::{Scene, SceneResult};
 use crate::soundmanager::SoundManager;
 use crate::utils::Color;
 
-pub struct KillScreen<'a> {
-    previous: Box<dyn Scene<'a> + 'a>,
+pub struct KillScreen {
+    previous: Box<dyn Scene>,
     next: PathBuf,
 }
 
-impl<'a> KillScreen<'a> {
-    pub fn new<'b>(previous: Box<dyn Scene<'b> + 'b>, next: PathBuf) -> KillScreen<'b> {
+impl<'a> KillScreen {
+    pub fn new(previous: Box<dyn Scene>, next: PathBuf) -> KillScreen {
         KillScreen { previous, next }
     }
 }
 
-impl<'a> Scene<'a> for KillScreen<'a> {
-    fn draw<'b, 'c>(&mut self, context: &'b mut RenderContext<'a>, images: &'c ImageManager<'a>)
-    where
-        'a: 'b,
-        'a: 'c,
-    {
+impl Scene for KillScreen {
+    fn draw(&mut self, context: &mut RenderContext, font: &Font) {
         let dest = context.logical_area_in_subpixels();
-        self.previous.draw(context, images);
+        self.previous.draw(context, font);
 
         let red_color = Color {
             r: 255,
@@ -37,12 +33,10 @@ impl<'a> Scene<'a> for KillScreen<'a> {
 
         let text = "DEAD";
         let text_pos = (
-            dest.w / 2 - text.len() as i32 * (images.font().char_width / 2),
-            dest.h / 2 - text.len() as i32 * (images.font().char_height / 2),
+            dest.w / 2 - text.len() as i32 * (font.char_width / 2),
+            dest.h / 2 - text.len() as i32 * (font.char_height / 2),
         );
-        images
-            .font()
-            .draw_string(context, RenderLayer::Hud, text_pos.into(), text);
+        font.draw_string(context, RenderLayer::Hud, text_pos.into(), text);
     }
 
     fn update<'b, 'c>(

@@ -1,12 +1,11 @@
 use std::fs;
 use std::path::Path;
-use std::rc::Rc;
 
 use anyhow::{anyhow, Context, Error, Result};
 use log::{debug, info};
 use serde::Deserialize;
 
-use crate::imagemanager::ImageManager;
+use crate::imagemanager::ImageLoader;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::slope::Slope;
 use crate::smallintmap::SmallIntMap;
@@ -119,39 +118,35 @@ impl TryFrom<PropertyMap> for TileSetProperties {
     }
 }
 
-pub struct TileSet<'a> {
+pub struct TileSet {
     _name: String,
     pub tilewidth: i32,
     pub tileheight: i32,
     tilecount: i32,
     columns: i32,
-    pub sprite: Rc<Sprite<'a>>,
+    pub sprite: Sprite,
     slopes: SmallIntMap<TileIndex, Slope>,
-    pub animations: SmallIntMap<TileIndex, Animation<'a>>,
+    pub animations: SmallIntMap<TileIndex, Animation>,
     pub properties: TileSetProperties,
     tile_properties: SmallIntMap<TileIndex, TileProperties>,
 }
 
-impl<'a> TileSet<'a> {
-    pub fn from_file<'b>(path: &Path, images: &ImageManager<'b>) -> Result<TileSet<'b>> {
+impl TileSet {
+    pub fn from_file(path: &Path, images: &mut dyn ImageLoader) -> Result<TileSet> {
         info!("loading tileset from {:?}", path);
         let text = fs::read_to_string(path)?;
         let xml = quick_xml::de::from_str::<TileSetXml>(&text)?;
         Self::from_xml(xml, path, images)
     }
 
-    fn from_xml<'b>(
-        xml: TileSetXml,
-        path: &Path,
-        images: &ImageManager<'b>,
-    ) -> Result<TileSet<'b>> {
+    fn from_xml(xml: TileSetXml, path: &Path, images: &mut dyn ImageLoader) -> Result<TileSet> {
         let name = xml.name;
         let tilewidth = xml.tilewidth;
         let tileheight = xml.tileheight;
         let tilecount = xml.tilecount;
         let columns = xml.columns;
 
-        let mut sprite: Option<Rc<Sprite>> = None;
+        let mut sprite: Option<Sprite> = None;
         let mut properties = PropertyMap::new();
         let mut slopes = SmallIntMap::new();
         let mut tile_properties = SmallIntMap::new();
@@ -240,10 +235,10 @@ impl<'a> TileSet<'a> {
 }
 
 // Loads a directory of animations to replace tiles. """
-fn load_tile_animations<'b>(
+fn load_tile_animations(
     path: &Path,
-    images: &ImageManager<'b>,
-    animations: &mut SmallIntMap<TileIndex, Animation<'b>>,
+    images: &mut dyn ImageLoader,
+    animations: &mut SmallIntMap<TileIndex, Animation>,
 ) -> Result<()> {
     info!("loading tile animations from {:?}", path);
     let files = fs::read_dir(path)?;

@@ -9,7 +9,7 @@ use crate::constants::{
     BAGEL_FALL_TIME, BAGEL_GRAVITY_ACCELERATION, BAGEL_MAX_GRAVITY, BAGEL_WAIT_TIME, BUTTON_DELAY,
     BUTTON_MAX_LEVEL, SPRING_SPEED, SPRING_STALL_FRAMES, SPRING_STEPS, SUBPIXELS,
 };
-use crate::imagemanager::ImageManager;
+use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::soundmanager::{Sound, SoundManager};
 use crate::sprite::SpriteSheet;
@@ -18,32 +18,28 @@ use crate::tilemap::{ButtonType, ConveyorDirection, MapObject, Overflow};
 use crate::tileset::{TileIndex, TileSet};
 use crate::utils::{sign, try_move_to_bounds, Direction, Point, Rect};
 
-pub enum PlatformType<'a> {
+pub enum PlatformType {
     MovingPlatform(MovingPlatform),
     Bagel(Bagel),
     Conveyor(Conveyor),
-    Spring(Spring<'a>),
-    Button(Button<'a>),
+    Spring(Spring),
+    Button(Button),
 }
 
-pub struct Platform<'a> {
+pub struct Platform {
     _id: i32,
-    tileset: Rc<TileSet<'a>>,
+    tileset: Rc<TileSet>,
     tile_id: TileIndex,
     position: Rect,
     dx: i32,
     dy: i32,
     solid: bool,
     occupied: bool,
-    pub subtype: PlatformType<'a>,
+    pub subtype: PlatformType,
 }
 
-impl<'a> Platform<'a> {
-    fn new<'b>(
-        obj: &MapObject,
-        tileset: Rc<TileSet<'b>>,
-        subtype: PlatformType<'b>,
-    ) -> Result<Platform<'b>> {
+impl Platform {
+    fn new(obj: &MapObject, tileset: Rc<TileSet>, subtype: PlatformType) -> Result<Platform> {
         Ok(Platform {
             _id: obj.id,
             tileset: tileset,
@@ -76,10 +72,7 @@ impl<'a> Platform<'a> {
         self.subtype = subtype;
     }
 
-    pub fn draw<'b>(&self, context: &'b mut RenderContext<'a>, layer: RenderLayer, offset: Point)
-    where
-        'a: 'b,
-    {
+    pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, offset: Point) {
         match &self.subtype {
             PlatformType::Bagel(bagel) => bagel.draw(self, context, layer, offset),
             PlatformType::Spring(spring) => spring.draw(self, context, layer, offset),
@@ -97,7 +90,7 @@ impl<'a> Platform<'a> {
                     anim.blit(context, layer, dest, false);
                 } else {
                     let src = self.tileset.get_source_rect(self.tile_id);
-                    context.draw(&self.tileset.sprite, layer, dest, src);
+                    context.draw(self.tileset.sprite, layer, dest, src);
                 }
             }
         }
@@ -155,7 +148,7 @@ pub struct MovingPlatform {
 }
 
 impl MovingPlatform {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Platform<'b>> {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet>) -> Result<Platform> {
         let (dist_mult, sx, sy) = match obj.properties.direction {
             Direction::Up => (tileset.tileheight, 0, -1),
             Direction::Down => (tileset.tileheight, 0, 1),
@@ -310,7 +303,7 @@ pub struct Bagel {
 }
 
 impl Bagel {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Platform<'b>> {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet>) -> Result<Platform> {
         let original_y = obj.position.y * SUBPIXELS;
         let bagel = Bagel {
             original_y,
@@ -320,15 +313,13 @@ impl Bagel {
         Ok(Platform::new(obj, tileset, PlatformType::Bagel(bagel))?)
     }
 
-    fn draw<'a, 'b>(
+    fn draw(
         &self,
-        base: &Platform<'a>,
-        context: &'b mut RenderContext<'a>,
+        base: &Platform,
+        context: &mut RenderContext,
         layer: RenderLayer,
         offset: Point,
-    ) where
-        'a: 'b,
-    {
+    ) {
         let mut x = base.position.x + offset.x;
         let mut y = base.position.y + offset.y;
         let area = base.tileset.get_source_rect(base.tile_id);
@@ -342,7 +333,7 @@ impl Bagel {
             w: area.w * SUBPIXELS,
             h: area.h * SUBPIXELS,
         };
-        context.draw(&base.tileset.sprite, layer, rect, area);
+        context.draw(base.tileset.sprite, layer, rect, area);
     }
 
     fn update(&mut self, base: &mut Platform, _switches: &mut SwitchState, _sounds: &SoundManager) {
@@ -376,7 +367,7 @@ impl Bagel {
 pub struct Conveyor(());
 
 impl Conveyor {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet<'b>>) -> Result<Platform<'b>> {
+    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet>) -> Result<Platform> {
         // This is hand-tuned.
         let speed = (obj.properties.speed.unwrap_or(24) * SUBPIXELS) / 16;
         let dx = match obj
@@ -394,23 +385,20 @@ impl Conveyor {
     }
 }
 
-pub struct Spring<'a> {
-    sprite: SpriteSheet<'a>,
+pub struct Spring {
+    sprite: SpriteSheet,
     up: bool,
     pos: i32,
     stall_counter: i32,
     pub launch: bool,
 }
 
-impl<'a> Spring<'a> {
-    pub fn new<'b, 'c>(
+impl Spring {
+    pub fn new(
         obj: &MapObject,
-        tileset: Rc<TileSet<'b>>,
-        images: &'c ImageManager<'b>,
-    ) -> Result<Platform<'b>>
-    where
-        'b: 'c,
-    {
+        tileset: Rc<TileSet>,
+        images: &mut dyn ImageLoader,
+    ) -> Result<Platform> {
         let path = Path::new("assets/sprites/spring.png");
         let sprite = images.load_spritesheet(path, 8, 8)?;
         let spring = Spring {
@@ -431,15 +419,13 @@ impl<'a> Spring<'a> {
         self.up || (self.frame() == SPRING_STEPS - 1)
     }
 
-    fn draw<'b>(
+    fn draw(
         &self,
-        base: &Platform<'a>,
-        context: &'b mut RenderContext<'a>,
+        base: &Platform,
+        context: &mut RenderContext,
         layer: RenderLayer,
         offset: Point,
-    ) where
-        'a: 'b,
-    {
+    ) {
         let x = base.position.x + offset.x;
         let y = base.position.y + offset.y;
         let dest = Rect {
@@ -522,8 +508,8 @@ impl<'a> Spring<'a> {
     }
 }
 
-pub struct Button<'a> {
-    sprite: SpriteSheet<'a>,
+pub struct Button {
+    sprite: SpriteSheet,
     level: u32,
     original_y: i32,
     clicked: bool,
@@ -537,15 +523,12 @@ fn get_button_image_path(color: &str) -> String {
     format!("assets/sprites/buttons/{color}.png")
 }
 
-impl<'a> Button<'a> {
-    pub fn new<'b, 'c>(
+impl<'a> Button {
+    pub fn new(
         obj: &MapObject,
-        tileset: Rc<TileSet<'b>>,
-        images: &'c ImageManager<'b>,
-    ) -> Result<Platform<'b>>
-    where
-        'b: 'c,
-    {
+        tileset: Rc<TileSet>,
+        images: &mut dyn ImageLoader,
+    ) -> Result<Platform> {
         let level = 0;
         let clicked = false;
         let was_occupied = false;
@@ -576,15 +559,13 @@ impl<'a> Button<'a> {
         Ok(base)
     }
 
-    fn draw<'b>(
+    fn draw(
         &self,
-        base: &Platform<'a>,
-        context: &'b mut RenderContext<'a>,
+        base: &Platform,
+        context: &mut RenderContext,
         layer: RenderLayer,
         offset: Point,
-    ) where
-        'a: 'b,
-    {
+    ) {
         let x = base.position.x + offset.x;
         let y = self.original_y + offset.y;
         let dest = Rect {

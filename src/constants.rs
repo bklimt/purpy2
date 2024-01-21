@@ -11,7 +11,7 @@ pub const FRAME_RATE: u32 = 60;
 pub const SUBPIXELS: Subpixels = 16;
 
 // Rendering details.
-pub const MAX_LIGHTS: u32 = 20;
+// pub const MAX_LIGHTS: u32 = 20;
 
 // How quickly should the viewport pan to where it wants to be.
 pub const VIEWPORT_PAN_SPEED: i32 = 5 * SUBPIXELS;

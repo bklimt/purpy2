@@ -13,7 +13,8 @@ use crate::constants::{
     WALL_JUMP_VERTICAL_SPEED, WALL_SLIDE_SPEED, WALL_SLIDE_TIME, WALL_STICK_TIME,
 };
 use crate::door::Door;
-use crate::imagemanager::ImageManager;
+use crate::font::Font;
+use crate::imagemanager::ImageLoader;
 use crate::inputmanager::InputSnapshot;
 use crate::platform::{Bagel, Button, Conveyor, MovingPlatform, Platform, PlatformType, Spring};
 use crate::player::{Player, PlayerState};
@@ -74,11 +75,11 @@ struct PlayerMovementResult {
     crushed_by_platform: bool,
 }
 
-pub struct Level<'a> {
+pub struct Level {
     _name: String,
     map_path: PathBuf,
-    map: TileMap<'a>,
-    player: Player<'a>,
+    map: TileMap,
+    player: Player,
 
     wall_stick_counter: i32,
     wall_stick_facing_right: bool,
@@ -94,9 +95,9 @@ pub struct Level<'a> {
     toast_counter: i32,
 
     // platforms, stars, and doors
-    platforms: Vec<Platform<'a>>,
-    stars: Vec<Star<'a>>,
-    doors: Vec<Door<'a>>,
+    platforms: Vec<Platform>,
+    stars: Vec<Star>,
+    doors: Vec<Door>,
 
     star_count: i32,
     current_platform: Option<usize>,
@@ -116,11 +117,8 @@ fn inc_player_y(player: &mut Player, offset: i32) {
     player.y += offset;
 }
 
-impl<'a> Level<'a> {
-    pub fn new<'b, 'c>(map_path: &Path, images: &'c ImageManager<'b>) -> Result<Level<'b>>
-    where
-        'b: 'c,
-    {
+impl Level {
+    pub fn new(map_path: &Path, images: &mut dyn ImageLoader) -> Result<Level> {
         let wall_stick_counter = WALL_STICK_TIME;
         let wall_stick_facing_right = false;
         let wall_slide_counter = WALL_SLIDE_TIME;
@@ -151,7 +149,7 @@ impl<'a> Level<'a> {
         let current_platform = None;
         let current_door = None;
 
-        let mut platforms: Vec<Platform<'b>> = Vec::new();
+        let mut platforms: Vec<Platform> = Vec::new();
         let mut stars = Vec::new();
         let mut doors = Vec::new();
 
@@ -211,7 +209,7 @@ impl<'a> Level<'a> {
     }
 }
 
-impl<'a> Level<'a> {
+impl Level {
     /*
      * Movement.
      */
@@ -763,12 +761,8 @@ impl<'a> Level<'a> {
     }
 }
 
-impl<'a> Scene<'a> for Level<'a> {
-    fn update<'b, 'c>(
-        &mut self,
-        inputs: &'b InputSnapshot,
-        sounds: &'c mut SoundManager,
-    ) -> SceneResult {
+impl Scene for Level {
+    fn update(&mut self, inputs: &InputSnapshot, sounds: &mut SoundManager) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;
         }
@@ -861,11 +855,7 @@ impl<'a> Scene<'a> for Level<'a> {
         SceneResult::Continue
     }
 
-    fn draw<'b, 'c>(&mut self, context: &'b mut RenderContext<'a>, images: &'c ImageManager<'a>)
-    where
-        'a: 'b,
-        'a: 'c,
-    {
+    fn draw(&mut self, context: &mut RenderContext, font: &Font) {
         let dest = context.logical_area_in_subpixels();
 
         // Make sure the player is on the screen, and then center them if possible.
@@ -932,7 +922,7 @@ impl<'a> Scene<'a> for Level<'a> {
             &self.switches,
         );
         for door in self.doors.iter() {
-            door.draw_background(context, RenderLayer::Player, map_offset, images);
+            door.draw_background(context, RenderLayer::Player, map_offset, font);
         }
         for platform in self.platforms.iter() {
             platform.draw(context, RenderLayer::Player, map_offset);
@@ -971,7 +961,7 @@ impl<'a> Scene<'a> for Level<'a> {
         };
         if top_bar_area.bottom() > 0 {
             context.fill_rect(top_bar_area, RenderLayer::Hud, top_bar_bgcolor);
-            images.font().draw_string(
+            font.draw_string(
                 context,
                 RenderLayer::Hud,
                 (
