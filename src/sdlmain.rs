@@ -33,7 +33,8 @@ pub fn sdl_main(args: Args) -> Result<()> {
         .into_canvas()
         .build()
         .expect("failed to build window's canvas");
-    let mut renderer = SdlRenderer::new(&mut canvas);
+    let texture_creator = canvas.texture_creator();
+    let mut renderer = SdlRenderer::new(&texture_creator);
     let image_manager = ImageManager::new(&mut renderer)?;
     let mut frame = 0;
 
@@ -73,7 +74,7 @@ pub fn sdl_main(args: Args) -> Result<()> {
 
         context.clear();
         stage_manager.draw(&mut context, &image_manager);
-        image_manager.render(&context);
+        renderer.render(&mut canvas, &context);
         canvas.present();
 
         frame += 1;

@@ -32,42 +32,19 @@ impl<'a> SpriteInternal<'a> {
 
 pub struct SdlRenderer<'a> {
     sprites: Vec<SpriteInternal<'a>>,
-    canvas: &'a mut Canvas<Window>,
     texture_creator: &'a TextureCreator<WindowContext>,
 }
 
 impl<'a> SdlRenderer<'a> {
-    pub fn new(canvas: &'a mut Canvas<Window>) -> Self {
-        let texture_creator = &canvas.texture_creator();
+    pub fn new(texture_creator: &'a TextureCreator<WindowContext>) -> Self {
         let sprites = Vec::new();
         SdlRenderer {
             sprites,
-            canvas,
             texture_creator,
         }
     }
-}
 
-impl Renderer for SdlRenderer<'_> {
-    fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
-        let surface = Surface::from_file(path)
-            .map_err(|s: String| anyhow!("unable to load {:?}: {}", path, s))?;
-
-        let width = surface.width();
-        let height = surface.height();
-
-        let texture = surface.as_texture(self.texture_creator)?;
-        let sprite_internal = SpriteInternal { surface, texture };
-
-        let id = self.sprites.len();
-        self.sprites.push(sprite_internal);
-
-        Ok(Sprite { id, width, height })
-    }
-
-    fn render(&self, context: &RenderContext) -> Result<()> {
-        let canvas = self.canvas;
-
+    pub fn render(&self, canvas: &mut Canvas<Window>, context: &RenderContext) -> Result<()> {
         let pixel_format = canvas.default_pixel_format();
 
         let texture_creator = canvas.texture_creator();
@@ -121,5 +98,23 @@ impl Renderer for SdlRenderer<'_> {
             .map_err(|s| anyhow!("unable to copy player texture to window canvas: {}", s))?;
 
         Ok(())
+    }
+}
+
+impl Renderer for SdlRenderer<'_> {
+    fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
+        let surface = Surface::from_file(path)
+            .map_err(|s: String| anyhow!("unable to load {:?}: {}", path, s))?;
+
+        let width = surface.width();
+        let height = surface.height();
+
+        let texture = surface.as_texture(self.texture_creator)?;
+        let sprite_internal = SpriteInternal { surface, texture };
+
+        let id = self.sprites.len();
+        self.sprites.push(sprite_internal);
+
+        Ok(Sprite { id, width, height })
     }
 }

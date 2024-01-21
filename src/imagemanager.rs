@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 
 use crate::font::Font;
-use crate::rendercontext::RenderContext;
 use crate::renderer::Renderer;
 use crate::sprite::{Animation, Sprite, SpriteSheet};
 
@@ -57,10 +56,6 @@ impl<'a> ImageManager<'a> {
     ) -> Result<Animation> {
         let sprite = self.load_sprite(path)?;
         Animation::new(sprite, sprite_width, sprite_height)
-    }
-
-    pub fn render(&self, context: &RenderContext) -> Result<()> {
-        self.renderer.render(context)
     }
 
     pub fn font(&self) -> &Font {
