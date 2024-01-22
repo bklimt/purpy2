@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -47,6 +48,10 @@ pub fn sdl_main(args: Args) -> Result<()> {
     let mut sound_manager = SoundManager::new(&audio_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
 
+    image_manager.load_texture_atlas(
+        Path::new("assets/textures.png"),
+        Path::new("assets/textures_index.txt"),
+    )?;
     let font = image_manager.load_font()?;
 
     let mut frame = 0;

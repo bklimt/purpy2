@@ -1,6 +1,9 @@
-use std::str::FromStr;
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
-use anyhow::{anyhow, bail, Error};
+use anyhow::{anyhow, bail, Error, Result};
 
 pub type Subpixels = i32;
 
@@ -194,4 +197,18 @@ pub fn intersect(rect1: Rect, rect2: Rect) -> bool {
     } else {
         true
     }
+}
+
+pub fn normalize_path(path: &Path) -> Result<PathBuf> {
+    let mut output = PathBuf::new();
+    for part in path.into_iter() {
+        if part == ".." {
+            if !output.pop() {
+                output.push(part);
+            }
+        } else {
+            output.push(part);
+        }
+    }
+    Ok(output)
 }
