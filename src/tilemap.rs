@@ -522,8 +522,8 @@ impl TileMap {
         let source = Rect {
             x: 0,
             y: 0,
-            w: dest.w,
-            h: dest.h,
+            w: layer.surface.width as i32,
+            h: layer.surface.height as i32,
         };
         context.draw(layer.surface, render_layer, dest, source);
     }

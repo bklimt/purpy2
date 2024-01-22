@@ -10,6 +10,7 @@ use sdl2::video::{Window, WindowContext};
 use crate::rendercontext::{RenderContext, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;
+use crate::utils::Rect;
 
 struct SpriteInternal<'a> {
     _surface: Surface<'a>,
@@ -51,10 +52,18 @@ impl<'a> SdlRenderer<'a> {
                             .sprites
                             .get(sprite.id)
                             .expect(format!("invalid sprite: {:?}", sprite).as_str());
+
+                        let source = Rect {
+                            x: sprite.x as i32 + source.x,
+                            y: sprite.y as i32 + source.y,
+                            w: source.w,
+                            h: source.h,
+                        };
+
                         canvas
                             .copy_ex(
                                 &sprite_internal.texture,
-                                *source,
+                                source,
                                 *destination,
                                 0.0,
                                 None,
@@ -104,6 +113,15 @@ impl Renderer for SdlRenderer<'_> {
         let id = self.sprites.len();
         self.sprites.push(sprite_internal);
 
-        Ok(Sprite { id, width, height })
+        let x = 0;
+        let y = 0;
+
+        Ok(Sprite {
+            id,
+            x,
+            y,
+            width,
+            height,
+        })
     }
 }

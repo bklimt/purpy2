@@ -34,7 +34,7 @@ pub struct StageManager {
 
 impl StageManager {
     pub fn new(_images: &dyn ImageLoader) -> Result<StageManager> {
-        let path = Path::new("../purpy/assets/levels");
+        let path = Path::new("assets/levels");
         let level_select = LevelSelect::new(&path)?;
         Ok(StageManager {
             current: Box::new(level_select),

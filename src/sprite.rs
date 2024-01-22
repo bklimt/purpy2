@@ -11,8 +11,22 @@ use crate::utils::Rect;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Sprite {
     pub id: usize,
+    pub x: u32,
+    pub y: u32,
     pub width: u32,
     pub height: u32,
+}
+
+impl Sprite {
+    pub fn subview(&self, rect: Rect) -> Sprite {
+        Sprite {
+            id: self.id,
+            x: rect.x as u32,
+            y: rect.y as u32,
+            width: rect.w as u32,
+            height: rect.h as u32,
+        }
+    }
 }
 
 pub struct SpriteSheet {
