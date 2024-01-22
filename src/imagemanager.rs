@@ -49,6 +49,10 @@ where
     pub fn renderer(&self) -> &T {
         &self.renderer
     }
+
+    pub fn renderer_mut(&mut self) -> &mut T {
+        &mut self.renderer
+    }
 }
 
 impl<T> ImageLoader for ImageManager<T>

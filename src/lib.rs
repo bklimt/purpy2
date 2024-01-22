@@ -25,14 +25,19 @@ mod switchstate;
 mod tilemap;
 mod tileset;
 mod utils;
+mod wgpu;
 
 use clap::Parser;
 
 pub use sdlmain::sdl_main;
+pub use wgpu::wgpumain::run as wgpu_main;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
     #[arg(long)]
-    fullscreen: bool,
+    pub fullscreen: bool,
+
+    #[arg(long)]
+    pub winit: bool,
 }

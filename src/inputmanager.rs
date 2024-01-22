@@ -1,27 +1,69 @@
 use anyhow::{anyhow, bail, Result};
 use gilrs::{Axis, Button, GamepadId, Gilrs};
 use log::{debug, info};
-use sdl2::{event::Event, joystick::HatState, keyboard::Keycode, mouse::MouseButton};
 
 use crate::smallintmap::SmallIntMap;
 
-struct KeycodeIndex(Keycode);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum KeyboardKey {
+    Escape,
+    Space,
+    Enter,
+    W,
+    A,
+    S,
+    D,
+    Up,
+    Down,
+    Left,
+    Right,
+}
 
-impl Into<usize> for KeycodeIndex {
-    fn into(self) -> usize {
-        let mut val = self.0 as usize;
-        // SDL keycodes for non-printable characters have the next to topmost bit set.
-        // Getting rid of it completely would be ambiguous. But it should be safe to
-        // move it down into bit 8.
-        if val & 0x40000000 != 0 {
-            val &= !0x40000000;
-            val |= 0x80;
-        }
-        val
+impl KeyboardKey {
+    fn from_sdl_key(key: sdl2::keyboard::Keycode) -> Option<Self> {
+        use sdl2::keyboard::Keycode;
+        Some(match key {
+            Keycode::Escape => KeyboardKey::Escape,
+            Keycode::Space => KeyboardKey::Space,
+            Keycode::Return => KeyboardKey::Enter,
+            Keycode::W => KeyboardKey::W,
+            Keycode::A => KeyboardKey::A,
+            Keycode::S => KeyboardKey::S,
+            Keycode::D => KeyboardKey::D,
+            Keycode::Up => KeyboardKey::Up,
+            Keycode::Down => KeyboardKey::Down,
+            Keycode::Left => KeyboardKey::Left,
+            Keycode::Right => KeyboardKey::Right,
+            _ => return None,
+        })
+    }
+
+    fn from_virtual_keycode(key: winit::event::VirtualKeyCode) -> Option<Self> {
+        use winit::event::VirtualKeyCode;
+        Some(match key {
+            VirtualKeyCode::Escape => KeyboardKey::Escape,
+            VirtualKeyCode::Space => KeyboardKey::Space,
+            VirtualKeyCode::Return => KeyboardKey::Enter,
+            VirtualKeyCode::W => KeyboardKey::W,
+            VirtualKeyCode::A => KeyboardKey::A,
+            VirtualKeyCode::S => KeyboardKey::S,
+            VirtualKeyCode::D => KeyboardKey::D,
+            VirtualKeyCode::Up => KeyboardKey::Up,
+            VirtualKeyCode::Down => KeyboardKey::Down,
+            VirtualKeyCode::Left => KeyboardKey::Left,
+            VirtualKeyCode::Right => KeyboardKey::Right,
+            _ => return None,
+        })
     }
 }
 
-struct MouseButtonIndex(MouseButton);
+impl Into<usize> for KeyboardKey {
+    fn into(self) -> usize {
+        self as usize
+    }
+}
+
+struct MouseButtonIndex(sdl2::mouse::MouseButton);
 
 impl Into<usize> for MouseButtonIndex {
     fn into(self) -> usize {
@@ -66,10 +108,10 @@ impl TryInto<JoystickAxis> for u8 {
 }
 
 struct InputState {
-    keys_down: SmallIntMap<KeycodeIndex, bool>,
+    keys_down: SmallIntMap<KeyboardKey, bool>,
     joystick_buttons_down: SmallIntMap<u8, bool>,
     joy_axes: SmallIntMap<JoystickAxis, f32>,
-    joy_hats: SmallIntMap<u8, HatState>,
+    joy_hats: SmallIntMap<u8, sdl2::joystick::HatState>,
     mouse_buttons_down: SmallIntMap<MouseButtonIndex, bool>,
 }
 
@@ -84,16 +126,16 @@ impl InputState {
         }
     }
 
-    fn set_key_down(&mut self, key: Keycode) {
-        self.keys_down.insert(KeycodeIndex(key), true);
+    fn set_key_down(&mut self, key: KeyboardKey) {
+        self.keys_down.insert(key, true);
     }
 
-    fn set_key_up(&mut self, key: Keycode) {
-        self.keys_down.insert(KeycodeIndex(key), false);
+    fn set_key_up(&mut self, key: KeyboardKey) {
+        self.keys_down.insert(key, false);
     }
 
-    fn is_key_down(&self, key: Keycode) -> bool {
-        *self.keys_down.get(KeycodeIndex(key)).unwrap_or(&false)
+    fn is_key_down(&self, key: KeyboardKey) -> bool {
+        *self.keys_down.get(key).unwrap_or(&false)
     }
 
     fn set_joystick_button_down(&mut self, button: u8) {
@@ -108,17 +150,17 @@ impl InputState {
         *self.joystick_buttons_down.get(button).unwrap_or(&false)
     }
 
-    fn set_mouse_button_down(&mut self, button: MouseButton) {
+    fn set_mouse_button_down(&mut self, button: sdl2::mouse::MouseButton) {
         self.mouse_buttons_down
             .insert(MouseButtonIndex(button), true);
     }
 
-    fn set_mouse_button_up(&mut self, button: MouseButton) {
+    fn set_mouse_button_up(&mut self, button: sdl2::mouse::MouseButton) {
         self.mouse_buttons_down
             .insert(MouseButtonIndex(button), false);
     }
 
-    fn is_mouse_button_down(&self, button: MouseButton) -> bool {
+    fn is_mouse_button_down(&self, button: sdl2::mouse::MouseButton) -> bool {
         *self
             .mouse_buttons_down
             .get(MouseButtonIndex(button))
@@ -129,7 +171,7 @@ impl InputState {
         self.joy_axes.insert(axis, value);
     }
 
-    fn set_joy_hat(&mut self, hat: u8, state: HatState) {
+    fn set_joy_hat(&mut self, hat: u8, state: sdl2::joystick::HatState) {
         self.joy_hats.insert(hat, state);
     }
 }
@@ -216,11 +258,11 @@ where
 }
 
 struct KeyInput {
-    key: Keycode,
+    key: KeyboardKey,
 }
 
 impl KeyInput {
-    fn new(key: Keycode) -> KeyInput {
+    fn new(key: KeyboardKey) -> KeyInput {
         KeyInput { key }
     }
 }
@@ -248,7 +290,7 @@ impl TransientBinaryInput for JoystickButtonInput {
 }
 
 struct MouseButtonInput {
-    button: MouseButton,
+    button: sdl2::mouse::MouseButton,
 }
 
 impl MouseButtonInput {}
@@ -275,6 +317,8 @@ impl JoystickThresholdInput {
     }
 
     fn get_hat(&self, state: &InputState) -> Option<f32> {
+        use sdl2::joystick::HatState;
+
         let diag = 0.7;
         state.joy_hats.get(0).map(|hat| match self.axis {
             JoystickAxis::Horizontal => match hat {
@@ -389,11 +433,11 @@ fn all_binary_inputs() -> Vec<BinaryInput> {
     ]
 }
 
-fn key_input(key: Keycode) -> Box<CachedBinaryInput<KeyInput>> {
+fn key_input(key: KeyboardKey) -> Box<CachedBinaryInput<KeyInput>> {
     Box::new(CachedBinaryInput::from(KeyInput::new(key)))
 }
 
-fn key_trigger(key: Keycode) -> Box<TriggerInput<KeyInput>> {
+fn key_trigger(key: KeyboardKey) -> Box<TriggerInput<KeyInput>> {
     Box::new(TriggerInput::from(KeyInput::new(key)))
 }
 
@@ -427,43 +471,43 @@ fn joystick_trigger(
 
 fn create_input(input: BinaryInput) -> AnyOfInput {
     AnyOfInput(match input {
-        BinaryInput::Ok => vec![key_trigger(Keycode::Return), joystick_button_trigger(0)],
-        BinaryInput::Cancel => vec![key_trigger(Keycode::Escape), joystick_button_trigger(2)],
+        BinaryInput::Ok => vec![key_trigger(KeyboardKey::Enter), joystick_button_trigger(0)],
+        BinaryInput::Cancel => vec![key_trigger(KeyboardKey::Escape), joystick_button_trigger(2)],
         BinaryInput::PlayerLeft => vec![
-            key_input(Keycode::Left),
-            key_input(Keycode::A),
+            key_input(KeyboardKey::Left),
+            key_input(KeyboardKey::A),
             joystick_threshold(JoystickAxis::Horizontal, Some(-0.5), None),
         ],
         BinaryInput::PlayerRight => vec![
-            key_input(Keycode::Right),
-            key_input(Keycode::D),
+            key_input(KeyboardKey::Right),
+            key_input(KeyboardKey::D),
             joystick_threshold(JoystickAxis::Horizontal, None, Some(0.5)),
         ],
         BinaryInput::PlayerCrouch => vec![
-            key_input(Keycode::Down),
-            key_input(Keycode::S),
+            key_input(KeyboardKey::Down),
+            key_input(KeyboardKey::S),
             joystick_threshold(JoystickAxis::Vertical, None, Some(0.5)),
         ],
         BinaryInput::PlayerJumpTrigger => vec![
-            key_trigger(Keycode::Space),
-            key_trigger(Keycode::W),
-            key_trigger(Keycode::Up),
+            key_trigger(KeyboardKey::Space),
+            key_trigger(KeyboardKey::W),
+            key_trigger(KeyboardKey::Up),
             joystick_button_trigger(0),
         ],
         BinaryInput::PlayerJumpDown => vec![
-            key_input(Keycode::Space),
-            key_input(Keycode::W),
-            key_input(Keycode::Up),
+            key_input(KeyboardKey::Space),
+            key_input(KeyboardKey::W),
+            key_input(KeyboardKey::Up),
             joystick_button_input(0),
         ],
         BinaryInput::MenuDown => vec![
-            key_trigger(Keycode::Down),
-            key_trigger(Keycode::S),
+            key_trigger(KeyboardKey::Down),
+            key_trigger(KeyboardKey::S),
             joystick_trigger(JoystickAxis::Vertical, None, Some(0.5)),
         ],
         BinaryInput::MenuUp => vec![
-            key_trigger(Keycode::W),
-            key_trigger(Keycode::Up),
+            key_trigger(KeyboardKey::W),
+            key_trigger(KeyboardKey::Up),
             joystick_trigger(JoystickAxis::Vertical, Some(-0.5), None),
         ],
     })
@@ -608,14 +652,24 @@ impl InputManager {
         }
     }
 
-    pub fn handle_sdl_event(&mut self, event: &Event) {
+    pub fn handle_sdl_event(&mut self, event: &sdl2::event::Event) {
+        use sdl2::event::Event;
+
         match event {
             Event::KeyDown {
                 keycode: Some(key), ..
-            } => self.state.set_key_down(*key),
+            } => {
+                if let Some(key) = KeyboardKey::from_sdl_key(*key) {
+                    self.state.set_key_down(key);
+                }
+            }
             Event::KeyUp {
                 keycode: Some(key), ..
-            } => self.state.set_key_up(*key),
+            } => {
+                if let Some(key) = KeyboardKey::from_sdl_key(*key) {
+                    self.state.set_key_up(key);
+                }
+            }
             Event::JoyButtonDown {
                 button_idx: button, ..
             } => self.state.set_joystick_button_down(*button),
@@ -644,6 +698,42 @@ impl InputManager {
             Event::MouseButtonUp {
                 mouse_btn: button, ..
             } => self.state.set_mouse_button_up(*button),
+            _ => {}
+        }
+    }
+
+    pub fn handle_winit_event(&mut self, event: &winit::event::WindowEvent) {
+        use winit::event::ElementState;
+        use winit::event::KeyboardInput;
+        use winit::event::WindowEvent;
+
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(virtual_key_code),
+                        ..
+                    },
+                ..
+            } => {
+                if let Some(key) = KeyboardKey::from_virtual_keycode(*virtual_key_code) {
+                    self.state.set_key_down(key);
+                }
+            }
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        state: ElementState::Released,
+                        virtual_keycode: Some(virtual_key_code),
+                        ..
+                    },
+                ..
+            } => {
+                if let Some(key) = KeyboardKey::from_virtual_keycode(*virtual_key_code) {
+                    self.state.set_key_up(key);
+                }
+            }
             _ => {}
         }
     }
