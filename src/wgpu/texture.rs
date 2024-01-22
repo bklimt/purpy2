@@ -2,6 +2,7 @@ use std::{fs, path::Path};
 
 use anyhow::*;
 use image::GenericImageView;
+use log::info;
 
 pub struct Texture {
     pub texture: wgpu::Texture,
@@ -13,19 +14,8 @@ pub struct Texture {
 
 impl Texture {
     pub fn from_file(device: &wgpu::Device, queue: &wgpu::Queue, path: &Path) -> Result<Self> {
-        let label = path.to_string_lossy();
-        let bytes = fs::read(path)?;
-        Self::from_bytes(device, queue, &bytes, &label)
-    }
-
-    fn from_bytes(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        bytes: &[u8],
-        label: &str,
-    ) -> Result<Self> {
-        let img = image::load_from_memory(bytes)?;
-        Self::from_image(device, queue, &img, Some(label))
+        let img = image::open(path)?;
+        Self::from_image(device, queue, &img, Some("texture atlas"))
     }
 
     fn from_image(
@@ -36,6 +26,7 @@ impl Texture {
     ) -> Result<Self> {
         let rgba = img.to_rgba8();
         let dimensions = img.dimensions();
+        info!("texture is {:?}", dimensions);
 
         let width = img.width();
         let height = img.height();
@@ -77,7 +68,7 @@ impl Texture {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
+            mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()

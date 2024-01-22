@@ -1,18 +1,22 @@
-use std::mem::zeroed;
+use std::mem;
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use bytemuck::Zeroable;
-use log::error;
+use log::{error, info};
+use thiserror::Error;
 use wgpu::util::DeviceExt;
-use wgpu::SurfaceError;
 use winit::{dpi::PhysicalSize, window::Window};
 
+use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
 use crate::rendercontext::{RenderContext, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;
 
 use super::{shader::Vertex, texture::Texture};
+
+const MAX_ENTRIES: usize = 4096;
+const MAX_VERTICES: usize = MAX_ENTRIES * 6;
 
 pub struct WgpuRenderer {
     surface: wgpu::Surface,
@@ -21,8 +25,11 @@ pub struct WgpuRenderer {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
-    texture_bind_groups: Vec<wgpu::BindGroup>,
+    texture_bind_group: Option<wgpu::BindGroup>,
+    texture_width: u32,
+    texture_height: u32,
 
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
@@ -30,78 +37,12 @@ pub struct WgpuRenderer {
     window: Window,
 }
 
-fn create_vertex_buffer(batch: &SpriteBatch, device: &wgpu::Device) -> (wgpu::Buffer, usize) {
-    const MAX_ENTRIES: usize = 1024;
-    const MAX_VERTICES: usize = MAX_ENTRIES * 6;
-
-    if batch.entries.len() > MAX_ENTRIES {
-        error!("sprite batch is too large: {}", batch.entries.len());
-    }
-
-    let mut vertices = [Vertex::zeroed(); MAX_VERTICES];
-    let mut vertex_count = 0;
-
-    for entry in batch.entries.iter() {
-        if vertex_count >= MAX_VERTICES {
-            break;
-        }
-
-        let SpriteBatchEntry::Sprite {
-            sprite,
-            source,
-            destination,
-            reversed,
-        } = entry
-        else {
-            continue;
-        };
-
-        let dt = destination.y as f32;
-        let db = destination.bottom() as f32;
-        let dl = destination.x as f32;
-        let dr = destination.right() as f32;
-
-        let st = source.y as f32;
-        let sb = source.bottom() as f32;
-        let sl = source.x as f32;
-        let sr = source.right() as f32;
-
-        let i = vertex_count;
-        vertex_count += 6;
-
-        vertices[i] = Vertex {
-            position: [dl, dt, 0.0],
-            tex_coords: [sl, st],
-        };
-        vertices[i + 1] = Vertex {
-            position: [dl, db, 0.0],
-            tex_coords: [sl, sb],
-        };
-        vertices[i + 2] = Vertex {
-            position: [dr, dt, 0.0],
-            tex_coords: [sr, st],
-        };
-        vertices[i + 3] = Vertex {
-            position: [dr, dt, 0.0],
-            tex_coords: [sr, st],
-        };
-        vertices[i + 4] = Vertex {
-            position: [dl, db, 0.0],
-            tex_coords: [sl, sb],
-        };
-        vertices[i + 5] = Vertex {
-            position: [dr, db, 0.0],
-            tex_coords: [sr, sb],
-        };
-    }
-
-    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Vertex Buffer"),
-        contents: bytemuck::cast_slice(&mut vertices),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-
-    (vertex_buffer, vertex_count)
+#[derive(Error, Debug)]
+pub enum RenderError {
+    #[error("render surface error")]
+    SurfaceError(#[from] wgpu::SurfaceError),
+    #[error("other rendering error")]
+    Other(#[from] anyhow::Error),
 }
 
 impl WgpuRenderer {
@@ -185,7 +126,9 @@ impl WgpuRenderer {
                 label: Some("texture_bind_group_layout"),
             });
 
-        let texture_bind_groups = Vec::new();
+        let texture_bind_group = None;
+        let texture_width = 0;
+        let texture_height = 0;
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -212,7 +155,7 @@ impl WgpuRenderer {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -234,6 +177,13 @@ impl WgpuRenderer {
             multiview: None,
         });
 
+        let mut vertices = [Vertex::zeroed(); MAX_VERTICES];
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(&mut vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+
         Self {
             window,
             surface,
@@ -242,8 +192,11 @@ impl WgpuRenderer {
             config,
             size,
             render_pipeline,
+            vertex_buffer,
             texture_bind_group_layout,
-            texture_bind_groups,
+            texture_bind_group,
+            texture_width,
+            texture_height,
         }
     }
 
@@ -260,12 +213,107 @@ impl WgpuRenderer {
     }
 
     pub fn recreate_surface(&mut self) {
-        self.resize(self.size)
+        self.resize(self.window.inner_size())
     }
 
-    pub fn resize(&mut self, _size: PhysicalSize<u32>) {}
+    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
+        if new_size.width > 0 || new_size.height > 0 {
+            self.size = new_size;
+            self.config.width = new_size.width;
+            self.config.height = new_size.height;
+            self.surface.configure(&self.device, &self.config);
+        }
+    }
 
-    pub fn render(&self, context: &RenderContext) -> Result<(), SurfaceError> {
+    fn fill_vertex_buffer(&self, batch: &SpriteBatch) -> u32 {
+        if batch.entries.len() > MAX_ENTRIES {
+            error!("sprite batch is too large: {}", batch.entries.len());
+        }
+
+        let mut vertices = [Vertex::zeroed(); MAX_VERTICES];
+        let mut vertex_count = 0;
+
+        for entry in batch.entries.iter() {
+            if vertex_count >= MAX_VERTICES {
+                break;
+            }
+
+            let SpriteBatchEntry::Sprite {
+                sprite,
+                source,
+                destination,
+                reversed,
+            } = entry
+            else {
+                continue;
+            };
+
+            let dt = destination.y as f32;
+            let db = destination.bottom() as f32;
+            let dl = destination.x as f32;
+            let dr = destination.right() as f32;
+
+            let st = (source.y + sprite.y as i32) as f32;
+            let sb = (source.bottom() + sprite.y as i32) as f32;
+            let mut sl = (source.x + sprite.x as i32) as f32;
+            let mut sr = (source.right() + sprite.x as i32) as f32;
+
+            if *reversed {
+                mem::swap(&mut sl, &mut sr);
+            }
+
+            // TODO: Consider moving this scaling into the shader.
+            let xscale = RENDER_WIDTH as f32;
+            let yscale = RENDER_HEIGHT as f32;
+            let dt = dt / yscale;
+            let db = db / yscale;
+            let dl = dl / xscale;
+            let dr = dr / xscale;
+
+            let xscale = self.texture_width as f32;
+            let yscale = self.texture_height as f32;
+            let st = st / yscale;
+            let sb = sb / yscale;
+            let sl = sl / xscale;
+            let sr = sr / xscale;
+
+            let i = vertex_count;
+            vertex_count += 6;
+
+            vertices[i] = Vertex {
+                position: [dl, dt, 0.0],
+                tex_coords: [sl, st],
+            };
+            vertices[i + 1] = Vertex {
+                position: [dl, db, 0.0],
+                tex_coords: [sl, sb],
+            };
+            vertices[i + 2] = Vertex {
+                position: [dr, dt, 0.0],
+                tex_coords: [sr, st],
+            };
+            vertices[i + 3] = Vertex {
+                position: [dr, dt, 0.0],
+                tex_coords: [sr, st],
+            };
+            vertices[i + 4] = Vertex {
+                position: [dl, db, 0.0],
+                tex_coords: [sl, sb],
+            };
+            vertices[i + 5] = Vertex {
+                position: [dr, db, 0.0],
+                tex_coords: [sr, sb],
+            };
+        }
+        //info!("created {} vertices", vertex_count);
+
+        self.queue
+            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+
+        vertex_count as u32
+    }
+
+    pub fn render(&self, context: &RenderContext) -> Result<(), RenderError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -275,6 +323,13 @@ impl WgpuRenderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+
+        let vertex_count = self.fill_vertex_buffer(&context.player_batch);
+
+        let texture_bind_group = self
+            .texture_bind_group
+            .as_ref()
+            .context("texture atlas not loaded")?;
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -298,51 +353,9 @@ impl WgpuRenderer {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            for entry in context.player_batch.entries.iter() {
-                match entry {
-                    SpriteBatchEntry::Sprite {
-                        sprite,
-                        source,
-                        destination,
-                        reversed,
-                    } => {
-                        let texture_bind_group = &self.texture_bind_groups[sprite.id];
-
-                        // TODO: Redo this with an index buffer.
-                        let vertices: &[Vertex; 3] = &[
-                            Vertex {
-                                position: [destination.x as f32, destination.y as f32, 0.0],
-                                tex_coords: [source.x as f32, source.y as f32],
-                            },
-                            Vertex {
-                                position: [destination.x as f32, destination.bottom() as f32, 0.0],
-                                tex_coords: [source.x as f32, source.bottom() as f32],
-                            },
-                            Vertex {
-                                position: [
-                                    destination.right() as f32,
-                                    destination.top() as f32,
-                                    0.0,
-                                ],
-                                tex_coords: [source.right() as f32, source.top() as f32],
-                            },
-                        ];
-
-                        let vertex_buffer =
-                            self.device
-                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                    label: Some("Vertex Buffer"),
-                                    contents: bytemuck::cast_slice(vertices),
-                                    usage: wgpu::BufferUsages::VERTEX,
-                                });
-
-                        render_pass.set_bind_group(0, texture_bind_group, &[]);
-                        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                        render_pass.draw(0..3, 0..1);
-                    }
-                    _ => {}
-                }
-            }
+            render_pass.set_bind_group(0, texture_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.draw(0..vertex_count, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -354,6 +367,12 @@ impl WgpuRenderer {
 
 impl Renderer for WgpuRenderer {
     fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
+        if self.texture_bind_group.is_some() {
+            bail!("wgpu renderer requires a single texture atlas, but a second texture was loaded");
+        }
+
+        info!("Reading texture atlas from {:?}", path);
+
         let texture = Texture::from_file(&self.device, &self.queue, path)?;
         let texture_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &self.texture_bind_group_layout,
@@ -370,11 +389,14 @@ impl Renderer for WgpuRenderer {
             label: Some("texture_bind_group"),
         });
 
-        let index = self.texture_bind_groups.len();
-        self.texture_bind_groups.push(texture_bind_group);
+        self.texture_bind_group = Some(texture_bind_group);
+        self.texture_width = texture.width;
+        self.texture_height = texture.height;
 
         Ok(Sprite {
-            id: index,
+            id: 0,
+            x: 0,
+            y: 0,
             width: texture.width,
             height: texture.height,
         })

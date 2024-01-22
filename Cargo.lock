@@ -1399,6 +1399,7 @@ dependencies = [
  "rand",
  "sdl2",
  "serde",
+ "thiserror",
  "wgpu",
  "winit",
 ]

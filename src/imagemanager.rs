@@ -107,8 +107,11 @@ where
     T: Renderer,
 {
     fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
+        info!("loading sprite from path: {:?}", path);
         let path = normalize_path(path)?;
+        info!("loading sprite from normalized path: {:?}", path);
         if let Some(existing) = self.path_to_sprite.get(&path) {
+            info!("sprite already exists at {}, {}", existing.x, existing.y);
             return Ok(*existing);
         }
         if self.locked {

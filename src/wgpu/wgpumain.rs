@@ -1,18 +1,25 @@
+use std::path::Path;
+
 use anyhow::{bail, Result};
 use log::error;
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    window::{Window, WindowBuilder},
 };
 
-use crate::font::Font;
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
 use crate::rendercontext::RenderContext;
 use crate::soundmanager::SoundManager;
 use crate::stagemanager::StageManager;
 use crate::wgpu::renderer::WgpuRenderer;
+use crate::{
+    constants::{RENDER_HEIGHT, RENDER_WIDTH},
+    font::Font,
+};
+
+use super::renderer::RenderError;
 
 struct GameState {
     stage_manager: StageManager,
@@ -29,12 +36,16 @@ impl GameState {
         let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
         let mut images = ImageManager::new(renderer)?;
-        let mut inputs = InputManager::new()?;
-        let mut stage_manager = StageManager::new(&images)?;
-        let mut sounds = SoundManager::new(&audio_subsystem)?;
+        let inputs = InputManager::new()?;
+        let stage_manager = StageManager::new(&images)?;
+        let sounds = SoundManager::new(&audio_subsystem)?;
 
+        images.load_texture_atlas(
+            Path::new("assets/textures.png"),
+            Path::new("assets/textures_index.txt"),
+        )?;
         let font = images.load_font()?;
-        let mut frame = 0;
+        let frame = 0;
 
         Ok(Self {
             stage_manager,
@@ -46,27 +57,36 @@ impl GameState {
         })
     }
 
-    fn run_one_frame(&mut self) -> Result<()> {
+    fn run_one_frame(&mut self) -> Result<bool> {
         let inputs = self.inputs.update();
-        self.stage_manager
-            .update(&inputs, &mut self.images, &mut self.sounds)?;
+        if !self
+            .stage_manager
+            .update(&inputs, &mut self.images, &mut self.sounds)?
+        {
+            return Ok(false);
+        }
 
-        let width = self.images.renderer().width();
-        let height = self.images.renderer().height();
+        let width = RENDER_WIDTH; //self.images.renderer().width();
+        let height = RENDER_HEIGHT; //self.images.renderer().height();
         let mut context = RenderContext::new(width, height, self.frame)?;
         self.stage_manager.draw(&mut context, &self.font);
 
         match self.images.renderer().render(&context) {
             Ok(_) => {}
-            Err(wgpu::SurfaceError::Lost) => self.images.renderer_mut().recreate_surface(),
-            Err(wgpu::SurfaceError::OutOfMemory) => {
+            Err(RenderError::SurfaceError(wgpu::SurfaceError::Outdated)) => {
+                self.images.renderer_mut().recreate_surface();
+            }
+            Err(RenderError::SurfaceError(wgpu::SurfaceError::Lost)) => {
+                self.images.renderer_mut().recreate_surface();
+            }
+            Err(RenderError::SurfaceError(wgpu::SurfaceError::OutOfMemory)) => {
                 bail!("out of memory");
             }
             Err(e) => error!("{:?}", e),
         }
 
         self.frame += 1;
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -88,24 +108,18 @@ pub async fn run() {
             window_id,
         } if window_id == game.images.renderer().window().id() => {
             game.inputs.handle_winit_event(event);
-            match event {
-                WindowEvent::CloseRequested
-                | WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        },
-                    ..
-                } => *control_flow = ControlFlow::Exit,
-                _ => {}
-            }
         }
         Event::RedrawRequested(window_id) if window_id == game.images.renderer().window().id() => {
-            if let Err(e) = game.run_one_frame() {
-                error!("{:?}", e);
-                *control_flow = ControlFlow::ExitWithCode(-1);
+            match game.run_one_frame() {
+                Ok(running) => {
+                    if !running {
+                        *control_flow = ControlFlow::Exit;
+                    }
+                }
+                Err(e) => {
+                    error!("{:?}", e);
+                    *control_flow = ControlFlow::ExitWithCode(-1);
+                }
             }
         }
         Event::MainEventsCleared => {
