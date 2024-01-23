@@ -128,6 +128,9 @@ pub async fn run() -> Result<()> {
                         elwt.exit();
                     }
                 },
+                WindowEvent::CloseRequested => {
+                    elwt.exit();
+                }
                 _ => {}
             }
         }

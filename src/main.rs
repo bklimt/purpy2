@@ -7,7 +7,10 @@ fn main() {
     let args = Args::parse();
 
     if args.winit {
-        pollster::block_on(purpy2::wgpu_main());
+        match pollster::block_on(purpy2::wgpu_main()) {
+            Ok(_) => {}
+            Err(e) => panic!("{}", e),
+        }
     } else {
         match purpy2::sdl_main(args) {
             Ok(_) => {}
