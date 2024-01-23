@@ -2,11 +2,9 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 use log::error;
-use winit::{
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
-};
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{ControlFlow, EventLoop};
+use winit::window::WindowBuilder;
 
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
@@ -108,6 +106,12 @@ pub async fn run() {
             window_id,
         } if window_id == game.images.renderer().window().id() => {
             game.inputs.handle_winit_event(event);
+            match event {
+                WindowEvent::Resized(_) => {
+                    game.images.renderer_mut().recreate_surface();
+                }
+                _ => {}
+            }
         }
         Event::RedrawRequested(window_id) if window_id == game.images.renderer().window().id() => {
             match game.run_one_frame() {
