@@ -76,7 +76,7 @@ impl<'window> GameState<'window> {
         let mut context = RenderContext::new(width, height, self.frame)?;
         self.stage_manager.draw(&mut context, &self.font);
 
-        match self.images.renderer().render(&context) {
+        match self.images.renderer_mut().render(&context) {
             Ok(_) => {}
             Err(RenderError::SurfaceError(wgpu::SurfaceError::Outdated)) => {
                 self.images.renderer_mut().recreate_surface();

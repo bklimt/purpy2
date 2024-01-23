@@ -26,6 +26,7 @@ where
 }
 
 pub struct WgpuRenderer<'window, T: RendererCanvas> {
+    window: &'window T,
     surface: wgpu::Surface<'window>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -37,11 +38,7 @@ pub struct WgpuRenderer<'window, T: RendererCanvas> {
     texture_bind_group: Option<wgpu::BindGroup>,
     texture_width: u32,
     texture_height: u32,
-
-    // The window must be declared after the surface so
-    // it gets dropped after it as the surface contains
-    // unsafe references to the window's resources.
-    window: &'window T,
+    vertices: Vec<Vertex>,
 }
 
 #[derive(Error, Debug)]
@@ -188,7 +185,8 @@ where
             multiview: None,
         });
 
-        let mut vertices = [Vertex::zeroed(); MAX_VERTICES];
+        let mut vertices = Vec::new();
+        vertices.resize_with(MAX_VERTICES, Vertex::zeroed);
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(&mut vertices),
@@ -207,20 +205,13 @@ where
             texture_bind_group,
             texture_width,
             texture_height,
+            vertices,
             window,
         }
     }
 
     pub fn window(&self) -> &T {
         &self.window
-    }
-
-    pub fn width(&self) -> u32 {
-        self.size.0
-    }
-
-    pub fn height(&self) -> u32 {
-        self.size.1
     }
 
     pub fn recreate_surface(&mut self) {
@@ -236,12 +227,11 @@ where
         }
     }
 
-    fn fill_vertex_buffer(&self, batch: &SpriteBatch) -> u32 {
+    fn fill_vertex_buffer(&mut self, batch: &SpriteBatch) -> u32 {
         if batch.entries.len() > MAX_ENTRIES {
             error!("sprite batch is too large: {}", batch.entries.len());
         }
 
-        let mut vertices = [Vertex::zeroed(); MAX_VERTICES];
         let mut vertex_count = 0;
 
         for entry in batch.entries.iter() {
@@ -291,40 +281,43 @@ where
             let i = vertex_count;
             vertex_count += 6;
 
-            vertices[i] = Vertex {
+            self.vertices[i] = Vertex {
                 position: [dl, dt, 0.0],
                 tex_coords: [sl, st],
             };
-            vertices[i + 1] = Vertex {
+            self.vertices[i + 1] = Vertex {
                 position: [dl, db, 0.0],
                 tex_coords: [sl, sb],
             };
-            vertices[i + 2] = Vertex {
+            self.vertices[i + 2] = Vertex {
                 position: [dr, dt, 0.0],
                 tex_coords: [sr, st],
             };
-            vertices[i + 3] = Vertex {
+            self.vertices[i + 3] = Vertex {
                 position: [dr, dt, 0.0],
                 tex_coords: [sr, st],
             };
-            vertices[i + 4] = Vertex {
+            self.vertices[i + 4] = Vertex {
                 position: [dl, db, 0.0],
                 tex_coords: [sl, sb],
             };
-            vertices[i + 5] = Vertex {
+            self.vertices[i + 5] = Vertex {
                 position: [dr, db, 0.0],
                 tex_coords: [sr, sb],
             };
         }
         //info!("created {} vertices", vertex_count);
 
-        self.queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        self.queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.vertices[0..vertex_count]),
+        );
 
         vertex_count as u32
     }
 
-    pub fn render(&self, context: &RenderContext) -> Result<(), RenderError> {
+    pub fn render(&mut self, context: &RenderContext) -> Result<(), RenderError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
