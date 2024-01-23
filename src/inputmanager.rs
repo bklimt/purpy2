@@ -38,20 +38,20 @@ impl KeyboardKey {
         })
     }
 
-    fn from_virtual_keycode(key: winit::event::VirtualKeyCode) -> Option<Self> {
-        use winit::event::VirtualKeyCode;
+    fn from_keycode(key: winit::keyboard::KeyCode) -> Option<Self> {
+        use winit::keyboard::KeyCode;
         Some(match key {
-            VirtualKeyCode::Escape => KeyboardKey::Escape,
-            VirtualKeyCode::Space => KeyboardKey::Space,
-            VirtualKeyCode::Return => KeyboardKey::Enter,
-            VirtualKeyCode::W => KeyboardKey::W,
-            VirtualKeyCode::A => KeyboardKey::A,
-            VirtualKeyCode::S => KeyboardKey::S,
-            VirtualKeyCode::D => KeyboardKey::D,
-            VirtualKeyCode::Up => KeyboardKey::Up,
-            VirtualKeyCode::Down => KeyboardKey::Down,
-            VirtualKeyCode::Left => KeyboardKey::Left,
-            VirtualKeyCode::Right => KeyboardKey::Right,
+            KeyCode::Escape => KeyboardKey::Escape,
+            KeyCode::Space => KeyboardKey::Space,
+            KeyCode::Enter => KeyboardKey::Enter,
+            KeyCode::KeyW => KeyboardKey::W,
+            KeyCode::KeyA => KeyboardKey::A,
+            KeyCode::KeyS => KeyboardKey::S,
+            KeyCode::KeyD => KeyboardKey::D,
+            KeyCode::ArrowUp => KeyboardKey::Up,
+            KeyCode::ArrowDown => KeyboardKey::Down,
+            KeyCode::ArrowLeft => KeyboardKey::Left,
+            KeyCode::ArrowRight => KeyboardKey::Right,
             _ => return None,
         })
     }
@@ -703,34 +703,33 @@ impl InputManager {
     }
 
     pub fn handle_winit_event(&mut self, event: &winit::event::WindowEvent) {
-        use winit::event::ElementState;
-        use winit::event::KeyboardInput;
-        use winit::event::WindowEvent;
+        use winit::event::{ElementState, KeyEvent, WindowEvent};
+        use winit::keyboard::PhysicalKey;
 
         match event {
             WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
+                event:
+                    KeyEvent {
                         state: ElementState::Pressed,
-                        virtual_keycode: Some(virtual_key_code),
+                        physical_key: PhysicalKey::Code(key_code),
                         ..
                     },
                 ..
             } => {
-                if let Some(key) = KeyboardKey::from_virtual_keycode(*virtual_key_code) {
+                if let Some(key) = KeyboardKey::from_keycode(*key_code) {
                     self.state.set_key_down(key);
                 }
             }
             WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
+                event:
+                    KeyEvent {
                         state: ElementState::Released,
-                        virtual_keycode: Some(virtual_key_code),
+                        physical_key: PhysicalKey::Code(key_code),
                         ..
                     },
                 ..
             } => {
-                if let Some(key) = KeyboardKey::from_virtual_keycode(*virtual_key_code) {
+                if let Some(key) = KeyboardKey::from_keycode(*key_code) {
                     self.state.set_key_up(key);
                 }
             }

@@ -7,21 +7,21 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
+bytemuck = { version = "1.12", features = [ "derive" ] }
+cgmath = "0.18"
 clap = {version="4.4.12", features=["derive"]}
 env_logger = "0.10.2"
 gilrs = "0.10.4"
 log = "0.4.20"
+pollster = "0.3"
 quick-xml = {version="0.31.0", features=["serialize"]}
 rand = "0.8.5"
-sdl2 = {version="0.36.0", features=["image"]}
+raw-window-handle = "0.6.0"
+sdl2 = {version="0.36.0", features=["image", "raw-window-handle"]}
 serde = {version="1.0.194", features=["derive"]}
-
-winit = "0.28"
-wgpu = "0.18"
-pollster = "0.3"
-bytemuck = { version = "1.12", features = [ "derive" ] }
-cgmath = "0.18"
 thiserror = "1.0.56"
+wgpu = "0.19.1"
+winit = {version="0.29.10", features=["rwh_06"]}
 
 [dependencies.image]
 version = "0.24"

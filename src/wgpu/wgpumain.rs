@@ -4,7 +4,7 @@ use anyhow::{bail, Result};
 use log::error;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::WindowBuilder;
+use winit::window::{Window, WindowBuilder};
 
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
@@ -17,19 +17,26 @@ use crate::{
     font::Font,
 };
 
-use super::renderer::RenderError;
+use super::renderer::{RenderError, RendererCanvas};
 
-struct GameState {
+impl RendererCanvas for Window {
+    fn canvas_size(&self) -> (u32, u32) {
+        let size = self.inner_size();
+        (size.width, size.height)
+    }
+}
+
+struct GameState<'window> {
     stage_manager: StageManager,
-    images: ImageManager<WgpuRenderer>,
+    images: ImageManager<WgpuRenderer<'window, Window>>,
     sounds: SoundManager,
     inputs: InputManager,
     font: Font,
     frame: u32,
 }
 
-impl GameState {
-    fn new(renderer: WgpuRenderer) -> Result<Self> {
+impl<'window> GameState<'window> {
+    fn new(renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
         let sdl_context = sdl2::init().expect("failed to init SDL");
         let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
@@ -88,19 +95,19 @@ impl GameState {
     }
 }
 
-pub async fn run() {
-    let event_loop = EventLoop::new();
+pub async fn run() -> Result<()> {
+    let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let renderer = WgpuRenderer::new(window).await;
+    let renderer = WgpuRenderer::new(&window).await;
     let mut game = match GameState::new(renderer) {
         Ok(game) => game,
         Err(e) => {
-            error!("unable to initialize game: {:?}", e);
-            return;
+            bail!("unable to initialize game: {:?}", e);
         }
     };
 
-    event_loop.run(move |event, _, control_flow| match event {
+    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.run(move |event, elwt| match event {
         Event::WindowEvent {
             ref event,
             window_id,
@@ -110,25 +117,33 @@ pub async fn run() {
                 WindowEvent::Resized(_) => {
                     game.images.renderer_mut().recreate_surface();
                 }
+                WindowEvent::RedrawRequested => match game.run_one_frame() {
+                    Ok(running) => {
+                        if !running {
+                            elwt.exit();
+                        }
+                    }
+                    Err(e) => {
+                        error!("{:?}", e);
+                        elwt.exit();
+                    }
+                },
                 _ => {}
             }
         }
-        Event::RedrawRequested(window_id) if window_id == game.images.renderer().window().id() => {
-            match game.run_one_frame() {
-                Ok(running) => {
-                    if !running {
-                        *control_flow = ControlFlow::Exit;
-                    }
-                }
-                Err(e) => {
-                    error!("{:?}", e);
-                    *control_flow = ControlFlow::ExitWithCode(-1);
+        Event::AboutToWait => match game.run_one_frame() {
+            Ok(running) => {
+                if !running {
+                    elwt.exit();
                 }
             }
-        }
-        Event::MainEventsCleared => {
-            game.images.renderer().window().request_redraw();
-        }
+            Err(e) => {
+                error!("{:?}", e);
+                elwt.exit();
+            }
+        },
         _ => {}
-    });
+    })?;
+
+    Ok(())
 }

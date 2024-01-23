@@ -6,7 +6,7 @@ use bytemuck::Zeroable;
 use log::{error, info};
 use thiserror::Error;
 use wgpu::util::DeviceExt;
-use winit::{dpi::PhysicalSize, window::Window};
+use wgpu::WindowHandle;
 
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
 use crate::rendercontext::{RenderContext, SpriteBatch, SpriteBatchEntry};
@@ -18,12 +18,19 @@ use super::{shader::Vertex, texture::Texture};
 const MAX_ENTRIES: usize = 4096;
 const MAX_VERTICES: usize = MAX_ENTRIES * 6;
 
-pub struct WgpuRenderer {
-    surface: wgpu::Surface,
+pub trait RendererCanvas
+where
+    Self: WindowHandle,
+{
+    fn canvas_size(&self) -> (u32, u32);
+}
+
+pub struct WgpuRenderer<'window, T: RendererCanvas> {
+    surface: wgpu::Surface<'window>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    size: winit::dpi::PhysicalSize<u32>,
+    size: (u32, u32),
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
@@ -34,7 +41,7 @@ pub struct WgpuRenderer {
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
     // unsafe references to the window's resources.
-    window: Window,
+    window: &'window T,
 }
 
 #[derive(Error, Debug)]
@@ -45,10 +52,13 @@ pub enum RenderError {
     Other(#[from] anyhow::Error),
 }
 
-impl WgpuRenderer {
+impl<'window, T> WgpuRenderer<'window, T>
+where
+    T: RendererCanvas,
+{
     // Creating some of the wgpu types requires async code
-    pub async fn new(window: Window) -> Self {
-        let size = window.inner_size();
+    pub async fn new(window: &'window T) -> Self {
+        let size = window.canvas_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -57,7 +67,7 @@ impl WgpuRenderer {
 
         // The surface needs to live as long as the window that created it.
         // State owns the window, so this should be safe.
-        let surface = unsafe { instance.create_surface(&window) }.unwrap();
+        let surface = instance.create_surface(window).unwrap();
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -71,8 +81,8 @@ impl WgpuRenderer {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
                     label: None,
                 },
                 None,
@@ -93,11 +103,12 @@ impl WgpuRenderer {
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width: size.width,
-            height: size.height,
+            width: size.0,
+            height: size.1,
             present_mode: surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
+            desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
 
@@ -185,7 +196,6 @@ impl WgpuRenderer {
         });
 
         Self {
-            window,
             surface,
             device,
             queue,
@@ -197,30 +207,31 @@ impl WgpuRenderer {
             texture_bind_group,
             texture_width,
             texture_height,
+            window,
         }
     }
 
-    pub fn window(&self) -> &Window {
+    pub fn window(&self) -> &T {
         &self.window
     }
 
     pub fn width(&self) -> u32 {
-        self.size.width
+        self.size.0
     }
 
     pub fn height(&self) -> u32 {
-        self.size.height
+        self.size.1
     }
 
     pub fn recreate_surface(&mut self) {
-        self.resize(self.window.inner_size())
+        self.resize(self.window.canvas_size())
     }
 
-    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        if new_size.width > 0 || new_size.height > 0 {
+    pub fn resize(&mut self, new_size: (u32, u32)) {
+        if new_size.0 > 0 && new_size.1 > 0 {
             self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
+            self.config.width = new_size.0;
+            self.config.height = new_size.1;
             self.surface.configure(&self.device, &self.config);
         }
     }
@@ -365,7 +376,10 @@ impl WgpuRenderer {
     }
 }
 
-impl Renderer for WgpuRenderer {
+impl<'window, T> Renderer for WgpuRenderer<'window, T>
+where
+    T: RendererCanvas,
+{
     fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
         if self.texture_bind_group.is_some() {
             bail!("wgpu renderer requires a single texture atlas, but a second texture was loaded");
