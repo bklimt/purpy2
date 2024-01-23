@@ -176,6 +176,9 @@ fn process(args: &Args) -> Result<()> {
     let f = args.score_func;
 
     while images.len() > 1 {
+        // TODO: Sort options by (wasted area/percent, total area, squareness abs(w-h)).
+        // TODO: Fill in the wasted space for each with the largest thing that fits it.
+
         let mut best_pair = (0, 0);
         if args.try_all_pairs {
             let mut min_score = None;
