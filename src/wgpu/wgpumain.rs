@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 use log::error;
+use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
@@ -16,15 +17,6 @@ use crate::{
     constants::{RENDER_HEIGHT, RENDER_WIDTH},
     font::Font,
 };
-
-use super::renderer::{RenderError, RendererCanvas};
-
-impl RendererCanvas for Window {
-    fn canvas_size(&self) -> (u32, u32) {
-        let size = self.inner_size();
-        (size.width, size.height)
-    }
-}
 
 struct GameState<'window> {
     stage_manager: StageManager,
@@ -78,15 +70,6 @@ impl<'window> GameState<'window> {
 
         match self.images.renderer_mut().render(&context) {
             Ok(_) => {}
-            Err(RenderError::SurfaceError(wgpu::SurfaceError::Outdated)) => {
-                self.images.renderer_mut().recreate_surface();
-            }
-            Err(RenderError::SurfaceError(wgpu::SurfaceError::Lost)) => {
-                self.images.renderer_mut().recreate_surface();
-            }
-            Err(RenderError::SurfaceError(wgpu::SurfaceError::OutOfMemory)) => {
-                bail!("out of memory");
-            }
             Err(e) => error!("{:?}", e),
         }
 
@@ -98,7 +81,8 @@ impl<'window> GameState<'window> {
 pub async fn run() -> Result<()> {
     let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let renderer = WgpuRenderer::new(&window).await;
+    let PhysicalSize { width, height } = window.inner_size();
+    let renderer = WgpuRenderer::new(&window, width, height).await;
     let mut game = match GameState::new(renderer) {
         Ok(game) => game,
         Err(e) => {
@@ -114,8 +98,9 @@ pub async fn run() -> Result<()> {
         } if window_id == game.images.renderer().window().id() => {
             game.inputs.handle_winit_event(event);
             match event {
-                WindowEvent::Resized(_) => {
-                    game.images.renderer_mut().recreate_surface();
+                WindowEvent::Resized(new_size) => {
+                    let PhysicalSize { width, height } = new_size;
+                    game.images.renderer_mut().resize(*width, *height);
                 }
                 WindowEvent::RedrawRequested => match game.run_one_frame() {
                     Ok(running) => {

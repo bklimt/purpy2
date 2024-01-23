@@ -4,7 +4,6 @@ use std::path::Path;
 use anyhow::{bail, Context, Result};
 use bytemuck::Zeroable;
 use log::{error, info};
-use thiserror::Error;
 use wgpu::util::DeviceExt;
 use wgpu::WindowHandle;
 
@@ -18,20 +17,14 @@ use super::{shader::Vertex, texture::Texture};
 const MAX_ENTRIES: usize = 4096;
 const MAX_VERTICES: usize = MAX_ENTRIES * 6;
 
-pub trait RendererCanvas
-where
-    Self: WindowHandle,
-{
-    fn canvas_size(&self) -> (u32, u32);
-}
-
-pub struct WgpuRenderer<'window, T: RendererCanvas> {
+pub struct WgpuRenderer<'window, T: WindowHandle> {
     window: &'window T,
     surface: wgpu::Surface<'window>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    size: (u32, u32),
+    width: u32,
+    height: u32,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
@@ -41,22 +34,12 @@ pub struct WgpuRenderer<'window, T: RendererCanvas> {
     vertices: Vec<Vertex>,
 }
 
-#[derive(Error, Debug)]
-pub enum RenderError {
-    #[error("render surface error")]
-    SurfaceError(#[from] wgpu::SurfaceError),
-    #[error("other rendering error")]
-    Other(#[from] anyhow::Error),
-}
-
 impl<'window, T> WgpuRenderer<'window, T>
 where
-    T: RendererCanvas,
+    T: WindowHandle,
 {
     // Creating some of the wgpu types requires async code
-    pub async fn new(window: &'window T) -> Self {
-        let size = window.canvas_size();
-
+    pub async fn new(window: &'window T, width: u32, height: u32) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -100,8 +83,8 @@ where
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width: size.0,
-            height: size.1,
+            width,
+            height,
             present_mode: surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
@@ -198,7 +181,8 @@ where
             device,
             queue,
             config,
-            size,
+            width,
+            height,
             render_pipeline,
             vertex_buffer,
             texture_bind_group_layout,
@@ -214,15 +198,12 @@ where
         &self.window
     }
 
-    pub fn recreate_surface(&mut self) {
-        self.resize(self.window.canvas_size())
-    }
-
-    pub fn resize(&mut self, new_size: (u32, u32)) {
-        if new_size.0 > 0 && new_size.1 > 0 {
-            self.size = new_size;
-            self.config.width = new_size.0;
-            self.config.height = new_size.1;
+    pub fn resize(&mut self, new_width: u32, new_height: u32) {
+        if new_width > 0 && new_height > 0 {
+            self.width = new_width;
+            self.height = new_height;
+            self.config.width = new_width;
+            self.config.height = new_height;
             self.surface.configure(&self.device, &self.config);
         }
     }
@@ -317,7 +298,7 @@ where
         vertex_count as u32
     }
 
-    pub fn render(&mut self, context: &RenderContext) -> Result<(), RenderError> {
+    pub fn render(&mut self, context: &RenderContext) -> Result<()> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -371,7 +352,7 @@ where
 
 impl<'window, T> Renderer for WgpuRenderer<'window, T>
 where
-    T: RendererCanvas,
+    T: WindowHandle,
 {
     fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
         if self.texture_bind_group.is_some() {
