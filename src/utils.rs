@@ -103,6 +103,28 @@ impl From<Color> for sdl2::pixels::Color {
     }
 }
 
+impl From<Color> for wgpu::Color {
+    fn from(value: Color) -> Self {
+        wgpu::Color {
+            r: value.r as f64 / 255.0,
+            g: value.g as f64 / 255.0,
+            b: value.b as f64 / 255.0,
+            a: value.a as f64 / 255.0,
+        }
+    }
+}
+
+impl From<Color> for [f32; 4] {
+    fn from(value: Color) -> Self {
+        [
+            value.r as f32 / 255.0,
+            value.g as f32 / 255.0,
+            value.b as f32 / 255.0,
+            value.a as f32 / 255.0,
+        ]
+    }
+}
+
 pub fn sign(n: Subpixels) -> Subpixels {
     if n < 0 {
         -1

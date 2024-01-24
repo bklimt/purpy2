@@ -40,6 +40,8 @@ impl<'a> SdlRenderer<'a> {
 
         canvas.set_blend_mode(BlendMode::Blend);
         canvas.with_texture_canvas(&mut player_texture, |canvas| {
+            canvas.set_draw_color(context.player_batch.clear_color);
+            canvas.clear();
             for entry in context.player_batch.entries.iter() {
                 match entry {
                     SpriteBatchEntry::Sprite {
@@ -79,10 +81,6 @@ impl<'a> SdlRenderer<'a> {
                             .fill_rect(*destination)
                             .map_err(|s| anyhow!("unable to fill rect: {}", s))
                             .expect("must succeed");
-                    }
-                    SpriteBatchEntry::Clear { color } => {
-                        canvas.set_draw_color(*color);
-                        canvas.clear();
                     }
                 }
             }

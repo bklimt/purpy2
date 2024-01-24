@@ -11,7 +11,9 @@ use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
 use crate::rendercontext::{RenderContext, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;
+use crate::utils::{Color, Rect};
 
+use super::shader::ShaderUniform;
 use super::{shader::Vertex, texture::Texture};
 
 const MAX_ENTRIES: usize = 4096;
@@ -32,11 +34,18 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
     width: u32,
     height: u32,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
+
     texture_bind_group_layout: wgpu::BindGroupLayout,
     texture_bind_group: Option<wgpu::BindGroup>,
     texture_width: u32,
     texture_height: u32,
+
+    shader_uniform: ShaderUniform,
+    shader_uniform_buffer: wgpu::Buffer,
+    uniform_bind_group_layout: wgpu::BindGroupLayout,
+    uniform_bind_group: wgpu::BindGroup,
+
+    vertex_buffer: wgpu::Buffer,
     vertices: Vec<Vertex>,
 }
 
@@ -126,6 +135,35 @@ where
         let texture_width = 0;
         let texture_height = 0;
 
+        let shader_uniform = ShaderUniform::new(RENDER_WIDTH, RENDER_HEIGHT);
+        let shader_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Shader Uniform Buffer"),
+            contents: bytemuck::cast_slice(&[shader_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let uniform_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("uniform_bind_group_layout"),
+            });
+        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &uniform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: shader_uniform_buffer.as_entire_binding(),
+            }],
+            label: Some("uniform_bind_group"),
+        });
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
@@ -134,7 +172,7 @@ where
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout],
+                bind_group_layouts: &[&texture_bind_group_layout, &uniform_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -194,6 +232,10 @@ where
             texture_bind_group,
             texture_width,
             texture_height,
+            shader_uniform,
+            shader_uniform_buffer,
+            uniform_bind_group_layout,
+            uniform_bind_group,
             vertices,
             window,
         }
@@ -225,14 +267,41 @@ where
                 break;
             }
 
-            let SpriteBatchEntry::Sprite {
-                sprite,
-                source,
-                destination,
-                reversed,
-            } = entry
-            else {
-                continue;
+            let (destination, source, color, reversed) = match entry {
+                SpriteBatchEntry::FillRect { destination, color } => (
+                    *destination,
+                    Rect {
+                        x: 0,
+                        y: 0,
+                        w: 0,
+                        h: 0,
+                    },
+                    *color,
+                    false,
+                ),
+                SpriteBatchEntry::Sprite {
+                    sprite,
+                    source,
+                    destination,
+                    reversed,
+                } => {
+                    let source = Rect {
+                        x: sprite.x as i32 + source.x,
+                        y: sprite.y as i32 + source.y,
+                        w: source.w,
+                        h: source.h,
+                    };
+                    let color = Color {
+                        r: 0,
+                        g: 0,
+                        b: 0,
+                        a: 0,
+                    };
+                    (*destination, source, color, *reversed)
+                }
+                _ => {
+                    continue;
+                }
             };
 
             let dt = destination.y as f32;
@@ -240,23 +309,16 @@ where
             let dl = destination.x as f32;
             let dr = destination.right() as f32;
 
-            let st = (source.y + sprite.y as i32) as f32;
-            let sb = (source.bottom() + sprite.y as i32) as f32;
-            let mut sl = (source.x + sprite.x as i32) as f32;
-            let mut sr = (source.right() + sprite.x as i32) as f32;
+            let st = source.y as f32;
+            let sb = source.bottom() as f32;
+            let mut sl = source.x as f32;
+            let mut sr = source.right() as f32;
 
-            if *reversed {
+            if reversed {
                 mem::swap(&mut sl, &mut sr);
             }
 
             // TODO: Consider moving this scaling into the shader.
-            let xscale = RENDER_WIDTH as f32;
-            let yscale = RENDER_HEIGHT as f32;
-            let dt = dt / yscale;
-            let db = db / yscale;
-            let dl = dl / xscale;
-            let dr = dr / xscale;
-
             let xscale = self.texture_width as f32;
             let yscale = self.texture_height as f32;
             let st = st / yscale;
@@ -264,32 +326,40 @@ where
             let sl = sl / xscale;
             let sr = sr / xscale;
 
+            let color: [f32; 4] = color.into();
+
             let i = vertex_count;
             vertex_count += 6;
 
             self.vertices[i] = Vertex {
-                position: [dl, dt, 0.0],
+                position: [dl, dt],
                 tex_coords: [sl, st],
+                color,
             };
             self.vertices[i + 1] = Vertex {
-                position: [dl, db, 0.0],
+                position: [dl, db],
                 tex_coords: [sl, sb],
+                color,
             };
             self.vertices[i + 2] = Vertex {
-                position: [dr, dt, 0.0],
+                position: [dr, dt],
                 tex_coords: [sr, st],
+                color,
             };
             self.vertices[i + 3] = Vertex {
-                position: [dr, dt, 0.0],
+                position: [dr, dt],
                 tex_coords: [sr, st],
+                color,
             };
             self.vertices[i + 4] = Vertex {
-                position: [dl, db, 0.0],
+                position: [dl, db],
                 tex_coords: [sl, sb],
+                color,
             };
             self.vertices[i + 5] = Vertex {
-                position: [dr, db, 0.0],
+                position: [dr, db],
                 tex_coords: [sr, sb],
+                color,
             };
         }
         //info!("created {} vertices", vertex_count);
@@ -328,12 +398,7 @@ where
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(context.player_batch.clear_color.into()),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -344,6 +409,7 @@ where
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, texture_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.draw(0..vertex_count, 0..1);
         }

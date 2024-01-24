@@ -15,18 +15,22 @@ pub enum SpriteBatchEntry {
         destination: Rect,
         color: Color,
     },
-    Clear {
-        color: Color,
-    },
 }
 
 pub struct SpriteBatch {
+    pub clear_color: Color,
     pub entries: Vec<SpriteBatchEntry>,
 }
 
 impl SpriteBatch {
     pub fn new() -> SpriteBatch {
         SpriteBatch {
+            clear_color: Color {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
             entries: Vec::new(),
         }
     }
@@ -59,9 +63,9 @@ impl SpriteBatch {
         });
     }
 
-    pub fn clear(&mut self, color: Color) {
+    /*pub fn clear(&mut self, color: Color) {
         self.entries.push(SpriteBatchEntry::Clear { color })
-    }
+    }*/
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -112,11 +116,12 @@ impl RenderContext {
     }
 
     pub fn clear(&mut self) {
-        self.player_batch.clear(Color {
-            r: 80,
-            g: 80,
-            b: 80,
+        self.player_batch.entries.clear();
+        self.player_batch.clear_color = Color {
+            r: 0,
+            g: 0,
+            b: 0,
             a: 255,
-        });
+        };
     }
 }
