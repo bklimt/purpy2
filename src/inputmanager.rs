@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
 use gilrs::{Axis, Button, GamepadId, Gilrs};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 
 use crate::{smallintmap::SmallIntMap, Args};
 

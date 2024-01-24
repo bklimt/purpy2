@@ -40,9 +40,9 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
     texture_width: u32,
     texture_height: u32,
 
-    shader_uniform: ShaderUniform,
-    shader_uniform_buffer: wgpu::Buffer,
-    uniform_bind_group_layout: wgpu::BindGroupLayout,
+    _shader_uniform: ShaderUniform,
+    _shader_uniform_buffer: wgpu::Buffer,
+    _uniform_bind_group_layout: wgpu::BindGroupLayout,
     uniform_bind_group: wgpu::BindGroup,
 
     vertex_buffer: wgpu::Buffer,
@@ -232,9 +232,9 @@ where
             texture_bind_group,
             texture_width,
             texture_height,
-            shader_uniform,
-            shader_uniform_buffer,
-            uniform_bind_group_layout,
+            _shader_uniform: shader_uniform,
+            _shader_uniform_buffer: shader_uniform_buffer,
+            _uniform_bind_group_layout: uniform_bind_group_layout,
             uniform_bind_group,
             vertices,
             window,
@@ -298,9 +298,6 @@ where
                         a: 0,
                     };
                     (*destination, source, color, *reversed)
-                }
-                _ => {
-                    continue;
                 }
             };
 
