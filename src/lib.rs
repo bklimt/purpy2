@@ -38,4 +38,10 @@ pub use wgpu::winitmain::run as winit_main;
 pub struct Args {
     #[arg(long)]
     pub fullscreen: bool,
+
+    #[arg(long)]
+    pub record: Option<String>,
+
+    #[arg(long)]
+    pub playback: Option<String>,
 }

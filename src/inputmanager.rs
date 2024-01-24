@@ -1,8 +1,12 @@
-use anyhow::{anyhow, bail, Result};
-use gilrs::{Axis, Button, GamepadId, Gilrs};
-use log::{debug, info};
+use std::collections::VecDeque;
+use std::fs;
+use std::path::{Path, PathBuf};
 
-use crate::smallintmap::SmallIntMap;
+use anyhow::{anyhow, bail, Context, Result};
+use gilrs::{Axis, Button, GamepadId, Gilrs};
+use log::{debug, error, info, warn};
+
+use crate::{smallintmap::SmallIntMap, Args};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum KeyboardKey {
@@ -526,6 +530,130 @@ pub struct InputSnapshot {
     pub menu_up: bool,
 }
 
+#[inline]
+fn bool_to_bin(b: bool, n: u8) -> u64 {
+    if b {
+        1 << n
+    } else {
+        0
+    }
+}
+
+#[inline]
+fn bin_to_bool(encoded: u64, n: u8) -> bool {
+    (encoded & (1 << n)) != 0
+}
+
+impl InputSnapshot {
+    fn encode(&self) -> u64 {
+        let mut result = 0;
+        result |= bool_to_bin(self.ok, 0);
+        result |= bool_to_bin(self.cancel, 1);
+        result |= bool_to_bin(self.player_left, 2);
+        result |= bool_to_bin(self.player_right, 3);
+        result |= bool_to_bin(self.player_crouch, 4);
+        result |= bool_to_bin(self.player_jump_trigger, 5);
+        result |= bool_to_bin(self.player_jump_down, 6);
+        result |= bool_to_bin(self.menu_down, 7);
+        result |= bool_to_bin(self.menu_up, 8);
+        result
+    }
+
+    fn decode(n: u64) -> InputSnapshot {
+        InputSnapshot {
+            ok: bin_to_bool(n, 0),
+            cancel: bin_to_bool(n, 1),
+            player_left: bin_to_bool(n, 2),
+            player_right: bin_to_bool(n, 3),
+            player_crouch: bin_to_bool(n, 4),
+            player_jump_trigger: bin_to_bool(n, 5),
+            player_jump_down: bin_to_bool(n, 6),
+            menu_down: bin_to_bool(n, 7),
+            menu_up: bin_to_bool(n, 8),
+        }
+    }
+}
+
+struct RecorderEntry {
+    frame: u64,
+    snapshot: u64,
+}
+
+pub struct InputRecorder {
+    previous: u64,
+    queue: VecDeque<RecorderEntry>,
+}
+
+impl InputRecorder {
+    fn new() -> InputRecorder {
+        InputRecorder {
+            previous: 0,
+            queue: VecDeque::new(),
+        }
+    }
+
+    fn record(&mut self, frame: u64, snapshot: &InputSnapshot) {
+        let snapshot = snapshot.encode();
+        if self.previous == snapshot {
+            return;
+        }
+        self.previous = snapshot;
+        self.queue.push_back(RecorderEntry { frame, snapshot });
+    }
+
+    fn playback(&mut self, frame: u64) -> InputSnapshot {
+        if let Some(next) = self.queue.front() {
+            if next.frame == frame {
+                self.previous = next.snapshot;
+                self.queue.pop_front();
+            }
+        }
+        InputSnapshot::decode(self.previous)
+    }
+
+    fn save(&self, path: &Path) -> Result<()> {
+        let mut lines = Vec::new();
+        for entry in self.queue.iter() {
+            lines.push(format!("{},{}", entry.frame, entry.snapshot));
+        }
+        let text = lines.join("\n");
+        fs::write(path, text)?;
+        Ok(())
+    }
+
+    fn load(&mut self, path: &Path) -> Result<()> {
+        self.previous = 0;
+        self.queue.clear();
+
+        let text = fs::read_to_string(path)
+            .map_err(|e| anyhow!("unable to load input snapshot record at {:?}: {}", path, e))?;
+
+        for line in text.lines() {
+            let line = line.trim();
+            if line.len() == 0 {
+                continue;
+            }
+
+            let comma = line.find(",").context("missing comma")?;
+            let (frame, snapshot) = line.split_at(comma);
+            let snapshot = &snapshot[1..];
+
+            let frame = frame.parse()?;
+            let snapshot = snapshot.parse()?;
+
+            self.queue.push_back(RecorderEntry { frame, snapshot });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+enum RecordOption {
+    None,
+    Record(PathBuf),
+    Playback,
+}
+
 pub struct InputManager {
     state: InputState,
     previous_snapshot: Option<InputSnapshot>,
@@ -533,10 +661,26 @@ pub struct InputManager {
     all_binary_hooks: Vec<BinaryInput>,
     gilrs: Gilrs,
     current_gamepad: Option<GamepadId>,
+    record_option: RecordOption,
+    recorder: InputRecorder,
 }
 
 impl InputManager {
-    pub fn new() -> Result<InputManager> {
+    pub fn new(args: Args) -> Result<InputManager> {
+        let mut recorder = InputRecorder::new();
+
+        if args.record.is_some() && args.playback.is_some() {
+            bail!("either --record or --playback or neither, but not both")
+        }
+        let record_option = if let Some(record) = args.record {
+            RecordOption::Record(Path::new(&record).to_owned())
+        } else if let Some(playback) = args.playback {
+            recorder.load(Path::new(&playback))?;
+            RecordOption::Playback
+        } else {
+            RecordOption::None
+        };
+
         let mut binary_hooks = SmallIntMap::new();
         let all_binary_hooks = all_binary_inputs();
         for hook in all_binary_hooks.iter() {
@@ -565,10 +709,16 @@ impl InputManager {
             all_binary_hooks,
             gilrs,
             current_gamepad,
+            record_option,
+            recorder,
         })
     }
 
-    pub fn update(&mut self) -> InputSnapshot {
+    pub fn update(&mut self, frame: u64) -> InputSnapshot {
+        if matches!(self.record_option, RecordOption::Playback) {
+            return self.recorder.playback(frame);
+        }
+
         while let Some(event) = self.gilrs.next_event() {
             self.handle_gilrs_event(event);
         }
@@ -596,6 +746,11 @@ impl InputManager {
             debug!("{:?}", snapshot);
             self.previous_snapshot = Some(snapshot);
         }
+
+        if let RecordOption::Record(_) = &self.record_option {
+            self.recorder.record(frame, &snapshot);
+        }
+
         snapshot
     }
 
@@ -734,6 +889,17 @@ impl InputManager {
                 }
             }
             _ => {}
+        }
+    }
+}
+
+impl Drop for InputManager {
+    fn drop(&mut self) {
+        if let RecordOption::Record(record) = &self.record_option {
+            match self.recorder.save(&record) {
+                Ok(_) => info!("wrote input snapshot to {:?}", record),
+                Err(e) => error!("unable to write input snapshot to {:?}: {}", record, e),
+            }
         }
     }
 }

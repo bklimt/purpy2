@@ -100,7 +100,7 @@ impl Animation {
     }
 
     pub fn blit(&self, context: &mut RenderContext, layer: RenderLayer, dest: Rect, reverse: bool) {
-        let index = (context.frame / self.frames_per_frame) % self.frames;
+        let index = ((context.frame / self.frames_per_frame as u64) % self.frames as u64) as u32;
         self.spritesheet
             .blit(context, layer, dest, index, 0, reverse)
     }

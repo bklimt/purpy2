@@ -26,16 +26,16 @@ struct GameState<'window> {
     sounds: SoundManager,
     inputs: InputManager,
     font: Font,
-    frame: u32,
+    frame: u64,
 }
 
 impl<'window> GameState<'window> {
-    fn new(renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
+    fn new(args: crate::Args, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
         let sdl_context = sdl2::init().expect("failed to init SDL");
         let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
         let mut images = ImageManager::new(renderer)?;
-        let inputs = InputManager::new()?;
+        let inputs = InputManager::new(args)?;
         let stage_manager = StageManager::new(&images)?;
         let sounds = SoundManager::new(&audio_subsystem)?;
 
@@ -57,7 +57,7 @@ impl<'window> GameState<'window> {
     }
 
     fn run_one_frame(&mut self) -> Result<bool> {
-        let inputs = self.inputs.update();
+        let inputs = self.inputs.update(self.frame);
         if !self
             .stage_manager
             .update(&inputs, &mut self.images, &mut self.sounds)?
@@ -80,12 +80,12 @@ impl<'window> GameState<'window> {
     }
 }
 
-pub async fn run(_args: crate::Args) -> Result<()> {
+pub async fn run(args: crate::Args) -> Result<()> {
     let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     let PhysicalSize { width, height } = window.inner_size();
     let renderer = WgpuRenderer::new(&window, width, height).await;
-    let mut game = match GameState::new(renderer) {
+    let mut game = match GameState::new(args, renderer) {
         Ok(game) => game,
         Err(e) => {
             bail!("unable to initialize game: {:?}", e);

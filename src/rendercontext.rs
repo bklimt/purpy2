@@ -78,11 +78,11 @@ pub struct RenderContext {
     pub player_batch: SpriteBatch,
     pub width: u32,
     pub height: u32,
-    pub frame: u32,
+    pub frame: u64,
 }
 
 impl RenderContext {
-    pub fn new(width: u32, height: u32, frame: u32) -> Result<RenderContext> {
+    pub fn new(width: u32, height: u32, frame: u64) -> Result<RenderContext> {
         let player_batch = SpriteBatch::new();
         Ok(RenderContext {
             player_batch,

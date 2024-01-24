@@ -43,7 +43,7 @@ pub fn sdl_main(args: Args) -> Result<()> {
     canvas.present();
 
     let mut image_manager = ImageManager::new(renderer)?;
-    let mut input_manager = InputManager::new()?;
+    let mut input_manager = InputManager::new(args)?;
     let mut stage_manager = StageManager::new(&image_manager)?;
     let mut sound_manager = SoundManager::new(&audio_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -73,7 +73,7 @@ pub fn sdl_main(args: Args) -> Result<()> {
             }
         }
 
-        let input_snapshot = input_manager.update();
+        let input_snapshot = input_manager.update(frame);
 
         if !stage_manager.update(&input_snapshot, &mut image_manager, &mut sound_manager)? {
             break 'running;
