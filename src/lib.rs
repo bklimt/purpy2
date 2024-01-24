@@ -31,13 +31,11 @@ use clap::Parser;
 
 pub use sdlmain::sdl_main;
 pub use wgpu::wgpumain::run as wgpu_main;
+pub use wgpu::winitmain::run as winit_main;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
     #[arg(long)]
     pub fullscreen: bool,
-
-    #[arg(long)]
-    pub winit: bool,
 }

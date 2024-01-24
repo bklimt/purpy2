@@ -1,4 +1,6 @@
-pub mod renderer;
-pub mod shader;
-pub mod texture;
+mod renderer;
+mod shader;
+mod texture;
+
 pub mod wgpumain;
+pub mod winitmain;

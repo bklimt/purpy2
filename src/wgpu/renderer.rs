@@ -4,8 +4,8 @@ use std::path::Path;
 use anyhow::{bail, Context, Result};
 use bytemuck::Zeroable;
 use log::{error, info};
+use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use wgpu::util::DeviceExt;
-use wgpu::WindowHandle;
 
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
 use crate::rendercontext::{RenderContext, SpriteBatch, SpriteBatchEntry};
@@ -17,9 +17,15 @@ use super::{shader::Vertex, texture::Texture};
 const MAX_ENTRIES: usize = 4096;
 const MAX_VERTICES: usize = MAX_ENTRIES * 6;
 
+pub trait WindowHandle
+where
+    Self: HasRawWindowHandle + HasRawDisplayHandle,
+{
+}
+
 pub struct WgpuRenderer<'window, T: WindowHandle> {
     window: &'window T,
-    surface: wgpu::Surface<'window>,
+    surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
@@ -47,7 +53,7 @@ where
 
         // The surface needs to live as long as the window that created it.
         // State owns the window, so this should be safe.
-        let surface = instance.create_surface(window).unwrap();
+        let surface = unsafe { instance.create_surface(window).unwrap() };
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -61,8 +67,8 @@ where
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
+                    features: wgpu::Features::empty(),
+                    limits: wgpu::Limits::default(),
                     label: None,
                 },
                 None,
@@ -88,7 +94,6 @@ where
             present_mode: surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
-            desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
 
