@@ -17,7 +17,8 @@ use super::shader::ShaderUniform;
 use super::{shader::Vertex, texture::Texture};
 
 const MAX_ENTRIES: usize = 4096;
-const MAX_VERTICES: usize = MAX_ENTRIES * 6;
+const MAX_VERTICES: usize = MAX_ENTRIES * 4;
+const MAX_INDICES: usize = MAX_ENTRIES * 6;
 
 pub trait WindowHandle
 where
@@ -47,6 +48,8 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
 
     vertex_buffer: wgpu::Buffer,
     vertices: Vec<Vertex>,
+    index_buffer: wgpu::Buffer,
+    indices: Vec<u16>,
 }
 
 impl<'window, T> WgpuRenderer<'window, T>
@@ -219,6 +222,14 @@ where
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
+        let mut indices = Vec::new();
+        indices.resize(MAX_INDICES, 0);
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(&mut indices),
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+        });
+
         Self {
             surface,
             device,
@@ -227,7 +238,6 @@ where
             width,
             height,
             render_pipeline,
-            vertex_buffer,
             texture_bind_group_layout,
             texture_bind_group,
             texture_width,
@@ -236,7 +246,10 @@ where
             _shader_uniform_buffer: shader_uniform_buffer,
             _uniform_bind_group_layout: uniform_bind_group_layout,
             uniform_bind_group,
+            vertex_buffer,
             vertices,
+            index_buffer,
+            indices,
             window,
         }
     }
@@ -261,6 +274,7 @@ where
         }
 
         let mut vertex_count = 0;
+        let mut index_count = 0;
 
         for entry in batch.entries.iter() {
             if vertex_count >= MAX_VERTICES {
@@ -325,9 +339,10 @@ where
 
             let color: [f32; 4] = color.into();
 
-            let i = vertex_count;
-            vertex_count += 6;
+            let current_vertex = vertex_count;
+            let current_index = index_count;
 
+            let i = current_vertex;
             self.vertices[i] = Vertex {
                 position: [dl, dt],
                 tex_coords: [sl, st],
@@ -344,30 +359,36 @@ where
                 color,
             };
             self.vertices[i + 3] = Vertex {
-                position: [dr, dt],
-                tex_coords: [sr, st],
-                color,
-            };
-            self.vertices[i + 4] = Vertex {
-                position: [dl, db],
-                tex_coords: [sl, sb],
-                color,
-            };
-            self.vertices[i + 5] = Vertex {
                 position: [dr, db],
                 tex_coords: [sr, sb],
                 color,
             };
+
+            let i = current_index;
+            let v = current_vertex as u16;
+            self.indices[i] = v;
+            self.indices[i + 1] = v + 1;
+            self.indices[i + 2] = v + 2;
+            self.indices[i + 3] = v + 2;
+            self.indices[i + 4] = v + 1;
+            self.indices[i + 5] = v + 3;
+
+            vertex_count += 4;
+            index_count += 6;
         }
-        //info!("created {} vertices", vertex_count);
 
         self.queue.write_buffer(
             &self.vertex_buffer,
             0,
             bytemuck::cast_slice(&self.vertices[0..vertex_count]),
         );
+        self.queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.indices[0..index_count]),
+        );
 
-        vertex_count as u32
+        index_count as u32
     }
 
     pub fn render(&mut self, context: &RenderContext) -> Result<()> {
@@ -381,7 +402,7 @@ where
                 label: Some("Render Encoder"),
             });
 
-        let vertex_count = self.fill_vertex_buffer(&context.player_batch);
+        let index_count = self.fill_vertex_buffer(&context.player_batch);
 
         let texture_bind_group = self
             .texture_bind_group
@@ -408,7 +429,8 @@ where
             render_pass.set_bind_group(0, texture_bind_group, &[]);
             render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..vertex_count, 0..1);
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..index_count, 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
