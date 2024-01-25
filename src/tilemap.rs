@@ -210,7 +210,9 @@ impl Index<(usize, usize)> for TileLayer {
     type Output = TileIndex;
 
     fn index(&self, index: (usize, usize)) -> &Self::Output {
-        self.get(index.0, index.1).expect("indices must be valid")
+        self.get(index.0, index.1)
+            .with_context(|| anyhow!("indices must be valid: ({}, {})", index.0, index.1))
+            .expect("indices must be valid")
     }
 }
 
@@ -772,6 +774,11 @@ impl TileMap {
         let col1 = player_rect.left() / (self.tilewidth * SUBPIXELS);
         let row2 = player_rect.bottom() / (self.tileheight * SUBPIXELS);
         let col2 = player_rect.right() / (self.tilewidth * SUBPIXELS);
+
+        let row1 = row1.max(0);
+        let col1 = col1.max(0);
+        let row2 = row2.max(0);
+        let col2 = col2.max(0);
 
         for row in row1..=row2 {
             for col in col1..=col2 {
