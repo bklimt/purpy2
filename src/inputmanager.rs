@@ -6,7 +6,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use gilrs::{Axis, Button, GamepadId, Gilrs};
 use log::{debug, error, info};
 
-use crate::{smallintmap::SmallIntMap, Args};
+use crate::args::Args;
+use crate::smallintmap::SmallIntMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum KeyboardKey {
@@ -666,15 +667,15 @@ pub struct InputManager {
 }
 
 impl InputManager {
-    pub fn new(args: Args) -> Result<InputManager> {
+    pub fn new(args: &Args) -> Result<InputManager> {
         let mut recorder = InputRecorder::new();
 
         if args.record.is_some() && args.playback.is_some() {
             bail!("either --record or --playback or neither, but not both")
         }
-        let record_option = if let Some(record) = args.record {
+        let record_option = if let Some(record) = &args.record {
             RecordOption::Record(Path::new(&record).to_owned())
-        } else if let Some(playback) = args.playback {
+        } else if let Some(playback) = &args.playback {
             recorder.load(Path::new(&playback))?;
             RecordOption::Playback
         } else {

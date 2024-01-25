@@ -7,6 +7,7 @@ use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
+use crate::args::Args;
 use crate::constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
@@ -14,7 +15,6 @@ use crate::rendercontext::RenderContext;
 use crate::sdlrenderer::SdlRenderer;
 use crate::soundmanager::SoundManager;
 use crate::stagemanager::StageManager;
-use crate::Args;
 
 pub fn sdl_main(args: Args) -> Result<()> {
     let sdl_context = sdl2::init().expect("failed to init SDL");
@@ -43,7 +43,7 @@ pub fn sdl_main(args: Args) -> Result<()> {
     canvas.present();
 
     let mut image_manager = ImageManager::new(renderer)?;
-    let mut input_manager = InputManager::new(args)?;
+    let mut input_manager = InputManager::new(&args)?;
     let mut stage_manager = StageManager::new(&image_manager)?;
     let mut sound_manager = SoundManager::new(&audio_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -55,6 +55,7 @@ pub fn sdl_main(args: Args) -> Result<()> {
     let font = image_manager.load_font()?;
 
     let mut frame = 0;
+    let speed_test_start_time = Instant::now();
 
     'running: loop {
         let start_time = Instant::now();
@@ -91,7 +92,16 @@ pub fn sdl_main(args: Args) -> Result<()> {
             continue;
         }
         let remaining = target_duration - actual_duration;
-        ::std::thread::sleep(remaining);
+        if !args.speed_test {
+            ::std::thread::sleep(remaining);
+        }
+    }
+
+    let speed_test_end_time = Instant::now();
+    let speed_test_duration = speed_test_end_time - speed_test_start_time;
+    let fps = frame as f64 / speed_test_duration.as_secs_f64();
+    if args.speed_test {
+        println!("{} fps: {} frames in {:?}", fps, frame, speed_test_duration);
     }
 
     Ok(())

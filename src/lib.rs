@@ -1,3 +1,4 @@
+mod args;
 mod constants;
 mod door;
 mod font;
@@ -27,21 +28,7 @@ mod tileset;
 mod utils;
 mod wgpu;
 
-use clap::Parser;
-
+pub use args::Args;
 pub use sdlmain::sdl_main;
 pub use wgpu::wgpumain::run as wgpu_main;
 pub use wgpu::winitmain::run as winit_main;
-
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-pub struct Args {
-    #[arg(long)]
-    pub fullscreen: bool,
-
-    #[arg(long)]
-    pub record: Option<String>,
-
-    #[arg(long)]
-    pub playback: Option<String>,
-}

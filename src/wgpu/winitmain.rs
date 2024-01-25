@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::Instant;
 
 use anyhow::{bail, Result};
 use log::error;
@@ -7,6 +8,7 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
+use crate::args::Args;
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
 use crate::font::Font;
 use crate::imagemanager::ImageManager;
@@ -27,15 +29,17 @@ struct GameState<'window> {
     inputs: InputManager,
     font: Font,
     frame: u64,
+    start_time: Instant,
+    speed_test: bool,
 }
 
 impl<'window> GameState<'window> {
-    fn new(args: crate::Args, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
+    fn new(args: Args, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
         let sdl_context = sdl2::init().expect("failed to init SDL");
         let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
         let mut images = ImageManager::new(renderer)?;
-        let inputs = InputManager::new(args)?;
+        let inputs = InputManager::new(&args)?;
         let stage_manager = StageManager::new(&images)?;
         let sounds = SoundManager::new(&audio_subsystem)?;
 
@@ -45,6 +49,8 @@ impl<'window> GameState<'window> {
         )?;
         let font = images.load_font()?;
         let frame = 0;
+        let start_time = Instant::now();
+        let speed_test = args.speed_test;
 
         Ok(Self {
             stage_manager,
@@ -53,15 +59,27 @@ impl<'window> GameState<'window> {
             inputs,
             font,
             frame,
+            start_time,
+            speed_test,
         })
     }
 
     fn run_one_frame(&mut self) -> Result<bool> {
+        if self.frame == 0 {
+            self.start_time = Instant::now();
+        }
+
         let inputs = self.inputs.update(self.frame);
         if !self
             .stage_manager
             .update(&inputs, &mut self.images, &mut self.sounds)?
         {
+            let finish_time = Instant::now();
+            if self.speed_test {
+                let elapsed = finish_time - self.start_time;
+                let fps = self.frame as f64 / elapsed.as_secs_f64();
+                println!("{} fps: {} frames in {:?}", fps, self.frame, elapsed);
+            }
             return Ok(false);
         }
 
@@ -80,7 +98,7 @@ impl<'window> GameState<'window> {
     }
 }
 
-pub async fn run(args: crate::Args) -> Result<()> {
+pub async fn run(args: Args) -> Result<()> {
     let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     let PhysicalSize { width, height } = window.inner_size();
