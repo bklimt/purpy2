@@ -8,7 +8,7 @@ pub const RENDER_HEIGHT: u32 = 180;
 pub const FRAME_RATE: u32 = 60;
 
 // How many subpixels to use for game logic.
-pub const SUBPIXELS: Subpixels = 16;
+pub const SUBPIXELS: Subpixels = 32;
 
 // Rendering details.
 // pub const MAX_LIGHTS: u32 = 20;
@@ -17,10 +17,10 @@ pub const SUBPIXELS: Subpixels = 16;
 pub const VIEWPORT_PAN_SPEED: i32 = 5 * SUBPIXELS;
 
 // Horizontal speed.
-pub const TARGET_WALK_SPEED: i32 = 24 * SUBPIXELS / 16;
+pub const TARGET_WALK_SPEED: i32 = 32 * SUBPIXELS / 16;
 pub const WALK_SPEED_ACCELERATION: i32 = 1 * SUBPIXELS / 16;
 pub const WALK_SPEED_DECELERATION: i32 = 3 * SUBPIXELS / 16;
-pub const SLIDE_SPEED_DECELERATION: i32 = 1 * SUBPIXELS / 16;
+pub const SLIDE_SPEED_DECELERATION: i32 = 1;
 
 // Vertical speed.
 pub const COYOTE_TIME: i32 = 6; // How long to hover in the air before officially falling.

@@ -418,7 +418,8 @@ pub struct TileMap {
 impl TileMap {
     pub fn from_file(path: &Path, images: &mut dyn ImageLoader) -> Result<TileMap> {
         info!("loading tilemap from {:?}", path);
-        let text = fs::read_to_string(path)?;
+        let text =
+            fs::read_to_string(path).map_err(|e| anyhow!("unable to open {:?}: {}", path, e))?;
         let xml = quick_xml::de::from_str::<TileMapXml>(&text)?;
         Self::from_xml(xml, path, images)
     }
@@ -846,14 +847,20 @@ impl TileMap {
             if obj.gid.is_some() {
                 continue;
             }
-            if !intersect(player_rect, obj.position.clone()) {
+            let rect = Rect {
+                x: obj.position.x * SUBPIXELS,
+                y: obj.position.y * SUBPIXELS,
+                w: obj.position.w * SUBPIXELS,
+                h: obj.position.h * SUBPIXELS,
+            };
+            if !intersect(player_rect, rect) {
                 continue;
             }
             if let Some(p_x) = obj.properties.preferred_x {
-                preferred_x = Some(p_x);
+                preferred_x = Some(p_x * SUBPIXELS);
             }
             if let Some(p_y) = obj.properties.preferred_y {
-                preferred_y = Some(p_y);
+                preferred_y = Some(p_y * SUBPIXELS);
             }
         }
         (preferred_x, preferred_y)

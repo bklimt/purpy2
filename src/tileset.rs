@@ -134,7 +134,8 @@ pub struct TileSet {
 impl TileSet {
     pub fn from_file(path: &Path, images: &mut dyn ImageLoader) -> Result<TileSet> {
         info!("loading tileset from {:?}", path);
-        let text = fs::read_to_string(path)?;
+        let text =
+            fs::read_to_string(path).map_err(|e| anyhow!("unable to open {:?}: {}", path, e))?;
         let xml = quick_xml::de::from_str::<TileSetXml>(&text)?;
         Self::from_xml(xml, path, images)
     }

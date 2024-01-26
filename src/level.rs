@@ -139,8 +139,8 @@ impl Level {
         let previous_map_offset = None;
         let map = TileMap::from_file(map_path, images)?;
         let mut player = Player::new(images)?;
-        player.x = 128;
-        player.y = 129;
+        player.x = (128 * SUBPIXELS) / 16;
+        player.y = (129 * SUBPIXELS) / 16;
 
         let star_count = 0;
         let switches = SwitchState::new();
