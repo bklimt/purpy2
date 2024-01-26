@@ -130,7 +130,10 @@ impl Player {
 
     fn get_raw_target_bounds(&self, direction: Direction) -> (i32, i32, i32, i32) {
         match self.state {
-            PlayerState::Crouching => (8, 14, 8, 9),
+            PlayerState::Crouching => match direction {
+                Direction::Down => (8, 19, 8, 4),
+                _ => (8, 14, 8, 9),
+            },
             _ => match direction {
                 Direction::None => (8, 4, 8, 19),
                 Direction::Up => (8, 4, 8, 4),
