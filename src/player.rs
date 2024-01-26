@@ -128,24 +128,24 @@ impl Player {
             .blit(context, layer, dest, self.frame, 0, !self.facing_right);
     }
 
-    fn get_raw_target_bounds(&self, direction: Direction) -> (i32, i32, i32, i32) {
+    fn get_raw_target_bounds(&self, direction: Option<Direction>) -> (i32, i32, i32, i32) {
         match self.state {
             PlayerState::Crouching => match direction {
-                Direction::Down => (8, 19, 8, 4),
+                Some(Direction::Down) => (8, 19, 8, 4),
                 _ => (8, 14, 8, 9),
             },
             _ => match direction {
-                Direction::None => (8, 4, 8, 19),
-                Direction::Up => (8, 4, 8, 4),
-                Direction::Down => (8, 19, 8, 4),
-                Direction::Right => (12, 4, 4, 14),
-                Direction::Left => (8, 4, 4, 14),
+                None => (8, 4, 8, 19),
+                Some(Direction::Up) => (8, 4, 8, 4),
+                Some(Direction::Down) => (8, 19, 8, 4),
+                Some(Direction::Right) => (12, 4, 4, 14),
+                Some(Direction::Left) => (8, 4, 4, 14),
             },
         }
     }
 
     // Returns the bounds rect in subpixels to check when moving in direction.
-    pub fn get_target_bounds_rect(&self, direction: Direction) -> Rect {
+    pub fn get_target_bounds_rect(&self, direction: Option<Direction>) -> Rect {
         let unscaled = self.get_raw_target_bounds(direction);
         Rect {
             x: self.x + unscaled.0 * SUBPIXELS,

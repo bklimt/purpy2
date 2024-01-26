@@ -154,7 +154,6 @@ impl MovingPlatform {
             Direction::Down => (tileset.tileheight, 0, 1),
             Direction::Left => (tileset.tilewidth, -1, 0),
             Direction::Right => (tileset.tilewidth, 1, 0),
-            Direction::None => (0, 0, 0),
         };
 
         // This is 16 for historical reasons, just because that's what the speed is tuned for.
@@ -273,7 +272,6 @@ impl MovingPlatform {
                         }
                     }
                 }
-                Direction::None => panic!("platform direction cannot be none"),
             }
         } else {
             // If must be oscillating.
@@ -282,7 +280,6 @@ impl MovingPlatform {
                 Direction::Down => base.position.y <= self.start_y,
                 Direction::Left => base.position.x >= self.start_x,
                 Direction::Right => base.position.x <= self.start_x,
-                Direction::None => panic!("platform direction cannot be none"),
             };
             if at_start {
                 self.moving_forward = true;

@@ -329,7 +329,7 @@ impl Level {
 
     // Returns how far this player needs to move in direction to not intersect, in sub-pixels.
     fn try_move_player(&self, direction: Direction, is_backwards: bool) -> TryMovePlayerResult {
-        let player_rect = self.player.get_target_bounds_rect(direction);
+        let player_rect = self.player.get_target_bounds_rect(Some(direction));
 
         let map_result = self
             .map
@@ -407,7 +407,6 @@ impl Level {
                 result.on_platforms = move_result2.platforms;
             }
             Direction::Left | Direction::Right => result.against_wall = move_result1.offset != 0,
-            Direction::None => panic!("cannot move to in none direction"),
         }
 
         // See if we're crushed.
@@ -791,7 +790,7 @@ impl Scene for Level {
             .expect("state machine should be valid");
 
         // Make sure you aren't stuck in a wall.
-        let player_rect = self.player.get_target_bounds_rect(Direction::None);
+        let player_rect = self.player.get_target_bounds_rect(None);
 
         self.current_door = None;
         for (i, door) in self.doors.iter_mut().enumerate() {
@@ -859,7 +858,7 @@ impl Scene for Level {
         let dest = context.logical_area_in_subpixels();
 
         // Make sure the player is on the screen, and then center them if possible.
-        let player_rect = self.player.get_target_bounds_rect(Direction::None);
+        let player_rect = self.player.get_target_bounds_rect(None);
         let (preferred_x, preferred_y) = self.map.get_preferred_view(player_rect);
         let player_x = self.player.x;
         let player_y = self.player.y;

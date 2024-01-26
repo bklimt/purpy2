@@ -35,7 +35,6 @@ impl From<(i32, i32)> for Point {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Direction {
-    None,
     Up,
     Down,
     Left,
@@ -45,7 +44,6 @@ pub enum Direction {
 impl Direction {
     pub fn opposite(&self) -> Direction {
         match self {
-            Direction::None => panic!("cannot take the opposite of no direction"),
             Direction::Up => Direction::Down,
             Direction::Down => Direction::Up,
             Direction::Right => Direction::Left,
@@ -198,7 +196,6 @@ pub fn try_move_to_bounds(actor: Rect, target: Rect, direction: Direction) -> Su
         0
     } else {
         match direction {
-            Direction::None => panic!("cannot try_move_to in no direction"),
             Direction::Up => target.bottom() - actor.top(),
             Direction::Down => target.top() - actor.bottom(),
             Direction::Right => target.left() - actor.right(),

@@ -722,7 +722,6 @@ impl TileMap {
             Direction::Down => oneway == "N",
             Direction::Right => oneway == "W",
             Direction::Left => oneway == "E",
-            _ => panic!("unexpected direction"),
         }
     }
 
@@ -768,7 +767,6 @@ impl TileMap {
                     return result;
                 }
             }
-            Direction::None => panic!("unexpected direction"),
         }
 
         let row1 = player_rect.top() / (self.tileheight * SUBPIXELS);
