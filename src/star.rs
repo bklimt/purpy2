@@ -5,14 +5,14 @@ use rand::random;
 
 use crate::constants::SUBPIXELS;
 use crate::rendercontext::{RenderContext, RenderLayer};
-use crate::tilemap::MapObject;
-use crate::tileset::{TileIndex, TileSet};
+use crate::tilemap::TileIndex;
+use crate::tilemap::{MapObject, TileMap};
 use crate::utils::{intersect, Point, Rect};
 
 pub struct Star {
     area: Rect,
-    tileset: Rc<TileSet>,
-    source: Rect,
+    tilemap: Rc<TileMap>,
+    tile_gid: TileIndex,
 }
 
 fn star_rand() -> i32 {
@@ -20,9 +20,9 @@ fn star_rand() -> i32 {
 }
 
 impl Star {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet>) -> Result<Star> {
+    pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Star> {
         let gid = obj.gid.context("star must have gid")?;
-        let source = tileset.get_source_rect(gid as TileIndex - 1);
+        let tile_gid = gid as TileIndex;
         let area = Rect {
             x: obj.position.x * SUBPIXELS,
             y: obj.position.y * SUBPIXELS,
@@ -31,8 +31,8 @@ impl Star {
         };
         Ok(Star {
             area,
-            tileset,
-            source,
+            tile_gid,
+            tilemap,
         })
     }
 
@@ -45,14 +45,13 @@ impl Star {
         let mut y = self.area.y + offset.y();
         x += star_rand() * SUBPIXELS;
         y += star_rand() * SUBPIXELS;
-        let rect = Rect {
+        let dest = Rect {
             x,
             y,
             w: self.area.w,
             h: self.area.h,
         };
-        let sprite = self.tileset.sprite;
-        context.draw(sprite, layer, rect, self.source);
+        self.tilemap.draw_tile(context, self.tile_gid, layer, dest);
         // TODO: Add lights.
     }
 }

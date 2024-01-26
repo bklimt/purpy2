@@ -1,6 +1,5 @@
+use std::num::ParseIntError;
 use std::ops::{Index, IndexMut};
-use std::path::PathBuf;
-use std::rc::Rc;
 use std::str::FromStr;
 use std::{fs, path::Path};
 
@@ -8,10 +7,11 @@ use crate::constants::SUBPIXELS;
 use crate::imagemanager::ImageLoader;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::rendercontext::{RenderContext, RenderLayer};
+use crate::slope::Slope;
 use crate::smallintset::SmallIntSet;
-use crate::sprite::Sprite;
+use crate::sprite::{Animation, Sprite};
 use crate::switchstate::SwitchState;
-use crate::tileset::{TileIndex, TileProperties, TileSet};
+use crate::tileset::{LocalTileIndex, TileProperties, TileSet};
 use crate::utils::{
     cmp_in_direction, intersect, try_move_to_bounds, Color, Direction, Point, Rect,
 };
@@ -24,6 +24,9 @@ use serde::Deserialize;
 struct TileSetSourceXml {
     #[serde(rename = "@source")]
     source: String,
+
+    #[serde(rename = "@firstgid")]
+    firstgid: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,6 +127,29 @@ struct TileMapXml {
     fields: Vec<TileMapXmlField>,
 
     properties: Option<PropertiesXml>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TileIndex(usize);
+
+impl From<TileIndex> for usize {
+    fn from(value: TileIndex) -> Self {
+        value.0
+    }
+}
+
+impl From<usize> for TileIndex {
+    fn from(value: usize) -> Self {
+        TileIndex(value)
+    }
+}
+
+impl FromStr for TileIndex {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(TileIndex(s.parse::<usize>()?))
+    }
 }
 
 struct ImageLayer {
@@ -356,13 +382,13 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
 
 pub struct MapObject {
     pub id: i32,
-    pub gid: Option<u32>,
+    pub gid: Option<TileIndex>,
     pub position: Rect,
     pub properties: MapObjectProperties,
 }
 
 impl MapObject {
-    fn new(xml: ObjectXml, tileset: &TileSet) -> Result<MapObject> {
+    fn new(xml: ObjectXml, tilesets: &TileSetList) -> Result<MapObject> {
         let id = xml.id;
         let x = xml.x;
         let mut y = xml.y;
@@ -373,11 +399,12 @@ impl MapObject {
             .map(|x| x.try_into())
             .transpose()?
             .unwrap_or_else(|| PropertyMap::new());
-        let gid = xml.gid;
+        let gid = xml.gid.map(|index| (index as usize).into());
 
         if let Some(gid) = gid {
-            // TODO: Figure this part out.
-            if let Some(props) = tileset.get_tile_properties(gid as TileIndex - 1) {
+            let (tileset, tile_id) = tilesets.lookup(gid);
+            let defaults = tileset.get_tile_properties(tile_id);
+            if let Some(props) = defaults {
                 properties.set_defaults(&props.raw);
             }
             // For some reason, the position is the bottom left sometimes?
@@ -402,13 +429,43 @@ impl MapObject {
     }
 }
 
+struct TileSetList {
+    tilesets: Vec<(TileIndex, TileSet)>,
+}
+
+impl TileSetList {
+    fn new() -> Self {
+        Self {
+            tilesets: Vec::new(),
+        }
+    }
+
+    fn add(&mut self, firstgid: TileIndex, tileset: TileSet) {
+        self.tilesets.push((firstgid, tileset));
+        self.tilesets.sort_by_key(|(firstgid, _)| firstgid.0);
+        self.tilesets.reverse();
+    }
+
+    fn lookup(&self, tile_gid: TileIndex) -> (&TileSet, LocalTileIndex) {
+        for (firstgid, tileset) in self.tilesets.iter() {
+            let firstgid = *firstgid;
+            let firstgid: usize = firstgid.into();
+            let tile_gid: usize = tile_gid.into();
+            if tile_gid >= firstgid {
+                return (tileset, (tile_gid - firstgid).into());
+            }
+        }
+        panic!("invalid tile_gid {:?}", tile_gid);
+    }
+}
+
 pub struct TileMap {
     pub width: i32,
     pub height: i32,
     pub tilewidth: i32,
     pub tileheight: i32,
     backgroundcolor: Color,
-    pub tileset: Rc<TileSet>,
+    tilesets: TileSetList,
     layers: Vec<Layer>,
     player_layer: Option<i32>, // TODO: Should just be i32.
     pub objects: Vec<MapObject>,
@@ -434,18 +491,21 @@ impl TileMap {
             &xml.backgroundcolor
         ))?;
 
-        let mut tileset_path: Option<PathBuf> = None;
+        let mut tilesets = TileSetList::new();
         for field in xml.fields.iter() {
             if let TileMapXmlField::TileSet(tileset) = field {
-                tileset_path = Some(
-                    path.parent()
-                        .context("cannot load root as map")?
-                        .join(tileset.source.clone()),
-                );
+                let firstgid = tileset.firstgid.into();
+                let tileset_path = path
+                    .parent()
+                    .context("cannot load root as map")?
+                    .join(tileset.source.clone());
+                let tileset = TileSet::from_file(&tileset_path, images)?;
+                tilesets.add(firstgid, tileset);
             }
         }
-        let tileset_path = tileset_path.context("at least one tileset must be present")?;
-        let tileset = TileSet::from_file(&tileset_path, images)?;
+        if tilesets.tilesets.len() == 0 {
+            bail!("at least one tileset must be present");
+        }
 
         let mut player_layer: Option<i32> = None;
         let mut layers = Vec::new();
@@ -467,7 +527,7 @@ impl TileMap {
                 }
                 TileMapXmlField::ObjectGroup(group) => {
                     for object in group.object {
-                        objects.push(MapObject::new(object, &tileset)?);
+                        objects.push(MapObject::new(object, &tilesets)?);
                     }
                 }
                 _ => {}
@@ -482,15 +542,13 @@ impl TileMap {
 
         let is_dark = properties.get_bool("dark")?.unwrap_or(false);
 
-        let tileset = Rc::new(tileset);
-
         Ok(TileMap {
             width,
             height,
             tilewidth,
             tileheight,
             backgroundcolor,
-            tileset,
+            tilesets,
             layers,
             player_layer,
             objects,
@@ -498,8 +556,8 @@ impl TileMap {
         })
     }
 
-    fn is_condition_met(&self, tile: TileIndex, switches: &SwitchState) -> bool {
-        let Some(props) = self.tileset.get_tile_properties(tile) else {
+    fn is_condition_met(&self, tile_gid: TileIndex, switches: &SwitchState) -> bool {
+        let Some(props) = self.get_tile_properties(tile_gid) else {
             return true;
         };
         let Some(condition) = &props.condition else {
@@ -563,15 +621,16 @@ impl TileMap {
                     .get(col as usize)
                     .expect("size was checked at init");
                 let index = *index;
-                if index == 0 {
+                if index.0 == 0 {
                     continue;
                 }
-                let index = index - 1;
 
-                let index = if self.is_condition_met(index, switches) {
-                    index
+                let (tileset, tile_id) = self.tilesets.lookup(index);
+
+                let tile_id = if self.is_condition_met(index, switches) {
+                    tile_id
                 } else {
-                    let Some(props) = self.tileset.get_tile_properties(index) else {
+                    let Some(props) = self.get_tile_properties(index) else {
                         continue;
                     };
                     let Some(alt) = props.alternate else {
@@ -580,7 +639,7 @@ impl TileMap {
                     alt
                 };
 
-                let mut source = self.tileset.get_source_rect(index);
+                let mut source = tileset.get_source_rect(tile_id);
                 let mut pos_x = col * tilewidth + dest.x + offset_x;
                 let mut pos_y = row * tileheight + dest.y + offset_y;
 
@@ -626,10 +685,10 @@ impl TileMap {
                     w: source.w * SUBPIXELS,
                     h: source.h * SUBPIXELS,
                 };
-                if let Some(animation) = self.tileset.animations.get(index) {
+                if let Some(animation) = self.get_animation(index) {
                     animation.blit(context, render_layer, destination, false);
                 } else {
-                    context.draw(self.tileset.sprite, render_layer, destination, source);
+                    context.draw(tileset.sprite, render_layer, destination, source);
                 }
             }
         }
@@ -703,14 +762,14 @@ impl TileMap {
     }
     fn is_solid_in_direction(
         &self,
-        tile_id: TileIndex,
+        tile_gid: TileIndex,
         direction: Direction,
         is_backwards: bool,
     ) -> bool {
         let Some(TileProperties {
             oneway: Some(oneway),
             ..
-        }) = self.tileset.get_tile_properties(tile_id)
+        }) = self.get_tile_properties(tile_gid)
         else {
             return true;
         };
@@ -795,43 +854,42 @@ impl TileMap {
                     if !layer.player && self.player_layer.is_some() {
                         continue;
                     }
-                    let mut index = layer[(row as usize, col as usize)];
-                    if index == 0 {
+                    let index = layer[(row as usize, col as usize)];
+                    if index.0 == 0 {
                         continue;
                     }
-                    // TODO: This should use the start_gid and tileset.
-                    index -= 1;
-                    if !self.is_condition_met(index, switches) {
+                    let tile_gid = index;
+                    let (tileset, mut tile_id) = self.tilesets.lookup(index);
+                    if !self.is_condition_met(tile_gid, switches) {
                         let Some(TileProperties {
                             alternate: Some(alt),
                             ..
-                        }) = self.tileset.get_tile_properties(index)
+                        }) = self.get_tile_properties(tile_gid)
                         else {
                             continue;
                         };
                         // Use an alt tile instead of the original.
-                        index = *alt;
+                        tile_id = *alt;
                     }
                     let solid = self
-                        .tileset
-                        .get_tile_properties(index)
+                        .get_tile_properties(tile_gid)
                         .map(|p| p.solid)
                         .unwrap_or(true);
                     if !solid {
                         continue;
                     }
-                    if !self.is_solid_in_direction(index, direction, is_backwards) {
+                    if !self.is_solid_in_direction(tile_gid, direction, is_backwards) {
                         continue;
                     }
 
                     let soft_offset = try_move_to_bounds(player_rect, tile_bounds, direction);
                     let mut hard_offset = soft_offset;
 
-                    if let Some(slope) = self.tileset.get_slope(index) {
+                    if let Some(slope) = tileset.get_slope(tile_id) {
                         hard_offset = slope.try_move_to_bounds(player_rect, tile_bounds, direction);
                     };
 
-                    result.consider_tile(index, hard_offset, soft_offset, direction);
+                    result.consider_tile(tile_gid, hard_offset, soft_offset, direction);
                 }
             }
         }
@@ -863,6 +921,33 @@ impl TileMap {
         }
         (preferred_x, preferred_y)
     }
+
+    pub fn draw_tile(
+        &self,
+        context: &mut RenderContext,
+        tile_gid: TileIndex,
+        layer: RenderLayer,
+        dest: Rect,
+    ) {
+        let (tileset, tile_id) = self.tilesets.lookup(tile_gid);
+        let src = tileset.get_source_rect(tile_id);
+        context.draw(tileset.sprite, layer, dest, src);
+    }
+
+    pub fn get_animation(&self, tile_gid: TileIndex) -> Option<&Animation> {
+        let (tileset, tile_id) = self.tilesets.lookup(tile_gid);
+        tileset.animations.get(tile_id)
+    }
+
+    pub fn get_tile_properties(&self, tile_gid: TileIndex) -> Option<&TileProperties> {
+        let (tileset, tile_id) = self.tilesets.lookup(tile_gid);
+        tileset.get_tile_properties(tile_id)
+    }
+
+    pub fn get_slope(&self, tile_gid: TileIndex) -> Option<&Slope> {
+        let (tileset, tile_id) = self.tilesets.lookup(tile_gid);
+        tileset.get_slope(tile_id)
+    }
 }
 
 /*
@@ -890,7 +975,7 @@ impl MoveResult {
 
     fn consider_tile(
         &mut self,
-        index: TileIndex,
+        tile_gid: TileIndex,
         hard_offset: i32,
         soft_offset: i32,
         direction: Direction,
@@ -903,11 +988,11 @@ impl MoveResult {
         let cmp = cmp_in_direction(soft_offset, self.soft_offset, direction);
         if cmp < 0 {
             let mut ids = SmallIntSet::new();
-            ids.insert(index);
+            ids.insert(tile_gid);
             self.soft_offset = soft_offset;
             self.tile_ids = ids;
         } else if cmp == 0 {
-            self.tile_ids.insert(index);
+            self.tile_ids.insert(tile_gid);
         }
     }
 }

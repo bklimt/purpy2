@@ -14,8 +14,8 @@ use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::soundmanager::{Sound, SoundManager};
 use crate::sprite::SpriteSheet;
 use crate::switchstate::SwitchState;
-use crate::tilemap::{ButtonType, ConveyorDirection, MapObject, Overflow};
-use crate::tileset::{TileIndex, TileSet};
+use crate::tilemap::TileIndex;
+use crate::tilemap::{ButtonType, ConveyorDirection, MapObject, Overflow, TileMap};
 use crate::utils::{sign, try_move_to_bounds, Direction, Point, Rect};
 
 pub enum PlatformType {
@@ -28,8 +28,8 @@ pub enum PlatformType {
 
 pub struct Platform {
     _id: i32,
-    tileset: Rc<TileSet>,
-    tile_id: TileIndex,
+    tilemap: Rc<TileMap>,
+    tile_gid: TileIndex,
     position: Rect,
     dx: i32,
     dy: i32,
@@ -39,11 +39,11 @@ pub struct Platform {
 }
 
 impl Platform {
-    fn new(obj: &MapObject, tileset: Rc<TileSet>, subtype: PlatformType) -> Result<Platform> {
+    fn new(obj: &MapObject, tilemap: Rc<TileMap>, subtype: PlatformType) -> Result<Platform> {
         Ok(Platform {
             _id: obj.id,
-            tileset: tileset,
-            tile_id: obj.gid.context("gid required for platforms")? as TileIndex - 1,
+            tilemap,
+            tile_gid: obj.gid.context("gid required for platforms")?,
             position: Rect {
                 x: obj.position.x * SUBPIXELS,
                 y: obj.position.y * SUBPIXELS,
@@ -86,11 +86,10 @@ impl Platform {
                     w: self.position.w,
                     h: self.position.h,
                 };
-                if let Some(anim) = self.tileset.animations.get(self.tile_id) {
+                if let Some(anim) = self.tilemap.get_animation(self.tile_gid) {
                     anim.blit(context, layer, dest, false);
                 } else {
-                    let src = self.tileset.get_source_rect(self.tile_id);
-                    context.draw(self.tileset.sprite, layer, dest, src);
+                    self.tilemap.draw_tile(context, self.tile_gid, layer, dest);
                 }
             }
         }
@@ -148,12 +147,12 @@ pub struct MovingPlatform {
 }
 
 impl MovingPlatform {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet>) -> Result<Platform> {
+    pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
         let (dist_mult, sx, sy) = match obj.properties.direction {
-            Direction::Up => (tileset.tileheight, 0, -1),
-            Direction::Down => (tileset.tileheight, 0, 1),
-            Direction::Left => (tileset.tilewidth, -1, 0),
-            Direction::Right => (tileset.tilewidth, 1, 0),
+            Direction::Up => (tilemap.tileheight, 0, -1),
+            Direction::Down => (tilemap.tileheight, 0, 1),
+            Direction::Left => (tilemap.tilewidth, -1, 0),
+            Direction::Right => (tilemap.tilewidth, 1, 0),
         };
 
         // This is 16 for historical reasons, just because that's what the speed is tuned for.
@@ -184,7 +183,7 @@ impl MovingPlatform {
         };
         Ok(Platform::new(
             obj,
-            tileset,
+            tilemap,
             PlatformType::MovingPlatform(moving_platform),
         )?)
     }
@@ -300,14 +299,14 @@ pub struct Bagel {
 }
 
 impl Bagel {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet>) -> Result<Platform> {
+    pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
         let original_y = obj.position.y * SUBPIXELS;
         let bagel = Bagel {
             original_y,
             falling: false,
             remaining: BAGEL_WAIT_TIME,
         };
-        Ok(Platform::new(obj, tileset, PlatformType::Bagel(bagel))?)
+        Ok(Platform::new(obj, tilemap, PlatformType::Bagel(bagel))?)
     }
 
     fn draw(
@@ -319,18 +318,17 @@ impl Bagel {
     ) {
         let mut x = base.position.x + offset.x;
         let mut y = base.position.y + offset.y;
-        let area = base.tileset.get_source_rect(base.tile_id);
         if base.occupied {
             x += (random::<u8>() % 3) as i32 - 1;
             y += (random::<u8>() % 3) as i32 - 1;
         }
-        let rect = Rect {
+        let dest = Rect {
             x,
             y,
-            w: area.w * SUBPIXELS,
-            h: area.h * SUBPIXELS,
+            w: base.tilemap.tilewidth * SUBPIXELS,
+            h: base.tilemap.tileheight * SUBPIXELS,
         };
-        context.draw(base.tileset.sprite, layer, rect, area);
+        base.tilemap.draw_tile(context, base.tile_gid, layer, dest);
     }
 
     fn update(&mut self, base: &mut Platform, _switches: &mut SwitchState, _sounds: &SoundManager) {
@@ -364,7 +362,7 @@ impl Bagel {
 pub struct Conveyor(());
 
 impl Conveyor {
-    pub fn new<'b>(obj: &MapObject, tileset: Rc<TileSet>) -> Result<Platform> {
+    pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
         // This is hand-tuned.
         let speed = (obj.properties.speed.unwrap_or(24) * SUBPIXELS) / 16;
         let dx = match obj
@@ -376,7 +374,7 @@ impl Conveyor {
             ConveyorDirection::Right => speed,
         };
 
-        let mut base = Platform::new(obj, tileset, PlatformType::Conveyor(Conveyor(())))?;
+        let mut base = Platform::new(obj, tilemap, PlatformType::Conveyor(Conveyor(())))?;
         base.dx = dx;
         Ok(base)
     }
@@ -393,7 +391,7 @@ pub struct Spring {
 impl Spring {
     pub fn new(
         obj: &MapObject,
-        tileset: Rc<TileSet>,
+        tileset: Rc<TileMap>,
         images: &mut dyn ImageLoader,
     ) -> Result<Platform> {
         let path = Path::new("assets/sprites/spring.png");
@@ -523,7 +521,7 @@ fn get_button_image_path(color: &str) -> String {
 impl<'a> Button {
     pub fn new(
         obj: &MapObject,
-        tileset: Rc<TileSet>,
+        tileset: Rc<TileMap>,
         images: &mut dyn ImageLoader,
     ) -> Result<Platform> {
         let level = 0;

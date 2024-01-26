@@ -1,5 +1,6 @@
 use std::mem;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use anyhow::{Context, Result};
 use log::{info, log_enabled};
@@ -24,8 +25,8 @@ use crate::smallintset::SmallIntSet;
 use crate::soundmanager::{Sound, SoundManager};
 use crate::star::Star;
 use crate::switchstate::SwitchState;
-use crate::tilemap::TileMap;
-use crate::tileset::{TileIndex, TileProperties};
+use crate::tilemap::{TileIndex, TileMap};
+use crate::tileset::TileProperties;
 use crate::utils::{cmp_in_direction, Color, Direction, Point, Rect};
 
 struct PlatformIntersectionResult {
@@ -78,7 +79,7 @@ struct PlayerMovementResult {
 pub struct Level {
     _name: String,
     map_path: PathBuf,
-    map: TileMap,
+    map: Rc<TileMap>,
     player: Player,
 
     wall_stick_counter: i32,
@@ -101,9 +102,9 @@ pub struct Level {
 
     star_count: i32,
     current_platform: Option<usize>,
-    current_slopes: SmallIntSet<usize>,
+    current_slopes: SmallIntSet<TileIndex>,
     switches: SwitchState,
-    current_switch_tiles: SmallIntSet<usize>,
+    current_switch_tiles: SmallIntSet<TileIndex>,
     current_door: Option<usize>,
 
     previous_transition: String,
@@ -137,7 +138,7 @@ impl Level {
             .to_string();
         let toast_text = name.clone();
         let previous_map_offset = None;
-        let map = TileMap::from_file(map_path, images)?;
+        let map = Rc::new(TileMap::from_file(map_path, images)?);
         let mut player = Player::new(images)?;
         player.x = (128 * SUBPIXELS) / 16;
         player.y = (129 * SUBPIXELS) / 16;
@@ -155,25 +156,25 @@ impl Level {
 
         for obj in map.objects.iter() {
             if obj.properties.platform {
-                platforms.push(MovingPlatform::new(obj, map.tileset.clone())?);
+                platforms.push(MovingPlatform::new(obj, map.clone())?);
             }
             if obj.properties.bagel {
-                platforms.push(Bagel::new(obj, map.tileset.clone())?);
+                platforms.push(Bagel::new(obj, map.clone())?);
             }
             if obj.properties.convey.is_some() {
-                platforms.push(Conveyor::new(obj, map.tileset.clone())?);
+                platforms.push(Conveyor::new(obj, map.clone())?);
             }
             if obj.properties.spring {
-                platforms.push(Spring::new(obj, map.tileset.clone(), images)?);
+                platforms.push(Spring::new(obj, map.clone(), images)?);
             }
             if obj.properties.button {
-                platforms.push(Button::new(obj, map.tileset.clone(), images)?);
+                platforms.push(Button::new(obj, map.clone(), images)?);
             }
             if obj.properties.door {
                 doors.push(Door::new(obj, images)?);
             }
             if obj.properties.star {
-                stars.push(Star::new(obj, map.tileset.clone())?);
+                stars.push(Star::new(obj, map.clone())?);
             }
         }
 
@@ -461,11 +462,7 @@ impl Level {
     fn get_slope_dy(&self) -> i32 {
         let mut slope_fall = 0;
         for slope_id in self.current_slopes.iter() {
-            let slope = self
-                .map
-                .tileset
-                .get_slope(*slope_id)
-                .expect("must be valid");
+            let slope = self.map.get_slope(*slope_id).expect("must be valid");
             let left_y = slope.left_y;
             let right_y = slope.right_y;
             let mut fall: i32 = 0;
@@ -538,8 +535,7 @@ impl Level {
     fn handle_slopes(&mut self, tiles: &SmallIntSet<TileIndex>) {
         self.current_slopes.clear();
         for tile_id in tiles.iter() {
-            if let Some(TileProperties { slope: true, .. }) =
-                self.map.tileset.get_tile_properties(*tile_id)
+            if let Some(TileProperties { slope: true, .. }) = self.map.get_tile_properties(*tile_id)
             {
                 self.current_slopes.insert(*tile_id);
             }
@@ -549,7 +545,7 @@ impl Level {
     fn handle_spikes(&mut self, tiles: &SmallIntSet<TileIndex>) {
         for tile_id in tiles.iter() {
             if let Some(TileProperties { deadly: true, .. }) =
-                self.map.tileset.get_tile_properties(*tile_id)
+                self.map.get_tile_properties(*tile_id)
             {
                 self.player.is_dead = true;
             }
@@ -578,7 +574,7 @@ impl Level {
             let Some(TileProperties {
                 switch: Some(switch),
                 ..
-            }) = self.map.tileset.get_tile_properties(*t)
+            }) = self.map.get_tile_properties(*t)
             else {
                 continue;
             };
