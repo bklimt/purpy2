@@ -87,7 +87,7 @@ struct Point<T> {
 
 impl<T> Point<T> {
     #[inline]
-    fn new(x: T, y: T) -> Self {
+    pub fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 }
@@ -140,6 +140,101 @@ where
         Point::new(self.x * rhs, self.y * rhs)
     }
 }
+
+// Rect
+
+#[derive(Debug, Clone, Copy)]
+struct Rect<T> {
+    pub x: T,
+    pub y: T,
+    pub w: T,
+    pub h: T,
+}
+
+impl<T> Rect<T>
+where
+    T: ops::Add<T, Output = T>,
+{
+    #[inline]
+    pub fn new(x: T, y: T, w: T, h: T) -> Self {
+        Self { x, y, w, h }
+    }
+
+    #[inline]
+    pub fn top(self) -> T {
+        self.y
+    }
+    #[inline]
+    pub fn left(self) -> T {
+        self.x
+    }
+    #[inline]
+    pub fn right(self) -> T {
+        self.x + self.w
+    }
+    #[inline]
+    pub fn bottom(self) -> T {
+        self.y + self.h
+    }
+}
+
+impl<T> ops::Add<Point<T>> for Rect<T>
+where
+    T: ops::Add<T, Output = T>,
+{
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: Point<T>) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            w: self.w,
+            h: self.h,
+        }
+    }
+}
+
+impl Rect<Subpixels> {
+    #[inline]
+    fn as_pixels(&self) -> Rect<Pixels> {
+        Rect {
+            x: self.x.as_pixels(),
+            y: self.y.as_pixels(),
+            w: self.w.as_pixels(),
+            h: self.h.as_pixels(),
+        }
+    }
+}
+
+impl From<Rect<Pixels>> for Rect<Subpixels> {
+    #[inline]
+    fn from(value: Rect<Pixels>) -> Self {
+        Self {
+            x: value.x.into(),
+            y: value.y.into(),
+            w: value.w.into(),
+            h: value.h.into(),
+        }
+    }
+}
+
+/*
+// TODO: Implement these as needed.
+
+impl<T> Into<sdl2::rect::Rect> for Rect<T> {
+    #[inline]
+    fn into(self) -> sdl2::rect::Rect {
+        sdl2::rect::Rect::new(self.x, self.y, self.w as u32, self.h as u32)
+    }
+}
+
+impl<T> Into<Option<sdl2::rect::Rect>> for Rect<T> {
+    fn into(self) -> Option<sdl2::rect::Rect> {
+        Some(self.into())
+    }
+}
+*/
 
 #[cfg(test)]
 mod tests {
@@ -221,5 +316,49 @@ mod tests {
         let point2 = point1 * 5;
         assert_eq!(point2.x, 160.into());
         assert_eq!(point2.y, 320.into());
+    }
+
+    #[test]
+    fn rect_getters() {
+        let r = Rect::new(10, 20, 3, 4);
+        assert_eq!(r.x, 10);
+        assert_eq!(r.y, 20);
+        assert_eq!(r.w, 3);
+        assert_eq!(r.h, 4);
+        assert_eq!(r.left(), 10);
+        assert_eq!(r.top(), 20);
+        assert_eq!(r.right(), 13);
+        assert_eq!(r.bottom(), 24);
+    }
+
+    #[test]
+    fn rect_add_point() {
+        let r = Rect::new(10, 20, 3, 4);
+        let p = Point::new(100, 200);
+        let r = r + p;
+        assert_eq!(r.x, 110);
+        assert_eq!(r.y, 220);
+        assert_eq!(r.w, 3);
+        assert_eq!(r.h, 4);
+        assert_eq!(r.left(), 110);
+        assert_eq!(r.top(), 220);
+        assert_eq!(r.right(), 113);
+        assert_eq!(r.bottom(), 224);
+    }
+
+    #[test]
+    fn rect_pixels_to_subpixels() {
+        let r: Rect<Pixels> = Rect::new(1.into(), 2.into(), 3.into(), 4.into());
+        let r: Rect<Subpixels> = r.into();
+        assert_eq!(r.x, Subpixels(32));
+        assert_eq!(r.y, Subpixels(64));
+        assert_eq!(r.w, Subpixels(96));
+        assert_eq!(r.h, Subpixels(128));
+
+        let r = r.as_pixels();
+        assert_eq!(r.x, Pixels(1));
+        assert_eq!(r.y, Pixels(2));
+        assert_eq!(r.w, Pixels(3));
+        assert_eq!(r.h, Pixels(4));
     }
 }
