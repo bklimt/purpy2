@@ -878,6 +878,16 @@ impl TileMap {
                         continue;
                     }
 
+                    let tile_bounds = if let Some(props) = self.get_tile_properties(tile_gid) {
+                        Rect {
+                            x: tile_bounds.x + props.hitbox_left * SUBPIXELS,
+                            y: tile_bounds.y + props.hitbox_top * SUBPIXELS,
+                            w: tile_bounds.w - (props.hitbox_left + props.hitbox_right) * SUBPIXELS,
+                            h: tile_bounds.h - (props.hitbox_top + props.hitbox_bottom) * SUBPIXELS,
+                        }
+                    } else {
+                        tile_bounds
+                    };
                     let soft_offset = try_move_to_bounds(player_rect, tile_bounds, direction);
                     let mut hard_offset = soft_offset;
 
