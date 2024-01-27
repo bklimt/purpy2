@@ -430,7 +430,7 @@ impl MapObject {
 }
 
 struct TileSetList {
-    tilesets: Vec<(TileIndex, TileSet)>,
+    tilesets: Vec<TileSet>,
 }
 
 impl TileSetList {
@@ -440,19 +440,15 @@ impl TileSetList {
         }
     }
 
-    fn add(&mut self, firstgid: TileIndex, tileset: TileSet) {
-        self.tilesets.push((firstgid, tileset));
-        self.tilesets.sort_by_key(|(firstgid, _)| firstgid.0);
-        self.tilesets.reverse();
+    fn add(&mut self, tileset: TileSet) {
+        self.tilesets.push(tileset);
+        self.tilesets.sort_by_key(|tileset| tileset.gid_sort_key());
     }
 
     fn lookup(&self, tile_gid: TileIndex) -> (&TileSet, LocalTileIndex) {
-        for (firstgid, tileset) in self.tilesets.iter() {
-            let firstgid = *firstgid;
-            let firstgid: usize = firstgid.into();
-            let tile_gid: usize = tile_gid.into();
-            if tile_gid >= firstgid {
-                return (tileset, (tile_gid - firstgid).into());
+        for tileset in self.tilesets.iter() {
+            if let Some(tile_id) = tileset.get_local_tile_index(tile_gid) {
+                return (tileset, tile_id);
             }
         }
         panic!("invalid tile_gid {:?}", tile_gid);
@@ -499,8 +495,8 @@ impl TileMap {
                     .parent()
                     .context("cannot load root as map")?
                     .join(tileset.source.clone());
-                let tileset = TileSet::from_file(&tileset_path, images)?;
-                tilesets.add(firstgid, tileset);
+                let tileset = TileSet::from_file(&tileset_path, firstgid, images)?;
+                tilesets.add(tileset);
             }
         }
         if tilesets.tilesets.len() == 0 {
@@ -854,12 +850,11 @@ impl TileMap {
                     if !layer.player && self.player_layer.is_some() {
                         continue;
                     }
-                    let index = layer[(row as usize, col as usize)];
-                    if index.0 == 0 {
+                    let mut tile_gid = layer[(row as usize, col as usize)];
+                    if tile_gid.0 == 0 {
                         continue;
                     }
-                    let tile_gid = index;
-                    let (tileset, mut tile_id) = self.tilesets.lookup(index);
+                    let (tileset, mut tile_id) = self.tilesets.lookup(tile_gid);
                     if !self.is_condition_met(tile_gid, switches) {
                         let Some(TileProperties {
                             alternate: Some(alt),
@@ -870,6 +865,7 @@ impl TileMap {
                         };
                         // Use an alt tile instead of the original.
                         tile_id = *alt;
+                        tile_gid = tileset.get_global_tile_index(tile_id);
                     }
                     let solid = self
                         .get_tile_properties(tile_gid)

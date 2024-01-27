@@ -12,6 +12,7 @@ use crate::properties::{PropertiesXml, PropertyMap};
 use crate::slope::Slope;
 use crate::smallintmap::SmallIntMap;
 use crate::sprite::{Animation, Sprite};
+use crate::tilemap::TileIndex;
 use crate::utils::Rect;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -145,6 +146,7 @@ impl TryFrom<PropertyMap> for TileSetProperties {
 
 pub struct TileSet {
     _name: String,
+    firstgid: TileIndex,
     pub tilewidth: i32,
     pub tileheight: i32,
     tilecount: i32,
@@ -157,15 +159,24 @@ pub struct TileSet {
 }
 
 impl TileSet {
-    pub fn from_file(path: &Path, images: &mut dyn ImageLoader) -> Result<TileSet> {
+    pub fn from_file(
+        path: &Path,
+        firstgid: TileIndex,
+        images: &mut dyn ImageLoader,
+    ) -> Result<TileSet> {
         info!("loading tileset from {:?}", path);
         let text =
             fs::read_to_string(path).map_err(|e| anyhow!("unable to open {:?}: {}", path, e))?;
         let xml = quick_xml::de::from_str::<TileSetXml>(&text)?;
-        Self::from_xml(xml, path, images)
+        Self::from_xml(xml, path, firstgid, images)
     }
 
-    fn from_xml(xml: TileSetXml, path: &Path, images: &mut dyn ImageLoader) -> Result<TileSet> {
+    fn from_xml(
+        xml: TileSetXml,
+        path: &Path,
+        firstgid: TileIndex,
+        images: &mut dyn ImageLoader,
+    ) -> Result<TileSet> {
         let name = xml.name;
         let tilewidth = xml.tilewidth;
         let tileheight = xml.tileheight;
@@ -218,6 +229,7 @@ impl TileSet {
 
         Ok(TileSet {
             _name: name,
+            firstgid,
             tilewidth,
             tileheight,
             tilecount,
@@ -228,6 +240,28 @@ impl TileSet {
             properties,
             tile_properties,
         })
+    }
+
+    pub fn get_local_tile_index(&self, tile_gid: TileIndex) -> Option<LocalTileIndex> {
+        let tile_gid: usize = tile_gid.into();
+        let firstgid: usize = self.firstgid.into();
+        if tile_gid >= firstgid {
+            Some((tile_gid - firstgid).into())
+        } else {
+            None
+        }
+    }
+
+    pub fn get_global_tile_index(&self, tile_id: LocalTileIndex) -> TileIndex {
+        let tile_id: usize = tile_id.into();
+        let firstgid: usize = self.firstgid.into();
+        (firstgid + tile_id).into()
+    }
+
+    pub fn gid_sort_key(&self) -> i32 {
+        let key: usize = self.firstgid.into();
+        let key = key as i32;
+        -key
     }
 
     pub fn get_slope(&self, tile_id: LocalTileIndex) -> Option<&Slope> {
