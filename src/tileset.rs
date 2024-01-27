@@ -1,5 +1,7 @@
 use std::fs;
+use std::num::ParseIntError;
 use std::path::Path;
+use std::str::FromStr;
 
 use anyhow::{anyhow, Context, Error, Result};
 use log::{debug, info};
@@ -10,9 +12,31 @@ use crate::properties::{PropertiesXml, PropertyMap};
 use crate::slope::Slope;
 use crate::smallintmap::SmallIntMap;
 use crate::sprite::{Animation, Sprite};
+use crate::tilemap::TileIndex;
 use crate::utils::Rect;
 
-pub type TileIndex = usize;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LocalTileIndex(usize);
+
+impl From<LocalTileIndex> for usize {
+    fn from(value: LocalTileIndex) -> Self {
+        value.0
+    }
+}
+
+impl From<usize> for LocalTileIndex {
+    fn from(value: usize) -> Self {
+        LocalTileIndex(value)
+    }
+}
+
+impl FromStr for LocalTileIndex {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(LocalTileIndex(s.parse::<usize>()?))
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct ImageXml {
@@ -27,7 +51,7 @@ struct ImageXml {
 #[derive(Debug, Deserialize)]
 struct TileXml {
     #[serde(rename = "@id")]
-    id: TileIndex,
+    id: usize,
 
     properties: PropertiesXml,
 }
@@ -73,7 +97,7 @@ pub struct TileSetXml {
 
 pub struct TileProperties {
     pub solid: bool,
-    pub alternate: Option<TileIndex>,
+    pub alternate: Option<LocalTileIndex>,
     pub condition: Option<String>,
     pub oneway: Option<String>,
     pub slope: bool,
@@ -91,7 +115,9 @@ impl TryFrom<PropertyMap> for TileProperties {
     fn try_from(value: PropertyMap) -> Result<Self, Self::Error> {
         Ok(TileProperties {
             solid: value.get_bool("solid")?.unwrap_or(true),
-            alternate: value.get_int("alternate")?.map(|x| x as TileIndex),
+            alternate: value
+                .get_int("alternate")?
+                .map(|x| LocalTileIndex(x as usize)),
             condition: value.get_string("condition")?.map(str::to_string),
             oneway: value.get_string("oneway")?.map(str::to_string),
             slope: value.get_bool("slope")?.unwrap_or(false),
@@ -120,27 +146,37 @@ impl TryFrom<PropertyMap> for TileSetProperties {
 
 pub struct TileSet {
     _name: String,
+    firstgid: TileIndex,
     pub tilewidth: i32,
     pub tileheight: i32,
     tilecount: i32,
     columns: i32,
     pub sprite: Sprite,
-    slopes: SmallIntMap<TileIndex, Slope>,
-    pub animations: SmallIntMap<TileIndex, Animation>,
+    slopes: SmallIntMap<LocalTileIndex, Slope>,
+    pub animations: SmallIntMap<LocalTileIndex, Animation>,
     pub properties: TileSetProperties,
-    tile_properties: SmallIntMap<TileIndex, TileProperties>,
+    tile_properties: SmallIntMap<LocalTileIndex, TileProperties>,
 }
 
 impl TileSet {
-    pub fn from_file(path: &Path, images: &mut dyn ImageLoader) -> Result<TileSet> {
+    pub fn from_file(
+        path: &Path,
+        firstgid: TileIndex,
+        images: &mut dyn ImageLoader,
+    ) -> Result<TileSet> {
         info!("loading tileset from {:?}", path);
         let text =
             fs::read_to_string(path).map_err(|e| anyhow!("unable to open {:?}: {}", path, e))?;
         let xml = quick_xml::de::from_str::<TileSetXml>(&text)?;
-        Self::from_xml(xml, path, images)
+        Self::from_xml(xml, path, firstgid, images)
     }
 
-    fn from_xml(xml: TileSetXml, path: &Path, images: &mut dyn ImageLoader) -> Result<TileSet> {
+    fn from_xml(
+        xml: TileSetXml,
+        path: &Path,
+        firstgid: TileIndex,
+        images: &mut dyn ImageLoader,
+    ) -> Result<TileSet> {
         let name = xml.name;
         let tilewidth = xml.tilewidth;
         let tileheight = xml.tileheight;
@@ -165,7 +201,7 @@ impl TileSet {
                     properties = props_xml.try_into()?;
                 }
                 TileSetXmlField::Tile(tile_xml) => {
-                    let id = tile_xml.id;
+                    let id = LocalTileIndex(tile_xml.id);
                     let props: PropertyMap = tile_xml.properties.try_into()?;
                     let props: TileProperties = props.try_into()?;
                     if props.slope {
@@ -193,6 +229,7 @@ impl TileSet {
 
         Ok(TileSet {
             _name: name,
+            firstgid,
             tilewidth,
             tileheight,
             tilecount,
@@ -205,7 +242,29 @@ impl TileSet {
         })
     }
 
-    pub fn get_slope(&self, tile_id: TileIndex) -> Option<&Slope> {
+    pub fn get_local_tile_index(&self, tile_gid: TileIndex) -> Option<LocalTileIndex> {
+        let tile_gid: usize = tile_gid.into();
+        let firstgid: usize = self.firstgid.into();
+        if tile_gid >= firstgid {
+            Some((tile_gid - firstgid).into())
+        } else {
+            None
+        }
+    }
+
+    pub fn get_global_tile_index(&self, tile_id: LocalTileIndex) -> TileIndex {
+        let tile_id: usize = tile_id.into();
+        let firstgid: usize = self.firstgid.into();
+        (firstgid + tile_id).into()
+    }
+
+    pub fn gid_sort_key(&self) -> i32 {
+        let key: usize = self.firstgid.into();
+        let key = key as i32;
+        -key
+    }
+
+    pub fn get_slope(&self, tile_id: LocalTileIndex) -> Option<&Slope> {
         self.slopes.get(tile_id)
     }
 
@@ -213,8 +272,8 @@ impl TileSet {
         (self.tilecount as f32 / self.columns as f32).ceil() as i32
     }
 
-    pub fn get_source_rect(&self, index: TileIndex) -> Rect {
-        let index = index as i32;
+    pub fn get_source_rect(&self, index: LocalTileIndex) -> Rect {
+        let index = index.0 as i32;
         if index < 0 || index > self.tilecount {
             panic!("index out of range");
         }
@@ -230,16 +289,16 @@ impl TileSet {
         }
     }
 
-    pub fn get_tile_properties(&self, tile_id: TileIndex) -> Option<&TileProperties> {
+    pub fn get_tile_properties(&self, tile_id: LocalTileIndex) -> Option<&TileProperties> {
         self.tile_properties.get(tile_id)
     }
 }
 
-// Loads a directory of animations to replace tiles. """
+// Loads a directory of animations to replace tiles.
 fn load_tile_animations(
     path: &Path,
     images: &mut dyn ImageLoader,
-    animations: &mut SmallIntMap<TileIndex, Animation>,
+    animations: &mut SmallIntMap<LocalTileIndex, Animation>,
 ) -> Result<()> {
     info!("loading tile animations from {:?}", path);
     let files = fs::read_dir(path)?;
@@ -257,7 +316,7 @@ fn load_tile_animations(
             debug!("skipping non-file {:?}", file);
             continue;
         }
-        let tile_id = filename[..filename.len() - 4].parse::<TileIndex>()?;
+        let tile_id = filename[..filename.len() - 4].parse::<LocalTileIndex>()?;
         info!(
             "loading animation for tile {:?} from {:?}",
             tile_id,

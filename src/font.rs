@@ -4,7 +4,8 @@ use std::path::Path;
 use crate::constants::SUBPIXELS;
 use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
-use crate::tileset::{TileIndex, TileSet};
+use crate::tilemap::TileIndex;
+use crate::tileset::TileSet;
 use crate::utils::{Point, Rect};
 
 pub struct Font {
@@ -15,8 +16,10 @@ pub struct Font {
 
 impl Font {
     pub fn new(path: &Path, images: &mut dyn ImageLoader) -> Result<Font> {
+        // It doesn't actually matter what the global id is, since there is no map.
+        let firstgid: TileIndex = 0.into();
         Ok(Font {
-            tileset: TileSet::from_file(path, images)?,
+            tileset: TileSet::from_file(path, firstgid, images)?,
             char_width: 8 * SUBPIXELS,
             char_height: 8 * SUBPIXELS,
         })
@@ -31,7 +34,7 @@ impl Font {
     ) {
         let mut pos = pos;
         for c in s.chars() {
-            let c = (c as u32).min(127) as TileIndex;
+            let c = (c as usize).min(127).into();
             let area = self.tileset.get_source_rect(c);
             let dest = Rect {
                 x: pos.x(),
