@@ -106,8 +106,8 @@ impl Door {
         let dest = Rect {
             x: pos.x,
             y: pos.y,
-            w: Pixels::new(32).as_subpixels(),
-            h: Pixels::new(32).as_subpixels(),
+            w: Subpixels::from_pixels(32),
+            h: Subpixels::from_pixels(32),
         };
         let door_layer = if self.active {
             DoorLayer::Active
@@ -148,8 +148,8 @@ impl Door {
         let dest = Rect {
             x: pos.x,
             y: pos.y,
-            w: Pixels::new(32).as_subpixels(),
-            h: Pixels::new(32).as_subpixels(),
+            w: Subpixels::from_pixels(32),
+            h: Subpixels::from_pixels(32),
         };
         if let Some(door_index) = match self.state {
             DoorState::Closing => Some(self.frame / DOOR_SPEED),

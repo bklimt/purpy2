@@ -2,7 +2,7 @@ use anyhow::Result;
 use num_traits::Zero;
 use std::path::Path;
 
-use crate::geometry::{Pixels, Point, Rect, Subpixels};
+use crate::geometry::{Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::tilemap::TileIndex;
@@ -20,8 +20,8 @@ impl Font {
         let firstgid: TileIndex = 0.into();
         Ok(Font {
             tileset: TileSet::from_file(path, firstgid, images)?,
-            char_width: Pixels::new(8).as_subpixels(),
-            char_height: Pixels::new(8).as_subpixels(),
+            char_width: Subpixels::from_pixels(8),
+            char_height: Subpixels::from_pixels(8),
         })
     }
 
