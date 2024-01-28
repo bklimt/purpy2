@@ -1,9 +1,10 @@
+use std::cmp::Ordering;
 use std::num::ParseIntError;
 use std::ops::{Index, IndexMut};
 use std::str::FromStr;
 use std::{fs, path::Path};
 
-use crate::constants::SUBPIXELS;
+use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::rendercontext::{RenderContext, RenderLayer};
@@ -12,12 +13,11 @@ use crate::smallintset::SmallIntSet;
 use crate::sprite::{Animation, Sprite};
 use crate::switchstate::SwitchState;
 use crate::tileset::{LocalTileIndex, TileProperties, TileSet};
-use crate::utils::{
-    cmp_in_direction, intersect, try_move_to_bounds, Color, Direction, Point, Rect,
-};
+use crate::utils::{cmp_in_direction, try_move_to_bounds, Color, Direction};
 
 use anyhow::{anyhow, bail, Context, Result};
 use log::info;
+use num_traits::Zero;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -323,11 +323,11 @@ pub struct MapObjectProperties {
     // Tiles
     pub solid: bool,
     // Map Areas
-    pub preferred_x: Option<i32>,
-    pub preferred_y: Option<i32>,
+    pub preferred_x: Option<Pixels>,
+    pub preferred_y: Option<Pixels>,
     // Platforms
     pub distance: i32,
-    pub speed: Option<i32>,
+    pub speed: Option<Pixels>,
     pub condition: Option<String>,
     pub overflow: Overflow,
     pub direction: Direction,
@@ -353,10 +353,10 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
             door: properties.get_bool("door")?.unwrap_or(false),
             star: properties.get_bool("star")?.unwrap_or(false),
             solid: properties.get_bool("solid")?.unwrap_or(false),
-            preferred_x: properties.get_int("preferred_x")?,
-            preferred_y: properties.get_int("preferred_y")?,
+            preferred_x: properties.get_int("preferred_x")?.map(|x| Pixels::new(x)),
+            preferred_y: properties.get_int("preferred_y")?.map(|y| Pixels::new(y)),
             distance: properties.get_int("distance")?.unwrap_or(0),
-            speed: properties.get_int("speed")?,
+            speed: properties.get_int("speed")?.map(|d| Pixels::new(d)),
             condition: properties.get_string("condition")?.map(str::to_string),
             overflow: properties
                 .get_string("overflow")?
@@ -383,7 +383,7 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
 pub struct MapObject {
     pub id: i32,
     pub gid: Option<TileIndex>,
-    pub position: Rect,
+    pub position: Rect<Pixels>,
     pub properties: MapObjectProperties,
 }
 
@@ -411,12 +411,11 @@ impl MapObject {
             y -= height;
         }
 
-        let position = Rect {
-            x,
-            y,
-            w: width,
-            h: height,
-        };
+        let x = Pixels::new(x);
+        let y = Pixels::new(y);
+        let w = Pixels::new(width);
+        let h = Pixels::new(height);
+        let position = Rect { x, y, w, h };
 
         let properties = properties.try_into()?;
 
@@ -458,8 +457,8 @@ impl TileSetList {
 pub struct TileMap {
     pub width: i32,
     pub height: i32,
-    pub tilewidth: i32,
-    pub tileheight: i32,
+    pub tilewidth: Pixels,
+    pub tileheight: Pixels,
     backgroundcolor: Color,
     tilesets: TileSetList,
     layers: Vec<Layer>,
@@ -480,8 +479,8 @@ impl TileMap {
     fn from_xml(xml: TileMapXml, path: &Path, images: &mut dyn ImageLoader) -> Result<TileMap> {
         let width = xml.width;
         let height = xml.height;
-        let tilewidth: i32 = xml.tilewidth;
-        let tileheight: i32 = xml.tileheight;
+        let tilewidth = Pixels::new(xml.tilewidth);
+        let tileheight = Pixels::new(xml.tileheight);
         let backgroundcolor = xml.backgroundcolor.parse().context(format!(
             "parsing background color {:?}",
             &xml.backgroundcolor
@@ -567,20 +566,20 @@ impl TileMap {
         layer: &ImageLayer,
         context: &mut RenderContext,
         render_layer: RenderLayer,
-        _dest: Rect,
-        offset: Point,
+        _dest: Rect<Subpixels>,
+        offset: Point<Subpixels>,
     ) {
         let dest = Rect {
-            x: offset.x(),
-            y: offset.y(),
-            w: layer.surface.width as i32 * SUBPIXELS,
-            h: layer.surface.height as i32 * SUBPIXELS,
+            x: offset.x,
+            y: offset.y,
+            w: layer.surface.area.w.as_subpixels(),
+            h: layer.surface.area.h.as_subpixels(),
         };
         let source = Rect {
-            x: 0,
-            y: 0,
-            w: layer.surface.width as i32,
-            h: layer.surface.height as i32,
+            x: Pixels::zero(),
+            y: Pixels::zero(),
+            w: layer.surface.area.w,
+            h: layer.surface.area.h,
         };
         context.draw(layer.surface, render_layer, dest, source);
     }
@@ -590,21 +589,29 @@ impl TileMap {
         layer: &TileLayer,
         context: &mut RenderContext,
         render_layer: RenderLayer,
-        dest: Rect,
-        offset: Point,
+        dest: Rect<Subpixels>,
+        offset: Point<Subpixels>,
         switches: &SwitchState,
     ) {
-        let offset_x = offset.x();
-        let offset_y = offset.y();
-        let tileheight = self.tileheight * SUBPIXELS;
-        let tilewidth = self.tilewidth * SUBPIXELS;
-        let row_count = (dest.h as f32 / tileheight as f32).ceil() as i32 + 1;
-        let col_count = (dest.w as f32 / tilewidth as f32).ceil() as i32 + 1;
+        let one_subpixel = Subpixels::new(1);
 
-        let start_row = (offset_y / -tileheight).max(0);
+        let offset_x = offset.x;
+        let offset_y = offset.y;
+        let tileheight: Subpixels = self.tileheight.as_subpixels();
+        let tilewidth: Subpixels = self.tilewidth.as_subpixels();
+
+        let dest_h = (dest.h / one_subpixel) as f32;
+        let dest_w = (dest.w / one_subpixel) as f32;
+        let tileheight_f = (tileheight / one_subpixel) as f32;
+        let tilewidth_f = (tilewidth / one_subpixel) as f32;
+
+        let row_count = (dest_h / tileheight_f).ceil() as i32 + 1;
+        let col_count = (dest_w / tilewidth_f).ceil() as i32 + 1;
+
+        let start_row = (-1 * (offset_y / tileheight)).max(0);
         let end_row = (start_row + row_count).min(self.height);
 
-        let start_col = (offset_x / -tilewidth).max(0);
+        let start_col = (-1 * (offset_x / tilewidth)).max(0);
         let end_col = (start_col + col_count).min(self.width);
 
         for row in start_row..end_row {
@@ -636,39 +643,39 @@ impl TileMap {
                 };
 
                 let mut source = tileset.get_source_rect(tile_id);
-                let mut pos_x = col * tilewidth + dest.x + offset_x;
-                let mut pos_y = row * tileheight + dest.y + offset_y;
+                let mut pos_x = tilewidth * col + dest.x + offset_x;
+                let mut pos_y = tileheight * row + dest.y + offset_y;
 
                 // If it's off the top/left side, trim it.
                 if pos_x < dest.x {
-                    let extra = (dest.left() - pos_x) / SUBPIXELS;
+                    let extra = (dest.left() - pos_x).as_pixels();
                     source.x += extra;
                     source.w -= extra;
                     pos_x = dest.x;
                 }
                 if pos_y < dest.y {
-                    let extra = (dest.top() - pos_y) / SUBPIXELS;
+                    let extra = (dest.top() - pos_y).as_pixels();
                     source.y += extra;
                     source.h -= extra;
                     pos_y = dest.y;
                 }
-                if source.w <= 0 || source.h <= 0 {
+                if source.w <= Pixels::zero() || source.h <= Pixels::zero() {
                     continue;
                 }
 
                 // If it's off the right/bottom side, trim it.
-                let pos_right = pos_x + self.tilewidth;
+                let pos_right = pos_x + tilewidth;
                 if pos_right >= dest.right() {
-                    source.w -= pos_right - dest.right();
+                    source.w -= (pos_right - dest.right()).as_pixels();
                 }
-                if source.w <= 0 {
+                if source.w <= Pixels::zero() {
                     continue;
                 }
-                let pos_bottom = pos_y + self.tileheight;
+                let pos_bottom = pos_y + tileheight;
                 if pos_bottom >= dest.bottom() {
-                    source.h -= pos_bottom - dest.bottom();
+                    source.h -= (pos_bottom - dest.bottom()).as_pixels();
                 }
-                if source.h <= 0 {
+                if source.h <= Pixels::zero() {
                     continue;
                 }
 
@@ -678,8 +685,8 @@ impl TileMap {
                 let destination = Rect {
                     x: pos_x,
                     y: pos_y,
-                    w: source.w * SUBPIXELS,
-                    h: source.h * SUBPIXELS,
+                    w: source.w.as_subpixels(),
+                    h: source.h.as_subpixels(),
                 };
                 if let Some(animation) = self.get_animation(index) {
                     animation.blit(context, render_layer, destination, false);
@@ -695,8 +702,8 @@ impl TileMap {
         layer: &Layer,
         context: &mut RenderContext,
         render_layer: RenderLayer,
-        dest: Rect,
-        offset: Point,
+        dest: Rect<Subpixels>,
+        offset: Point<Subpixels>,
         switches: &SwitchState,
     ) {
         match layer {
@@ -713,8 +720,8 @@ impl TileMap {
         &self,
         context: &mut RenderContext,
         render_layer: RenderLayer,
-        dest: Rect,
-        offset: Point,
+        dest: Rect<Subpixels>,
+        offset: Point<Subpixels>,
         switches: &SwitchState,
     ) {
         context.fill_rect(dest.clone(), render_layer, self.backgroundcolor);
@@ -730,8 +737,8 @@ impl TileMap {
         &self,
         context: &mut RenderContext,
         render_layer: RenderLayer,
-        dest: Rect,
-        offset: Point,
+        dest: Rect<Subpixels>,
+        offset: Point<Subpixels>,
         switches: &SwitchState,
     ) {
         if self.player_layer.is_none() {
@@ -748,10 +755,10 @@ impl TileMap {
         }
     }
 
-    fn get_rect(&self, row: i32, col: i32) -> Rect {
+    fn get_rect(&self, row: i32, col: i32) -> Rect<Pixels> {
         Rect {
-            x: col * self.tilewidth,
-            y: row * self.tileheight,
+            x: self.tilewidth * col,
+            y: self.tileheight * row,
             w: self.tilewidth,
             h: self.tileheight,
         }
@@ -783,51 +790,51 @@ impl TileMap {
     // Returns the offset needed to account for the closest one.
     pub fn try_move_to(
         &self,
-        player_rect: Rect,
+        player_rect: Rect<Subpixels>,
         direction: Direction,
         switches: &SwitchState,
         is_backwards: bool,
     ) -> MoveResult {
         let mut result = MoveResult::new();
 
-        let right_edge = self.width * self.tilewidth * SUBPIXELS;
-        let bottom_edge = self.height * self.tileheight * SUBPIXELS;
+        let right_edge = (self.tilewidth * self.width).as_subpixels();
+        let bottom_edge = (self.tileheight * self.height).as_subpixels();
 
         match direction {
             Direction::Left => {
-                if player_rect.x < 0 {
-                    result.hard_offset = -player_rect.x;
+                if player_rect.x < Subpixels::zero() {
+                    result.hard_offset = player_rect.x * -1;
                     result.soft_offset = result.hard_offset;
                     return result;
                 }
             }
             Direction::Up => {
-                if player_rect.y < 0 {
-                    result.hard_offset = -player_rect.y;
+                if player_rect.y < Subpixels::zero() {
+                    result.hard_offset = player_rect.y * -1;
                     result.soft_offset = result.hard_offset;
                     return result;
                 }
             }
             Direction::Right => {
                 if player_rect.right() >= right_edge {
-                    result.hard_offset = (right_edge - player_rect.right()) - 1;
+                    result.hard_offset = (right_edge - player_rect.right()) - Subpixels::new(1);
                     result.soft_offset = result.hard_offset;
                     return result;
                 }
             }
             Direction::Down => {
                 if player_rect.bottom() >= bottom_edge {
-                    result.hard_offset = (bottom_edge - player_rect.bottom()) - 1;
+                    result.hard_offset = (bottom_edge - player_rect.bottom()) - Subpixels::new(1);
                     result.soft_offset = result.hard_offset;
                     return result;
                 }
             }
         }
 
-        let row1 = player_rect.top() / (self.tileheight * SUBPIXELS);
-        let col1 = player_rect.left() / (self.tilewidth * SUBPIXELS);
-        let row2 = player_rect.bottom() / (self.tileheight * SUBPIXELS);
-        let col2 = player_rect.right() / (self.tilewidth * SUBPIXELS);
+        let row1 = player_rect.top() / self.tileheight.as_subpixels();
+        let col1 = player_rect.left() / self.tilewidth.as_subpixels();
+        let row2 = player_rect.bottom() / self.tileheight.as_subpixels();
+        let col2 = player_rect.right() / self.tilewidth.as_subpixels();
 
         let row1 = row1.max(0);
         let col1 = col1.max(0);
@@ -837,12 +844,6 @@ impl TileMap {
         for row in row1..=row2 {
             for col in col1..=col2 {
                 let tile_rect = self.get_rect(row, col);
-                let tile_bounds = Rect {
-                    x: tile_rect.x * SUBPIXELS,
-                    y: tile_rect.y * SUBPIXELS,
-                    w: tile_rect.w * SUBPIXELS,
-                    h: tile_rect.h * SUBPIXELS,
-                };
                 for layer in self.layers.iter() {
                     let Layer::Tile(layer) = layer else {
                         continue;
@@ -878,16 +879,17 @@ impl TileMap {
                         continue;
                     }
 
-                    let tile_bounds = if let Some(props) = self.get_tile_properties(tile_gid) {
-                        Rect {
-                            x: tile_bounds.x + props.hitbox_left * SUBPIXELS,
-                            y: tile_bounds.y + props.hitbox_top * SUBPIXELS,
-                            w: tile_bounds.w - (props.hitbox_left + props.hitbox_right) * SUBPIXELS,
-                            h: tile_bounds.h - (props.hitbox_top + props.hitbox_bottom) * SUBPIXELS,
-                        }
-                    } else {
-                        tile_bounds
-                    };
+                    let mut tile_bounds: Rect<Subpixels> = tile_rect.into();
+                    if let Some(props) = self.get_tile_properties(tile_gid) {
+                        tile_bounds = Rect {
+                            x: tile_bounds.x + props.hitbox_left.as_subpixels(),
+                            y: tile_bounds.y + props.hitbox_top.as_subpixels(),
+                            w: tile_bounds.w
+                                - (props.hitbox_left + props.hitbox_right).as_subpixels(),
+                            h: tile_bounds.h
+                                - (props.hitbox_top + props.hitbox_bottom).as_subpixels(),
+                        };
+                    }
                     let soft_offset = try_move_to_bounds(player_rect, tile_bounds, direction);
                     let mut hard_offset = soft_offset;
 
@@ -902,27 +904,24 @@ impl TileMap {
         result
     }
 
-    pub fn get_preferred_view(&self, player_rect: Rect) -> (Option<i32>, Option<i32>) {
+    pub fn get_preferred_view(
+        &self,
+        player_rect: Rect<Subpixels>,
+    ) -> (Option<Subpixels>, Option<Subpixels>) {
         let mut preferred_x = None;
         let mut preferred_y = None;
         for obj in self.objects.iter() {
             if obj.gid.is_some() {
                 continue;
             }
-            let rect = Rect {
-                x: obj.position.x * SUBPIXELS,
-                y: obj.position.y * SUBPIXELS,
-                w: obj.position.w * SUBPIXELS,
-                h: obj.position.h * SUBPIXELS,
-            };
-            if !intersect(player_rect, rect) {
+            if !player_rect.intersects(obj.position.into()) {
                 continue;
             }
             if let Some(p_x) = obj.properties.preferred_x {
-                preferred_x = Some(p_x * SUBPIXELS);
+                preferred_x = Some(p_x.as_subpixels());
             }
             if let Some(p_y) = obj.properties.preferred_y {
-                preferred_y = Some(p_y * SUBPIXELS);
+                preferred_y = Some(p_y.as_subpixels());
             }
         }
         (preferred_x, preferred_y)
@@ -933,7 +932,7 @@ impl TileMap {
         context: &mut RenderContext,
         tile_gid: TileIndex,
         layer: RenderLayer,
-        dest: Rect,
+        dest: Rect<Subpixels>,
     ) {
         let (tileset, tile_id) = self.tilesets.lookup(tile_gid);
         let src = tileset.get_source_rect(tile_id);
@@ -963,8 +962,8 @@ impl TileMap {
  * wait until you're completely clear of the flat area before falling.
  */
 pub struct MoveResult {
-    pub hard_offset: i32,
-    pub soft_offset: i32,
+    pub hard_offset: Subpixels,
+    pub soft_offset: Subpixels,
     pub tile_ids: SmallIntSet<TileIndex>,
 }
 
@@ -972,9 +971,9 @@ impl MoveResult {
     fn new() -> MoveResult {
         MoveResult {
             // This is the offset that stops the player.
-            hard_offset: 0,
+            hard_offset: Subpixels::zero(),
             // This is the offset for being on a slope.
-            soft_offset: 0,
+            soft_offset: Subpixels::zero(),
             tile_ids: SmallIntSet::new(),
         }
     }
@@ -982,23 +981,26 @@ impl MoveResult {
     fn consider_tile(
         &mut self,
         tile_gid: TileIndex,
-        hard_offset: i32,
-        soft_offset: i32,
+        hard_offset: Subpixels,
+        soft_offset: Subpixels,
         direction: Direction,
     ) {
-        let cmp = cmp_in_direction(hard_offset, self.hard_offset, direction);
-        if cmp < 0 {
+        if matches!(
+            cmp_in_direction(hard_offset, self.hard_offset, direction),
+            Ordering::Less
+        ) {
             self.hard_offset = hard_offset;
         }
 
-        let cmp = cmp_in_direction(soft_offset, self.soft_offset, direction);
-        if cmp < 0 {
-            let mut ids = SmallIntSet::new();
-            ids.insert(tile_gid);
-            self.soft_offset = soft_offset;
-            self.tile_ids = ids;
-        } else if cmp == 0 {
-            self.tile_ids.insert(tile_gid);
+        match cmp_in_direction(soft_offset, self.soft_offset, direction) {
+            Ordering::Less => {
+                let mut ids = SmallIntSet::new();
+                ids.insert(tile_gid);
+                self.soft_offset = soft_offset;
+                self.tile_ids = ids;
+            }
+            Ordering::Equal => self.tile_ids.insert(tile_gid),
+            Ordering::Greater => {}
         }
     }
 }

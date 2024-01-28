@@ -7,13 +7,13 @@ use anyhow::{anyhow, Context, Error, Result};
 use log::{debug, info};
 use serde::Deserialize;
 
+use crate::geometry::{Pixels, Rect};
 use crate::imagemanager::ImageLoader;
 use crate::properties::{PropertiesXml, PropertyMap};
 use crate::slope::Slope;
 use crate::smallintmap::SmallIntMap;
 use crate::sprite::{Animation, Sprite};
 use crate::tilemap::TileIndex;
-use crate::utils::Rect;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LocalTileIndex(usize);
@@ -101,12 +101,12 @@ pub struct TileProperties {
     pub condition: Option<String>,
     pub oneway: Option<String>,
     pub slope: bool,
-    pub left_y: i32,
-    pub right_y: i32,
-    pub hitbox_top: i32,
-    pub hitbox_left: i32,
-    pub hitbox_right: i32,
-    pub hitbox_bottom: i32,
+    pub left_y: Pixels,
+    pub right_y: Pixels,
+    pub hitbox_top: Pixels,
+    pub hitbox_left: Pixels,
+    pub hitbox_right: Pixels,
+    pub hitbox_bottom: Pixels,
     pub deadly: bool,
     pub switch: Option<String>,
 
@@ -125,12 +125,12 @@ impl TryFrom<PropertyMap> for TileProperties {
             condition: value.get_string("condition")?.map(str::to_string),
             oneway: value.get_string("oneway")?.map(str::to_string),
             slope: value.get_bool("slope")?.unwrap_or(false),
-            left_y: value.get_int("left_y")?.unwrap_or(0),
-            right_y: value.get_int("right_y")?.unwrap_or(0),
-            hitbox_top: value.get_int("hitbox_top")?.unwrap_or(0),
-            hitbox_left: value.get_int("hitbox_left")?.unwrap_or(0),
-            hitbox_right: value.get_int("hitbox_right")?.unwrap_or(0),
-            hitbox_bottom: value.get_int("hitbox_bottom")?.unwrap_or(0),
+            left_y: Pixels::new(value.get_int("left_y")?.unwrap_or(0)),
+            right_y: Pixels::new(value.get_int("right_y")?.unwrap_or(0)),
+            hitbox_top: Pixels::new(value.get_int("hitbox_top")?.unwrap_or(0)),
+            hitbox_left: Pixels::new(value.get_int("hitbox_left")?.unwrap_or(0)),
+            hitbox_right: Pixels::new(value.get_int("hitbox_right")?.unwrap_or(0)),
+            hitbox_bottom: Pixels::new(value.get_int("hitbox_bottom")?.unwrap_or(0)),
             deadly: value.get_bool("deadly")?.unwrap_or(false),
             switch: value.get_string("switch")?.map(str::to_string),
             raw: value,
@@ -155,8 +155,8 @@ impl TryFrom<PropertyMap> for TileSetProperties {
 pub struct TileSet {
     _name: String,
     firstgid: TileIndex,
-    pub tilewidth: i32,
-    pub tileheight: i32,
+    pub tilewidth: Pixels,
+    pub tileheight: Pixels,
     tilecount: i32,
     columns: i32,
     pub sprite: Sprite,
@@ -186,8 +186,8 @@ impl TileSet {
         images: &mut dyn ImageLoader,
     ) -> Result<TileSet> {
         let name = xml.name;
-        let tilewidth = xml.tilewidth;
-        let tileheight = xml.tileheight;
+        let tilewidth = Pixels::new(xml.tilewidth);
+        let tileheight = Pixels::new(xml.tileheight);
         let tilecount = xml.tilecount;
         let columns = xml.columns;
 
@@ -280,15 +280,15 @@ impl TileSet {
         (self.tilecount as f32 / self.columns as f32).ceil() as i32
     }
 
-    pub fn get_source_rect(&self, index: LocalTileIndex) -> Rect {
+    pub fn get_source_rect(&self, index: LocalTileIndex) -> Rect<Pixels> {
         let index = index.0 as i32;
         if index < 0 || index > self.tilecount {
             panic!("index out of range");
         }
         let row = index / self.columns;
         let col = index % self.columns;
-        let x = col * self.tilewidth;
-        let y = row * self.tileheight;
+        let x = self.tilewidth * col;
+        let y = self.tileheight * row;
         Rect {
             x,
             y,
@@ -330,7 +330,7 @@ fn load_tile_animations(
             tile_id,
             file.path()
         );
-        let animation = images.load_animation(&file.path(), 8, 8)?;
+        let animation = images.load_animation(&file.path(), Pixels::new(8), Pixels::new(8))?;
         animations.insert(tile_id, animation);
     }
     Ok(())

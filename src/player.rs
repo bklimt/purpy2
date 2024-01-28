@@ -1,13 +1,15 @@
 use std::path::Path;
 
 use anyhow::Result;
+use num_traits::Zero;
 
 use crate::{
-    constants::{IDLE_TIME, PLAYER_FRAMES_PER_FRAME, SUBPIXELS},
+    constants::{IDLE_TIME, PLAYER_FRAMES_PER_FRAME},
+    geometry::{Pixels, Point, Rect, Subpixels},
     imagemanager::ImageLoader,
     rendercontext::{RenderContext, RenderLayer},
     sprite::{AnimationStateMachine, SpriteSheet},
-    utils::{Direction, Point, Rect},
+    utils::Direction,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -21,10 +23,8 @@ pub enum PlayerState {
 }
 
 pub struct Player {
-    pub x: i32,
-    pub y: i32,
-    pub dx: i32,
-    pub dy: i32,
+    pub position: Point<Subpixels>,
+    pub delta: Point<Subpixels>,
     pub facing_right: bool,
     pub state: PlayerState,
     // 24x24 sprite sheet
@@ -40,15 +40,17 @@ pub struct Player {
 
 impl Player {
     pub fn new(images: &mut dyn ImageLoader) -> Result<Player> {
-        let sprite = images.load_spritesheet(Path::new("assets/sprites/skelly2.png"), 24, 24)?;
+        let sprite = images.load_spritesheet(
+            Path::new("assets/sprites/skelly2.png"),
+            Pixels::new(24),
+            Pixels::new(24),
+        )?;
         let animation_state_machine =
             AnimationStateMachine::from_file(Path::new("assets/sprites/skelly2_states.txt"))?;
 
         Ok(Player {
-            x: 0,
-            y: 0,
-            dx: 0,
-            dy: 0,
+            position: Point::zero(),
+            delta: Point::zero(),
             facing_right: true,
             sprite,
             animation_state_machine,
@@ -62,9 +64,9 @@ impl Player {
     }
 
     pub fn update_sprite(&mut self) -> Result<()> {
-        self.facing_right = if self.dx < 0 {
+        self.facing_right = if self.delta.x < Subpixels::zero() {
             false
-        } else if self.dx > 0 {
+        } else if self.delta.x > Subpixels::zero() {
             true
         } else {
             self.facing_right
@@ -85,7 +87,7 @@ impl Player {
                 PlayerState::WallSliding => "WALL_SLIDING",
                 PlayerState::Crouching => "CROUCHING",
                 PlayerState::Standing | PlayerState::Stopped => {
-                    if self.dx != 0 {
+                    if !self.delta.x.is_zero() {
                         "RUNNING"
                     } else if self.idle_counter > 0 {
                         self.idle_counter -= 1;
@@ -98,7 +100,7 @@ impl Player {
             }
         };
 
-        if !matches!(self.state, PlayerState::Standing) || self.dx != 0 {
+        if !matches!(self.state, PlayerState::Standing) || !self.delta.x.is_zero() {
             self.is_idle = false;
             self.idle_counter = IDLE_TIME;
         }
@@ -116,20 +118,20 @@ impl Player {
         Ok(())
     }
 
-    pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, pos: Point) {
+    pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, pos: Point<Subpixels>) {
         let dest = Rect {
-            x: pos.x(),
-            y: pos.y(),
-            w: 24 * SUBPIXELS,
-            h: 24 * SUBPIXELS,
+            x: pos.x,
+            y: pos.y,
+            w: Subpixels::from_pixels(24),
+            h: Subpixels::from_pixels(24),
         };
 
         self.sprite
             .blit(context, layer, dest, self.frame, 0, !self.facing_right);
     }
 
-    fn get_raw_target_bounds(&self, direction: Option<Direction>) -> (i32, i32, i32, i32) {
-        match self.state {
+    fn get_raw_target_bounds(&self, direction: Option<Direction>) -> Rect<Pixels> {
+        let (x, y, w, h) = match self.state {
             PlayerState::Crouching => match direction {
                 Some(Direction::Down) => (8, 19, 8, 4),
                 _ => (8, 14, 8, 9),
@@ -141,17 +143,18 @@ impl Player {
                 Some(Direction::Right) => (12, 4, 4, 14),
                 Some(Direction::Left) => (8, 4, 4, 14),
             },
+        };
+        Rect {
+            x: Pixels::new(x),
+            y: Pixels::new(y),
+            w: Pixels::new(w),
+            h: Pixels::new(h),
         }
     }
 
     // Returns the bounds rect in subpixels to check when moving in direction.
-    pub fn get_target_bounds_rect(&self, direction: Option<Direction>) -> Rect {
-        let unscaled = self.get_raw_target_bounds(direction);
-        Rect {
-            x: self.x + unscaled.0 * SUBPIXELS,
-            y: self.y + unscaled.1 * SUBPIXELS,
-            w: unscaled.2 * SUBPIXELS,
-            h: unscaled.3 * SUBPIXELS,
-        }
+    pub fn get_target_bounds_rect(&self, direction: Option<Direction>) -> Rect<Subpixels> {
+        let raw_bounds: Rect<Subpixels> = self.get_raw_target_bounds(direction).into();
+        raw_bounds + self.position
     }
 }

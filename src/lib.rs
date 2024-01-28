@@ -2,6 +2,7 @@ mod args;
 mod constants;
 mod door;
 mod font;
+mod geometry;
 mod imagemanager;
 mod inputmanager;
 mod killscreen;
