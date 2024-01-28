@@ -9,7 +9,7 @@ use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use wgpu::util::DeviceExt;
 
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
-use crate::geometry::{Pixels, Rect, Subpixels};
+use crate::geometry::{Pixels, Rect};
 use crate::rendercontext::{RenderContext, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;

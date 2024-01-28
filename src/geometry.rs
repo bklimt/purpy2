@@ -274,13 +274,6 @@ impl From<Point<Pixels>> for Point<Subpixels> {
     }
 }
 
-impl Point<Subpixels> {
-    #[inline]
-    pub fn as_pixels(&self) -> Point<Pixels> {
-        Point::new(self.x.as_pixels(), self.y.as_pixels())
-    }
-}
-
 impl<T, U> From<(U, U)> for Point<T>
 where
     U: Into<T>,
@@ -364,11 +357,6 @@ impl<T> Rect<T>
 where
     T: ops::Add<T, Output = T> + Copy,
 {
-    #[inline]
-    pub fn new(x: T, y: T, w: T, h: T) -> Self {
-        Self { x, y, w, h }
-    }
-
     #[inline]
     pub fn top(&self) -> T {
         self.y
@@ -518,10 +506,6 @@ mod tests {
         let subpixels: Point<Subpixels> = (Pixels(3), Pixels(4)).into();
         assert_eq!(subpixels.x, Subpixels(96));
         assert_eq!(subpixels.y, Subpixels(128));
-
-        let pixels = subpixels.as_pixels();
-        assert_eq!(pixels.x, Pixels(3));
-        assert_eq!(pixels.y, Pixels(4));
     }
 
     #[test]
@@ -554,7 +538,12 @@ mod tests {
 
     #[test]
     fn rect_getters() {
-        let r = Rect::new(10, 20, 3, 4);
+        let r = Rect {
+            x: 10,
+            y: 20,
+            w: 3,
+            h: 4,
+        };
         assert_eq!(r.x, 10);
         assert_eq!(r.y, 20);
         assert_eq!(r.w, 3);
@@ -567,7 +556,12 @@ mod tests {
 
     #[test]
     fn rect_add_point() {
-        let r = Rect::new(10, 20, 3, 4);
+        let r = Rect {
+            x: 10,
+            y: 20,
+            w: 3,
+            h: 4,
+        };
         let p = Point::new(100, 200);
         let r = r + p;
         assert_eq!(r.x, 110);
@@ -582,7 +576,12 @@ mod tests {
 
     #[test]
     fn rect_pixels_to_subpixels() {
-        let r: Rect<Pixels> = Rect::new(1.into(), 2.into(), 3.into(), 4.into());
+        let r: Rect<Pixels> = Rect {
+            x: 1.into(),
+            y: 2.into(),
+            w: 3.into(),
+            h: 4.into(),
+        };
         let r: Rect<Subpixels> = r.into();
         assert_eq!(r.x, Subpixels(32));
         assert_eq!(r.y, Subpixels(64));
