@@ -12,8 +12,8 @@ pub struct Slope {
 
 impl Slope {
     pub fn new(properties: &TileProperties) -> Result<Self> {
-        let left_y = properties.left_y.into();
-        let right_y = properties.right_y.into();
+        let left_y = properties.left_y.as_subpixels();
+        let right_y = properties.right_y.as_subpixels();
         Ok(Slope { left_y, right_y })
     }
 

@@ -7,7 +7,6 @@ use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::tilemap::TileIndex;
 use crate::tilemap::{MapObject, TileMap};
-use crate::utils::intersect;
 
 pub struct Star {
     area: Rect<Subpixels>,
@@ -32,7 +31,7 @@ impl Star {
     }
 
     pub fn intersects(&self, player_rect: Rect<Subpixels>) -> bool {
-        return intersect(self.area, player_rect);
+        self.area.intersects(player_rect)
     }
 
     pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, offset: Point<Subpixels>) {

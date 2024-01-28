@@ -535,7 +535,7 @@ impl<'a> Button {
             images.load_spritesheet(Path::new(&image_path), Pixels::new(8), Pixels::new(8))?;
         let button_type = obj.properties.button_type;
 
-        let original_y = obj.position.y.into();
+        let original_y = obj.position.y.as_subpixels();
         let button = Button {
             sprite,
             level,

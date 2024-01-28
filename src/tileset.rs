@@ -155,8 +155,8 @@ impl TryFrom<PropertyMap> for TileSetProperties {
 pub struct TileSet {
     _name: String,
     firstgid: TileIndex,
-    pub tilewidth: i32,
-    pub tileheight: i32,
+    pub tilewidth: Pixels,
+    pub tileheight: Pixels,
     tilecount: i32,
     columns: i32,
     pub sprite: Sprite,
@@ -186,8 +186,8 @@ impl TileSet {
         images: &mut dyn ImageLoader,
     ) -> Result<TileSet> {
         let name = xml.name;
-        let tilewidth = xml.tilewidth;
-        let tileheight = xml.tileheight;
+        let tilewidth = Pixels::new(xml.tilewidth);
+        let tileheight = Pixels::new(xml.tileheight);
         let tilecount = xml.tilecount;
         let columns = xml.columns;
 
@@ -287,13 +287,13 @@ impl TileSet {
         }
         let row = index / self.columns;
         let col = index % self.columns;
-        let x = col * self.tilewidth;
-        let y = row * self.tileheight;
+        let x = self.tilewidth * col;
+        let y = self.tileheight * row;
         Rect {
-            x: x.into(),
-            y: y.into(),
-            w: self.tilewidth.into(),
-            h: self.tileheight.into(),
+            x,
+            y,
+            w: self.tilewidth,
+            h: self.tileheight,
         }
     }
 

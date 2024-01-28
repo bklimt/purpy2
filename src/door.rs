@@ -9,7 +9,6 @@ use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::sprite::SpriteSheet;
 use crate::tilemap::MapObject;
-use crate::utils::intersect;
 
 enum DoorLayer {
     Inactive = 0,
@@ -107,8 +106,8 @@ impl Door {
         let dest = Rect {
             x: pos.x,
             y: pos.y,
-            w: Pixels::new(32).into(),
-            h: Pixels::new(32).into(),
+            w: Pixels::new(32).as_subpixels(),
+            h: Pixels::new(32).as_subpixels(),
         };
         let door_layer = if self.active {
             DoorLayer::Active
@@ -132,7 +131,8 @@ impl Door {
         }
         if self.stars_remaining > 0 {
             let s = format!("{:02}", self.stars_remaining);
-            let inset = Point::new(Pixels::new(8).into(), Pixels::new(12).into());
+            let inset: Point<Pixels> = (Pixels::new(8), Pixels::new(12)).into();
+            let inset: Point<Subpixels> = inset.into();
             let pos = pos + inset;
             font.draw_string(context, layer, pos, &s);
         }
@@ -148,8 +148,8 @@ impl Door {
         let dest = Rect {
             x: pos.x,
             y: pos.y,
-            w: Pixels::new(32).into(),
-            h: Pixels::new(32).into(),
+            w: Pixels::new(32).as_subpixels(),
+            h: Pixels::new(32).as_subpixels(),
         };
         if let Some(door_index) = match self.state {
             DoorState::Closing => Some(self.frame / DOOR_SPEED),
@@ -178,7 +178,7 @@ impl Door {
         }
         .into();
         let door_rect = inner + self.position;
-        intersect(player_rect, door_rect)
+        player_rect.intersects(door_rect)
     }
 
     pub fn update(&mut self, player_rect: Rect<Subpixels>, star_count: i32) {

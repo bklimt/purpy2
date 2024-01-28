@@ -13,7 +13,7 @@ use crate::smallintset::SmallIntSet;
 use crate::sprite::{Animation, Sprite};
 use crate::switchstate::SwitchState;
 use crate::tileset::{LocalTileIndex, TileProperties, TileSet};
-use crate::utils::{cmp_in_direction, intersect, try_move_to_bounds, Color, Direction};
+use crate::utils::{cmp_in_direction, try_move_to_bounds, Color, Direction};
 
 use anyhow::{anyhow, bail, Context, Result};
 use log::info;
@@ -572,8 +572,8 @@ impl TileMap {
         let dest = Rect {
             x: offset.x,
             y: offset.y,
-            w: layer.surface.area.w.into(),
-            h: layer.surface.area.h.into(),
+            w: layer.surface.area.w.as_subpixels(),
+            h: layer.surface.area.h.as_subpixels(),
         };
         let source = Rect {
             x: Pixels::zero(),
@@ -597,8 +597,8 @@ impl TileMap {
 
         let offset_x = offset.x;
         let offset_y = offset.y;
-        let tileheight: Subpixels = self.tileheight.into();
-        let tilewidth: Subpixels = self.tilewidth.into();
+        let tileheight: Subpixels = self.tileheight.as_subpixels();
+        let tilewidth: Subpixels = self.tilewidth.as_subpixels();
 
         let dest_h = (dest.h / one_subpixel) as f32;
         let dest_w = (dest.w / one_subpixel) as f32;
@@ -685,8 +685,8 @@ impl TileMap {
                 let destination = Rect {
                     x: pos_x,
                     y: pos_y,
-                    w: source.w.into(),
-                    h: source.h.into(),
+                    w: source.w.as_subpixels(),
+                    h: source.h.as_subpixels(),
                 };
                 if let Some(animation) = self.get_animation(index) {
                     animation.blit(context, render_layer, destination, false);
@@ -914,7 +914,7 @@ impl TileMap {
             if obj.gid.is_some() {
                 continue;
             }
-            if !intersect(player_rect, obj.position.into()) {
+            if !player_rect.intersects(obj.position.into()) {
                 continue;
             }
             if let Some(p_x) = obj.properties.preferred_x {

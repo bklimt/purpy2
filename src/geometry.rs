@@ -41,13 +41,6 @@ impl Zero for Pixels {
     }
 }
 
-impl From<i32> for Pixels {
-    #[inline]
-    fn from(value: i32) -> Self {
-        Pixels(value)
-    }
-}
-
 impl ops::Add<Pixels> for Pixels {
     type Output = Pixels;
 
@@ -111,6 +104,11 @@ impl Subpixels {
         Self(n)
     }
 
+    #[inline]
+    pub const fn from_pixels(n: i32) -> Subpixels {
+        Pixels(n).as_subpixels()
+    }
+
     // Returns self scaled and truncated to the pixel domain.
     #[inline]
     pub fn as_pixels(&self) -> Pixels {
@@ -148,20 +146,6 @@ impl Zero for Subpixels {
     #[inline]
     fn set_zero(&mut self) {
         self.0 = 0;
-    }
-}
-
-impl From<Pixels> for Subpixels {
-    #[inline]
-    fn from(value: Pixels) -> Self {
-        Self(value.0 * SUBPIXELS)
-    }
-}
-
-impl From<i32> for Subpixels {
-    #[inline]
-    fn from(value: i32) -> Self {
-        Self(value)
     }
 }
 
@@ -270,17 +254,14 @@ where
 impl From<Point<Pixels>> for Point<Subpixels> {
     #[inline]
     fn from(value: Point<Pixels>) -> Self {
-        Self::new(value.x.into(), value.y.into())
+        Self::new(value.x.as_subpixels(), value.y.as_subpixels())
     }
 }
 
-impl<T, U> From<(U, U)> for Point<T>
-where
-    U: Into<T>,
-{
+impl<T> From<(T, T)> for Point<T> {
     #[inline]
-    fn from(value: (U, U)) -> Self {
-        Point::new(value.0.into(), value.1.into())
+    fn from(value: (T, T)) -> Self {
+        Point::new(value.0, value.1)
     }
 }
 
@@ -355,7 +336,7 @@ pub struct Rect<T> {
 
 impl<T> Rect<T>
 where
-    T: ops::Add<T, Output = T> + Copy,
+    T: ops::Add<T, Output = T> + Copy + PartialOrd,
 {
     #[inline]
     pub fn top(&self) -> T {
@@ -376,6 +357,20 @@ where
     #[inline]
     pub fn top_left(&self) -> Point<T> {
         Point::new(self.x, self.y)
+    }
+
+    pub fn intersects(&self, other: Rect<T>) -> bool {
+        if self.right() < other.left() {
+            false
+        } else if self.left() > other.right() {
+            false
+        } else if self.bottom() < other.top() {
+            false
+        } else if self.top() > other.bottom() {
+            false
+        } else {
+            true
+        }
     }
 }
 
@@ -423,10 +418,10 @@ impl From<Rect<Pixels>> for Rect<Subpixels> {
     #[inline]
     fn from(value: Rect<Pixels>) -> Self {
         Self {
-            x: value.x.into(),
-            y: value.y.into(),
-            w: value.w.into(),
-            h: value.h.into(),
+            x: value.x.as_subpixels(),
+            y: value.y.as_subpixels(),
+            w: value.w.as_subpixels(),
+            h: value.h.as_subpixels(),
         }
     }
 }
@@ -452,7 +447,7 @@ mod tests {
     #[test]
     fn pixels_to_subpixels() {
         let pixels: Pixels = Pixels(4);
-        let subpixels: Subpixels = pixels.into();
+        let subpixels: Subpixels = pixels.as_subpixels();
         assert_eq!(subpixels.0, 128);
 
         let subpixels = pixels.as_subpixels();
@@ -484,7 +479,7 @@ mod tests {
         };
         let point2 = Point::new(Subpixels(3), Subpixels(4));
         let point3: Point<Pixels> = (Pixels(5), Pixels(6)).into();
-        let point4: Point<Pixels> = (7, 8).into();
+        let point4: Point<Pixels> = (Pixels(7), Pixels(8)).into();
 
         assert_eq!(point1.x, Subpixels(1));
         assert_eq!(point1.y, Subpixels(2));
@@ -498,42 +493,43 @@ mod tests {
 
     #[test]
     fn point_conversion() {
-        let pixels: Point<Pixels> = (1, 2).into();
+        let pixels: Point<Pixels> = (Pixels(1), Pixels(2)).into();
         let subpixels: Point<Subpixels> = pixels.into();
         assert_eq!(subpixels.x, Subpixels(32));
         assert_eq!(subpixels.y, Subpixels(64));
 
-        let subpixels: Point<Subpixels> = (Pixels(3), Pixels(4)).into();
+        let subpixels: Point<Subpixels> =
+            (Pixels(3).as_subpixels(), Pixels(4).as_subpixels()).into();
         assert_eq!(subpixels.x, Subpixels(96));
         assert_eq!(subpixels.y, Subpixels(128));
     }
 
     #[test]
     fn point_addition() {
-        let point1: Point<Pixels> = (1, 2).into();
-        let point2: Point<Pixels> = (3, 4).into();
+        let point1: Point<Pixels> = (Pixels(1), Pixels(2)).into();
+        let point2: Point<Pixels> = (Pixels(3), Pixels(4)).into();
         let point3 = point1 + point2;
-        assert_eq!(point3.x, 4.into());
-        assert_eq!(point3.y, 6.into());
+        assert_eq!(point3.x, Pixels(4));
+        assert_eq!(point3.y, Pixels(6));
 
         let point1: Point<Subpixels> = point1.into();
         let point2: Point<Subpixels> = point2.into();
         let point3 = point1 + point2;
-        assert_eq!(point3.x, 128.into());
-        assert_eq!(point3.y, 192.into());
+        assert_eq!(point3.x, Subpixels::new(128));
+        assert_eq!(point3.y, Subpixels::new(192));
     }
 
     #[test]
     fn point_multiplication() {
-        let point1: Point<Pixels> = (1, 2).into();
+        let point1: Point<Pixels> = (Pixels::new(1), Pixels::new(2)).into();
         let point2 = point1 * 5;
-        assert_eq!(point2.x, 5.into());
-        assert_eq!(point2.y, 10.into());
+        assert_eq!(point2.x, Pixels(5));
+        assert_eq!(point2.y, Pixels(10));
 
         let point1: Point<Subpixels> = point1.into();
         let point2 = point1 * 5;
-        assert_eq!(point2.x, 160.into());
-        assert_eq!(point2.y, 320.into());
+        assert_eq!(point2.x, Subpixels::new(160));
+        assert_eq!(point2.y, Subpixels::new(320));
     }
 
     #[test]
@@ -577,10 +573,10 @@ mod tests {
     #[test]
     fn rect_pixels_to_subpixels() {
         let r: Rect<Pixels> = Rect {
-            x: 1.into(),
-            y: 2.into(),
-            w: 3.into(),
-            h: 4.into(),
+            x: Pixels(1),
+            y: Pixels(2),
+            w: Pixels(3),
+            h: Pixels(4),
         };
         let r: Rect<Subpixels> = r.into();
         assert_eq!(r.x, Subpixels(32));

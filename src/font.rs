@@ -20,8 +20,8 @@ impl Font {
         let firstgid: TileIndex = 0.into();
         Ok(Font {
             tileset: TileSet::from_file(path, firstgid, images)?,
-            char_width: Pixels::new(8).into(),
-            char_height: Pixels::new(8).into(),
+            char_width: Pixels::new(8).as_subpixels(),
+            char_height: Pixels::new(8).as_subpixels(),
         })
     }
 

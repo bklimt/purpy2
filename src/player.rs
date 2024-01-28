@@ -122,8 +122,8 @@ impl Player {
         let dest = Rect {
             x: pos.x,
             y: pos.y,
-            w: Pixels::new(24).into(),
-            h: Pixels::new(24).into(),
+            w: Subpixels::from_pixels(24),
+            h: Subpixels::from_pixels(24),
         };
 
         self.sprite

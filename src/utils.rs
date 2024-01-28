@@ -1,8 +1,6 @@
-use std::{
-    cmp::Ordering,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::cmp::Ordering;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use anyhow::{anyhow, bail, Error, Result};
 use num_traits::Zero;
@@ -138,23 +136,6 @@ pub fn try_move_to_bounds(
             Direction::Right => target.left() - actor.right(),
             Direction::Left => target.right() - actor.left(),
         }
-    }
-}
-
-pub fn intersect<T>(rect1: Rect<T>, rect2: Rect<T>) -> bool
-where
-    T: std::ops::Add<T, Output = T> + PartialOrd + Copy,
-{
-    if rect1.right() < rect2.left() {
-        false
-    } else if rect1.left() > rect2.right() {
-        false
-    } else if rect1.bottom() < rect2.top() {
-        false
-    } else if rect1.top() > rect2.bottom() {
-        false
-    } else {
-        true
     }
 }
 
