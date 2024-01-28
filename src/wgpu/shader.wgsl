@@ -51,6 +51,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 }
 
+struct VertexInput2 {
+    @location(0) position: vec2<f32>,
+    @location(1) tex_coords: vec2<f32>,
+}
+
 struct VertexOutput2 {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
@@ -58,23 +63,11 @@ struct VertexOutput2 {
 
 @vertex
 fn vs_main2(
-    @builtin(vertex_index) vertex_index_in: u32,
+    model: VertexInput2,
 ) -> VertexOutput2 {
-    var i: f32 = f32(vertex_index_in);
-
-    // 0 -> (1, -1)
-    // 1 -> (0, 1)
-    // 2 -> (-1, -1)
-    var x: f32 = 1.0f - i;
-
-    // i * ((i - 1) * (-2) + 2) - 1
-    // i * (-2i + 4) - 1
-    // -2(i*i) + 4*i - 1
-    var y: f32 = -2.0f * (i * i) + 4.0f * i - 1.0f;
-
     var out: VertexOutput2;
-    out.tex_coords = vec2<f32>(x, y);
-    out.clip_position = vec4<f32>(x, y, 0.0f, 1.0f);
+    out.tex_coords = model.tex_coords;
+    out.clip_position = vec4<f32>(model.position, 0.0f, 1.0f);
     return out;
 }
 

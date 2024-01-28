@@ -14,12 +14,40 @@ use crate::rendercontext::{RenderContext, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;
 use crate::utils::Color;
+use crate::wgpu::shader::Vertex2;
 
 use super::shader::ShaderUniform;
 use super::{shader::Vertex, texture::Texture};
 
 const MAX_ENTRIES: usize = 4096;
 const MAX_VERTICES: usize = MAX_ENTRIES * 6;
+
+const RECT_VERTICES: &[Vertex2] = &[
+    Vertex2 {
+        position: [1.0, 1.0],
+        tex_coords: [1.0, 0.0],
+    },
+    Vertex2 {
+        position: [-1.0, 1.0],
+        tex_coords: [0.0, 0.0],
+    },
+    Vertex2 {
+        position: [-1.0, -1.0],
+        tex_coords: [0.0, 1.0],
+    },
+    Vertex2 {
+        position: [1.0, 1.0],
+        tex_coords: [1.0, 0.0],
+    },
+    Vertex2 {
+        position: [-1.0, -1.0],
+        tex_coords: [0.0, 1.0],
+    },
+    Vertex2 {
+        position: [1.0, -1.0],
+        tex_coords: [1.0, 1.0],
+    },
+];
 
 pub trait WindowHandle
 where
@@ -51,9 +79,10 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
     vertices: Vec<Vertex>,
 
     frame_buffer: Texture,
-    texture_bind_group_layout2: wgpu::BindGroupLayout,
+    _texture_bind_group_layout2: wgpu::BindGroupLayout,
     texture_bind_group2: wgpu::BindGroup,
     render_pipeline2: wgpu::RenderPipeline,
+    vertex_buffer2: wgpu::Buffer,
 }
 
 impl<'window, T> WgpuRenderer<'window, T>
@@ -278,7 +307,7 @@ where
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main2",
-                buffers: &[],
+                buffers: &[Vertex2::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -315,6 +344,12 @@ where
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
+        let vertex_buffer2 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer 2"),
+            contents: bytemuck::cast_slice(RECT_VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
         Ok(Self {
             surface,
             device,
@@ -324,6 +359,7 @@ where
             height,
             render_pipeline,
             vertex_buffer,
+            vertex_buffer2,
             texture_bind_group_layout,
             texture_bind_group,
             texture_width,
@@ -334,7 +370,7 @@ where
             uniform_bind_group,
             vertices,
             frame_buffer,
-            texture_bind_group_layout2,
+            _texture_bind_group_layout2: texture_bind_group_layout2,
             texture_bind_group2,
             render_pipeline2,
             window,
@@ -472,12 +508,6 @@ where
     }
 
     pub fn render(&mut self, context: &RenderContext) -> Result<()> {
-        /*
-        let output = self.surface.get_current_texture()?;
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        */
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -537,7 +567,8 @@ where
 
             render_pass2.set_pipeline(&self.render_pipeline2);
             render_pass2.set_bind_group(0, &self.texture_bind_group2, &[]);
-            render_pass2.draw(0..3, 0..1);
+            render_pass2.set_vertex_buffer(0, self.vertex_buffer2.slice(..));
+            render_pass2.draw(0..6, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
