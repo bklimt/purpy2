@@ -3,12 +3,14 @@ use std::path::Path;
 use std::rc::Rc;
 
 use anyhow::{Context, Result};
+use num_traits::Zero;
 use rand::random;
 
 use crate::constants::{
     BAGEL_FALL_TIME, BAGEL_GRAVITY_ACCELERATION, BAGEL_MAX_GRAVITY, BAGEL_WAIT_TIME, BUTTON_DELAY,
-    BUTTON_MAX_LEVEL, SPRING_SPEED, SPRING_STALL_FRAMES, SPRING_STEPS, SUBPIXELS,
+    BUTTON_MAX_LEVEL, SPRING_SPEED, SPRING_STALL_FRAMES, SPRING_STEPS,
 };
+use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::soundmanager::{Sound, SoundManager};
@@ -16,7 +18,7 @@ use crate::sprite::SpriteSheet;
 use crate::switchstate::SwitchState;
 use crate::tilemap::TileIndex;
 use crate::tilemap::{ButtonType, ConveyorDirection, MapObject, Overflow, TileMap};
-use crate::utils::{sign, try_move_to_bounds, Direction, Point, Rect};
+use crate::utils::{try_move_to_bounds, Direction};
 
 pub enum PlatformType {
     MovingPlatform(MovingPlatform),
@@ -30,9 +32,8 @@ pub struct Platform {
     _id: i32,
     tilemap: Rc<TileMap>,
     tile_gid: TileIndex,
-    position: Rect,
-    dx: i32,
-    dy: i32,
+    position: Rect<Subpixels>,
+    delta: Point<Subpixels>,
     solid: bool,
     occupied: bool,
     pub subtype: PlatformType,
@@ -40,18 +41,13 @@ pub struct Platform {
 
 impl Platform {
     fn new(obj: &MapObject, tilemap: Rc<TileMap>, subtype: PlatformType) -> Result<Platform> {
+        // TODO: This shouldn't compile.
         Ok(Platform {
             _id: obj.id,
             tilemap,
             tile_gid: obj.gid.context("gid required for platforms")?,
-            position: Rect {
-                x: obj.position.x * SUBPIXELS,
-                y: obj.position.y * SUBPIXELS,
-                w: obj.position.w * SUBPIXELS,
-                h: obj.position.h * SUBPIXELS,
-            },
-            dx: 0,
-            dy: 0,
+            position: obj.position.into(),
+            delta: Point::zero(),
             solid: obj.properties.solid,
             occupied: false,
             subtype,
@@ -72,14 +68,14 @@ impl Platform {
         self.subtype = subtype;
     }
 
-    pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, offset: Point) {
+    pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, offset: Point<Subpixels>) {
         match &self.subtype {
             PlatformType::Bagel(bagel) => bagel.draw(self, context, layer, offset),
             PlatformType::Spring(spring) => spring.draw(self, context, layer, offset),
             PlatformType::Button(button) => button.draw(self, context, layer, offset),
             _ => {
-                let x = self.position.x + offset.x();
-                let y = self.position.y + offset.y();
+                let x = self.position.x + offset.x;
+                let y = self.position.y + offset.y;
                 let dest = Rect {
                     x,
                     y,
@@ -95,7 +91,12 @@ impl Platform {
         }
     }
 
-    pub fn try_move_to(&self, player_rect: Rect, direction: Direction, is_backwards: bool) -> i32 {
+    pub fn try_move_to(
+        &self,
+        player_rect: Rect<Subpixels>,
+        direction: Direction,
+        is_backwards: bool,
+    ) -> Subpixels {
         if let PlatformType::Spring(spring) = &self.subtype {
             return spring.try_move_to(self, player_rect, direction, is_backwards);
         }
@@ -104,10 +105,10 @@ impl Platform {
             self.position
         } else {
             if !matches!(direction, Direction::Down) {
-                return 0;
+                return Subpixels::zero();
             }
             if is_backwards {
-                return 0;
+                return Subpixels::zero();
             }
             Rect {
                 x: self.position.x,
@@ -122,11 +123,11 @@ impl Platform {
     pub fn is_solid(&self) -> bool {
         self.solid
     }
-    pub fn dx(&self) -> i32 {
-        self.dx
+    pub fn dx(&self) -> Subpixels {
+        self.delta.x
     }
-    pub fn dy(&self) -> i32 {
-        self.dy
+    pub fn dy(&self) -> Subpixels {
+        self.delta.y
     }
     pub fn set_occupied(&mut self, occupied: bool) {
         self.occupied = occupied;
@@ -135,12 +136,10 @@ impl Platform {
 
 pub struct MovingPlatform {
     direction: Direction,
-    distance: i32,
-    speed: i32,
-    start_x: i32,
-    start_y: i32,
-    end_x: i32,
-    end_y: i32,
+    distance: Subpixels,
+    speed: Subpixels,
+    start: Point<Subpixels>,
+    end: Point<Subpixels>,
     moving_forward: bool,
     condition: Option<String>,
     overflow: Overflow,
@@ -156,15 +155,13 @@ impl MovingPlatform {
         };
 
         // This is 16 for historical reasons, just because that's what the speed is tuned for.
-        let speed = obj.properties.speed.unwrap_or(1);
-        let speed = (speed * SUBPIXELS) / 16;
-        let dist_mult = dist_mult * SUBPIXELS;
-        let distance = obj.properties.distance * dist_mult;
+        let speed = obj.properties.speed.unwrap_or(Pixels::new(1));
+        let speed = speed.as_subpixels() / 16;
+        let dist_mult = dist_mult.as_subpixels();
+        let distance = dist_mult * obj.properties.distance;
         let direction = obj.properties.direction;
-        let start_x = obj.position.x * SUBPIXELS;
-        let start_y = obj.position.y * SUBPIXELS;
-        let end_x = start_x + sx * distance;
-        let end_y = start_y + sy * distance;
+        let start = obj.position.top_left().into();
+        let end = start + Point::new(distance * sx, distance * sy);
         let moving_forward = true;
         let condition = obj.properties.condition.clone();
         let overflow = obj.properties.overflow;
@@ -173,10 +170,8 @@ impl MovingPlatform {
             direction,
             speed,
             distance,
-            start_x,
-            start_y,
-            end_x,
-            end_y,
+            start,
+            end,
             moving_forward,
             condition,
             overflow,
@@ -192,80 +187,79 @@ impl MovingPlatform {
         if let Some(condition) = self.condition.as_deref() {
             if !switches.is_condition_true(&condition) {
                 self.moving_forward = false;
-                if base.position.x == self.start_x && base.position.y == self.start_y {
-                    base.dx = 0;
-                    base.dy = 0;
+                if base.position.top_left() == self.start {
+                    base.delta = Point::zero();
                     return;
                 }
             }
         }
 
-        base.dx = sign(self.end_x - self.start_x) * self.speed;
-        base.dy = sign(self.end_y - self.start_y) * self.speed;
+        base.delta.x = self.speed * (self.end.x - self.start.x).sign();
+        base.delta.y = self.speed * (self.end.y - self.start.y).sign();
         if self.moving_forward {
             match self.direction {
                 Direction::Up => {
-                    if base.position.y <= self.end_y {
+                    if base.position.y <= self.end.y {
                         match self.overflow {
                             Overflow::Wrap => base.position.y += self.distance,
                             Overflow::Clamp => {
-                                base.dy = 0;
-                                base.position.y = self.end_y + 1;
+                                base.delta.y = Subpixels::zero();
+                                base.position.y = self.end.y + Subpixels::new(1);
                             }
                             Overflow::Oscillate => {
-                                base.dy *= -1;
+                                base.delta.y *= -1;
                                 self.moving_forward = false;
                             }
                         }
                     }
                 }
                 Direction::Down => {
-                    if base.position.y >= self.end_y {
+                    if base.position.y >= self.end.y {
                         match self.overflow {
                             Overflow::Wrap => {
-                                base.position.y = self.start_y + (self.end_y - base.position.y)
+                                base.position.y = self.start.y + (self.end.y - base.position.y)
                             }
 
                             Overflow::Clamp => {
-                                base.dy = 0;
-                                base.position.y = self.end_y - 1;
+                                base.delta.y = Subpixels::zero();
+                                base.position.y = self.end.y - Subpixels::new(1);
                             }
                             Overflow::Oscillate => {
-                                base.dy *= -1;
+                                base.delta.y *= -1;
                                 self.moving_forward = false;
                             }
                         }
                     }
                 }
                 Direction::Left => {
-                    if base.position.x <= self.end_x {
+                    if base.position.x <= self.end.x {
                         match self.overflow {
                             Overflow::Wrap => base.position.x += self.distance,
 
                             Overflow::Clamp => {
-                                base.dx = 0;
-                                base.position.x = self.end_x + 1;
+                                base.delta.x = Subpixels::zero();
+                                base.position.x = self.end.x + Subpixels::new(1);
                             }
                             Overflow::Oscillate => {
-                                base.dx *= -1;
+                                base.delta.x *= -1;
                                 self.moving_forward = false;
                             }
                         }
                     }
                 }
                 Direction::Right => {
-                    if base.position.x >= self.end_x {
+                    if base.position.x >= self.end.x {
                         match self.overflow {
                             Overflow::Wrap => {
-                                base.position.x = self.start_x + (self.end_x - base.position.x)
+                                base.position.x = self.start.x + (self.end.x - base.position.x)
                             }
 
                             Overflow::Clamp => {
-                                base.dx = 0;
-                                base.position.x = self.end_x - 1;
+                                base.delta.x = Subpixels::zero();
+                                base.position.x = self.end.x - Subpixels::new(1);
                             }
                             Overflow::Oscillate => {
-                                base.dx *= -1;
+                                base.delta.x *= -1;
                                 self.moving_forward = false;
                             }
                         }
@@ -275,32 +269,31 @@ impl MovingPlatform {
         } else {
             // If must be oscillating.
             let at_start = match self.direction {
-                Direction::Up => base.position.y >= self.start_y,
-                Direction::Down => base.position.y <= self.start_y,
-                Direction::Left => base.position.x >= self.start_x,
-                Direction::Right => base.position.x <= self.start_x,
+                Direction::Up => base.position.y >= self.start.y,
+                Direction::Down => base.position.y <= self.start.y,
+                Direction::Left => base.position.x >= self.start.x,
+                Direction::Right => base.position.x <= self.start.x,
             };
             if at_start {
                 self.moving_forward = true;
             } else {
-                base.dx *= -1;
-                base.dy *= -1;
+                base.delta.x *= -1;
+                base.delta.y *= -1;
             }
         }
-        base.position.x += base.dx;
-        base.position.y += base.dy;
+        base.position += base.delta;
     }
 }
 
 pub struct Bagel {
-    original_y: i32,
+    original_y: Subpixels,
     falling: bool,
     remaining: i32,
 }
 
 impl Bagel {
     pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
-        let original_y = obj.position.y * SUBPIXELS;
+        let original_y = obj.position.y.as_subpixels();
         let bagel = Bagel {
             original_y,
             falling: false,
@@ -314,19 +307,19 @@ impl Bagel {
         base: &Platform,
         context: &mut RenderContext,
         layer: RenderLayer,
-        offset: Point,
+        offset: Point<Subpixels>,
     ) {
         let mut x = base.position.x + offset.x;
         let mut y = base.position.y + offset.y;
         if base.occupied {
-            x += (random::<u8>() % 3) as i32 - 1;
-            y += (random::<u8>() % 3) as i32 - 1;
+            x += Subpixels::new((random::<u8>() % 3) as i32 - 1);
+            y += Subpixels::new((random::<u8>() % 3) as i32 - 1);
         }
         let dest = Rect {
             x,
             y,
-            w: base.tilemap.tilewidth * SUBPIXELS,
-            h: base.tilemap.tileheight * SUBPIXELS,
+            w: base.tilemap.tilewidth.as_subpixels(),
+            h: base.tilemap.tileheight.as_subpixels(),
         };
         base.tilemap.draw_tile(context, base.tile_gid, layer, dest);
     }
@@ -335,14 +328,14 @@ impl Bagel {
         if self.falling {
             self.remaining -= 1;
             if self.remaining == 0 {
-                base.dy = 0;
+                base.delta.y = Subpixels::zero();
                 base.position.y = self.original_y;
                 self.falling = false;
                 self.remaining = BAGEL_WAIT_TIME;
             } else {
-                base.dy += BAGEL_GRAVITY_ACCELERATION;
-                base.dy = base.dy.max(BAGEL_MAX_GRAVITY);
-                base.position.y += base.dy;
+                base.delta.y += BAGEL_GRAVITY_ACCELERATION;
+                base.delta.y = base.delta.y.max(BAGEL_MAX_GRAVITY);
+                base.position.y += base.delta.y;
             }
         } else {
             if base.occupied {
@@ -350,7 +343,7 @@ impl Bagel {
                 if self.remaining == 0 {
                     self.falling = true;
                     self.remaining = BAGEL_FALL_TIME;
-                    base.dy = 0;
+                    base.delta.y = Subpixels::zero();
                 }
             } else {
                 self.remaining = BAGEL_WAIT_TIME;
@@ -364,18 +357,23 @@ pub struct Conveyor(());
 impl Conveyor {
     pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
         // This is hand-tuned.
-        let speed = (obj.properties.speed.unwrap_or(24) * SUBPIXELS) / 16;
+        let speed = (obj
+            .properties
+            .speed
+            .unwrap_or(Pixels::new(24))
+            .as_subpixels())
+            / 16;
         let dx = match obj
             .properties
             .convey
             .expect("conveyor does not have convey property")
         {
-            ConveyorDirection::Left => -1 * speed,
+            ConveyorDirection::Left => speed * -1,
             ConveyorDirection::Right => speed,
         };
 
         let mut base = Platform::new(obj, tilemap, PlatformType::Conveyor(Conveyor(())))?;
-        base.dx = dx;
+        base.delta.x = dx;
         Ok(base)
     }
 }
@@ -383,7 +381,7 @@ impl Conveyor {
 pub struct Spring {
     sprite: SpriteSheet,
     up: bool,
-    pos: i32,
+    pos: Subpixels,
     stall_counter: i32,
     pub launch: bool,
 }
@@ -395,11 +393,11 @@ impl Spring {
         images: &mut dyn ImageLoader,
     ) -> Result<Platform> {
         let path = Path::new("assets/sprites/spring.png");
-        let sprite = images.load_spritesheet(path, 8, 8)?;
+        let sprite = images.load_spritesheet(path, Pixels::new(8), Pixels::new(8))?;
         let spring = Spring {
             sprite,
             up: false,
-            pos: 0,
+            pos: Subpixels::zero(),
             stall_counter: SPRING_STALL_FRAMES,
             launch: false,
         };
@@ -407,7 +405,7 @@ impl Spring {
     }
 
     fn frame(&self) -> i32 {
-        self.pos / SUBPIXELS
+        self.pos.as_pixels() / Pixels::new(1)
     }
 
     pub fn should_boost(&self) -> bool {
@@ -419,7 +417,7 @@ impl Spring {
         base: &Platform,
         context: &mut RenderContext,
         layer: RenderLayer,
-        offset: Point,
+        offset: Point<Subpixels>,
     ) {
         let x = base.position.x + offset.x;
         let y = base.position.y + offset.y;
@@ -434,30 +432,29 @@ impl Spring {
     }
 
     fn update(&mut self, base: &mut Platform, _switches: &mut SwitchState, _sounds: &SoundManager) {
-        base.dx = 0;
-        base.dy = 0;
+        base.delta = Point::zero();
         self.launch = false;
         if !base.occupied {
             self.stall_counter = SPRING_STALL_FRAMES;
             self.up = false;
-            if self.pos > 0 {
+            if self.pos > Subpixels::zero() {
                 self.pos -= SPRING_SPEED;
-                base.dy = -SPRING_SPEED;
+                base.delta.y = SPRING_SPEED * -1;
             }
         } else {
             if self.up {
                 self.stall_counter = SPRING_STALL_FRAMES;
-                if self.pos > 0 {
+                if self.pos > Subpixels::zero() {
                     self.pos -= SPRING_SPEED;
-                    base.dy = -SPRING_SPEED;
+                    base.delta.y = SPRING_SPEED * -1;
                 } else {
                     self.launch = true;
                 }
             } else {
-                if self.pos < (SPRING_STEPS * SUBPIXELS) - SPRING_SPEED {
+                if self.pos < (Subpixels::new(SPRING_STEPS)) - SPRING_SPEED {
                     self.stall_counter = SPRING_STALL_FRAMES;
                     self.pos += SPRING_SPEED;
-                    base.dy = SPRING_SPEED;
+                    base.delta.y = SPRING_SPEED;
                 } else {
                     if self.stall_counter > 0 {
                         self.stall_counter -= 1;
@@ -473,10 +470,10 @@ impl Spring {
     fn try_move_to(
         &self,
         base: &Platform,
-        player_rect: Rect,
+        player_rect: Rect<Subpixels>,
         direction: Direction,
         is_backwards: bool,
-    ) -> i32 {
+    ) -> Subpixels {
         if base.solid {
             let area = Rect {
                 x: base.position.x,
@@ -487,10 +484,10 @@ impl Spring {
             try_move_to_bounds(player_rect, area, direction)
         } else {
             if !matches!(direction, Direction::Down) {
-                return 0;
+                return Subpixels::zero();
             }
             if is_backwards {
-                return 0;
+                return Subpixels::zero();
             }
             let area = Rect {
                 x: base.position.x,
@@ -506,7 +503,7 @@ impl Spring {
 pub struct Button {
     sprite: SpriteSheet,
     level: u32,
-    original_y: i32,
+    original_y: Subpixels,
     clicked: bool,
     button_type: ButtonType,
     was_occupied: bool,
@@ -534,10 +531,11 @@ impl<'a> Button {
             .clone()
             .unwrap_or_else(|| "red".to_string());
         let image_path = get_button_image_path(&color);
-        let sprite = images.load_spritesheet(Path::new(&image_path), 8, 8)?;
+        let sprite =
+            images.load_spritesheet(Path::new(&image_path), Pixels::new(8), Pixels::new(8))?;
         let button_type = obj.properties.button_type;
 
-        let original_y = obj.position.y * SUBPIXELS;
+        let original_y = obj.position.y.into();
         let button = Button {
             sprite,
             level,
@@ -550,7 +548,7 @@ impl<'a> Button {
 
         let mut base = Platform::new(obj, tileset, PlatformType::Button(button))?;
         // Move down by a whole pixel while on a button.
-        base.dy = SUBPIXELS;
+        base.delta.y = Pixels::new(1).as_subpixels();
         Ok(base)
     }
 
@@ -559,7 +557,7 @@ impl<'a> Button {
         base: &Platform,
         context: &mut RenderContext,
         layer: RenderLayer,
-        offset: Point,
+        offset: Point<Subpixels>,
     ) {
         let x = base.position.x + offset.x;
         let y = self.original_y + offset.y;
@@ -609,7 +607,8 @@ impl<'a> Button {
             }
         }
 
-        base.position.y = self.original_y + ((self.level * SUBPIXELS as u32) / BUTTON_DELAY) as i32;
+        base.position.y =
+            self.original_y + (Pixels::new(self.level as i32).as_subpixels() / BUTTON_DELAY as i32);
 
         if self.clicked != was_clicked {
             sounds.play(Sound::Click);

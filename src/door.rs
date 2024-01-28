@@ -2,13 +2,14 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::constants::{DOOR_CLOSING_FRAMES, DOOR_SPEED, DOOR_UNLOCKING_FRAMES, SUBPIXELS};
+use crate::constants::{DOOR_CLOSING_FRAMES, DOOR_SPEED, DOOR_UNLOCKING_FRAMES};
 use crate::font::Font;
+use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::sprite::SpriteSheet;
 use crate::tilemap::MapObject;
-use crate::utils::{intersect, Point, Rect};
+use crate::utils::intersect;
 
 enum DoorLayer {
     Inactive = 0,
@@ -27,8 +28,7 @@ enum DoorState {
 }
 
 pub struct Door {
-    x: i32,
-    y: i32,
+    position: Point<Subpixels>,
     sprite: SpriteSheet,
     pub destination: Option<String>,
     stars_needed: i32,
@@ -46,9 +46,9 @@ impl Door {
             .clone()
             .unwrap_or_else(|| "assets/sprites/door.png".to_owned());
 
-        let sprite = images.load_spritesheet(Path::new(&sprite_path), 32, 32)?;
-        let x = obj.position.x * SUBPIXELS;
-        let y = obj.position.y * SUBPIXELS;
+        let sprite =
+            images.load_spritesheet(Path::new(&sprite_path), Pixels::new(32), Pixels::new(32))?;
+        let position = obj.position.top_left().into();
         let active = false;
         let destination = obj.properties.destination.clone();
         let stars_needed = obj.properties.stars_needed;
@@ -61,8 +61,7 @@ impl Door {
         let frame = 0;
 
         Ok(Door {
-            x,
-            y,
+            position,
             sprite,
             destination,
             stars_needed,
@@ -101,16 +100,15 @@ impl Door {
         &self,
         context: &mut RenderContext,
         layer: RenderLayer,
-        offset: Point,
+        offset: Point<Subpixels>,
         font: &Font,
     ) {
-        let x = self.x + offset.x();
-        let y = self.y + offset.y();
+        let pos = self.position + offset;
         let dest = Rect {
-            x,
-            y,
-            w: 32 * SUBPIXELS,
-            h: 32 * SUBPIXELS,
+            x: pos.x,
+            y: pos.y,
+            w: Pixels::new(32).into(),
+            h: Pixels::new(32).into(),
         };
         let door_layer = if self.active {
             DoorLayer::Active
@@ -134,19 +132,24 @@ impl Door {
         }
         if self.stars_remaining > 0 {
             let s = format!("{:02}", self.stars_remaining);
-            let pos = Point::new(x + 8 * SUBPIXELS, y + 12 * SUBPIXELS);
+            let inset = Point::new(Pixels::new(8).into(), Pixels::new(12).into());
+            let pos = pos + inset;
             font.draw_string(context, layer, pos, &s);
         }
     }
 
-    pub fn draw_foreground(&self, context: &mut RenderContext, layer: RenderLayer, offset: Point) {
-        let x = self.x + offset.x();
-        let y = self.y + offset.y();
+    pub fn draw_foreground(
+        &self,
+        context: &mut RenderContext,
+        layer: RenderLayer,
+        offset: Point<Subpixels>,
+    ) {
+        let pos = self.position + offset;
         let dest = Rect {
-            x,
-            y,
-            w: 32 * SUBPIXELS,
-            h: 32 * SUBPIXELS,
+            x: pos.x,
+            y: pos.y,
+            w: Pixels::new(32).into(),
+            h: Pixels::new(32).into(),
         };
         if let Some(door_index) = match self.state {
             DoorState::Closing => Some(self.frame / DOOR_SPEED),
@@ -166,17 +169,19 @@ impl Door {
             .blit(context, layer, dest, 0, DoorLayer::Frame as u32, false);
     }
 
-    pub fn is_inside(&self, player_rect: Rect) -> bool {
-        let door_rect = Rect {
-            x: self.x + 8 * SUBPIXELS,
-            y: self.y,
-            w: 24 * SUBPIXELS,
-            h: 32 * SUBPIXELS,
-        };
+    pub fn is_inside(&self, player_rect: Rect<Subpixels>) -> bool {
+        let inner: Rect<Subpixels> = Rect {
+            x: Pixels::new(8),
+            y: Pixels::new(0),
+            w: Pixels::new(24),
+            h: Pixels::new(32),
+        }
+        .into();
+        let door_rect = inner + self.position;
         intersect(player_rect, door_rect)
     }
 
-    pub fn update(&mut self, player_rect: Rect, star_count: i32) {
+    pub fn update(&mut self, player_rect: Rect<Subpixels>, star_count: i32) {
         self.active = self.is_inside(player_rect);
         self.stars_remaining = (self.stars_needed - star_count).max(0);
 

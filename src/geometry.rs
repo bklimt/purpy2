@@ -1,9 +1,45 @@
-use std::ops::{self, Sub};
+use std::ops;
+
+use num_traits::Zero;
+
+// How many subpixels to use for game logic.
+const SUBPIXELS: i32 = 32;
 
 // Pixels
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub struct Pixels(i32);
+
+impl Pixels {
+    const ZERO: Pixels = Pixels(0);
+
+    #[inline]
+    pub const fn new(n: i32) -> Self {
+        Self(n)
+    }
+
+    #[inline]
+    pub const fn as_subpixels(&self) -> Subpixels {
+        Subpixels(self.0 * SUBPIXELS)
+    }
+}
+
+impl Zero for Pixels {
+    #[inline]
+    fn zero() -> Self {
+        Self::ZERO
+    }
+
+    #[inline]
+    fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+
+    #[inline]
+    fn set_zero(&mut self) {
+        self.0 = 0;
+    }
+}
 
 impl From<i32> for Pixels {
     #[inline]
@@ -21,6 +57,20 @@ impl ops::Add<Pixels> for Pixels {
     }
 }
 
+impl ops::AddAssign<Pixels> for Pixels {
+    #[inline]
+    fn add_assign(&mut self, rhs: Pixels) {
+        self.0 += rhs.0
+    }
+}
+
+impl ops::SubAssign<Pixels> for Pixels {
+    #[inline]
+    fn sub_assign(&mut self, rhs: Pixels) {
+        self.0 -= rhs.0
+    }
+}
+
 impl ops::Mul<i32> for Pixels {
     type Output = Pixels;
 
@@ -30,18 +80,74 @@ impl ops::Mul<i32> for Pixels {
     }
 }
 
+impl ops::Div<i32> for Pixels {
+    type Output = Pixels;
+
+    #[inline]
+    fn div(self, rhs: i32) -> Self::Output {
+        Self(self.0 / rhs)
+    }
+}
+
+impl ops::Div<Pixels> for Pixels {
+    type Output = i32;
+
+    #[inline]
+    fn div(self, rhs: Pixels) -> Self::Output {
+        self.0 / rhs.0
+    }
+}
+
 // Subpixels
 
-pub const SUBPIXELS: i32 = 32;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Subpixels(i32);
 
 impl Subpixels {
+    const ZERO: Subpixels = Subpixels(0);
+
+    #[inline]
+    pub const fn new(n: i32) -> Self {
+        Self(n)
+    }
+
     // Returns self scaled and truncated to the pixel domain.
     #[inline]
     pub fn as_pixels(&self) -> Pixels {
         Pixels(self.0 / SUBPIXELS)
+    }
+
+    #[inline]
+    pub fn sign(self) -> i32 {
+        if self.0 < 0 {
+            -1
+        } else if self.0 > 0 {
+            1
+        } else {
+            0
+        }
+    }
+
+    #[inline]
+    pub fn abs(self) -> Self {
+        Self(self.0.abs())
+    }
+}
+
+impl Zero for Subpixels {
+    #[inline]
+    fn zero() -> Self {
+        Self::ZERO
+    }
+
+    #[inline]
+    fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+
+    #[inline]
+    fn set_zero(&mut self) {
+        self.0 = 0;
     }
 }
 
@@ -68,6 +174,29 @@ impl ops::Add<Subpixels> for Subpixels {
     }
 }
 
+impl ops::AddAssign<Subpixels> for Subpixels {
+    #[inline]
+    fn add_assign(&mut self, rhs: Subpixels) {
+        self.0 += rhs.0;
+    }
+}
+
+impl ops::Sub<Subpixels> for Subpixels {
+    type Output = Subpixels;
+
+    #[inline]
+    fn sub(self, rhs: Subpixels) -> Self::Output {
+        Self(self.0 - rhs.0)
+    }
+}
+
+impl ops::SubAssign<Subpixels> for Subpixels {
+    #[inline]
+    fn sub_assign(&mut self, rhs: Subpixels) {
+        self.0 -= rhs.0
+    }
+}
+
 impl ops::Mul<i32> for Subpixels {
     type Output = Subpixels;
 
@@ -77,10 +206,35 @@ impl ops::Mul<i32> for Subpixels {
     }
 }
 
+impl ops::MulAssign<i32> for Subpixels {
+    #[inline]
+    fn mul_assign(&mut self, rhs: i32) {
+        self.0 *= rhs
+    }
+}
+
+impl ops::Div<i32> for Subpixels {
+    type Output = Subpixels;
+
+    #[inline]
+    fn div(self, rhs: i32) -> Self::Output {
+        Self(self.0 / rhs)
+    }
+}
+
+impl ops::Div<Subpixels> for Subpixels {
+    type Output = i32;
+
+    #[inline]
+    fn div(self, rhs: Subpixels) -> Self::Output {
+        self.0 / rhs.0
+    }
+}
+
 // Points
 
-#[derive(Debug, Clone, Copy)]
-struct Point<T> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Point<T> {
     pub x: T,
     pub y: T,
 }
@@ -89,6 +243,27 @@ impl<T> Point<T> {
     #[inline]
     pub fn new(x: T, y: T) -> Self {
         Self { x, y }
+    }
+}
+
+impl<T> Zero for Point<T>
+where
+    T: Zero,
+{
+    #[inline]
+    fn zero() -> Self {
+        Self::new(T::zero(), T::zero())
+    }
+
+    #[inline]
+    fn is_zero(&self) -> bool {
+        self.x.is_zero() && self.y.is_zero()
+    }
+
+    #[inline]
+    fn set_zero(&mut self) {
+        self.x = T::zero();
+        self.y = T::zero();
     }
 }
 
@@ -101,7 +276,7 @@ impl From<Point<Pixels>> for Point<Subpixels> {
 
 impl Point<Subpixels> {
     #[inline]
-    fn as_pixels(&self) -> Point<Pixels> {
+    pub fn as_pixels(&self) -> Point<Pixels> {
         Point::new(self.x.as_pixels(), self.y.as_pixels())
     }
 }
@@ -128,6 +303,40 @@ where
     }
 }
 
+impl<T> ops::AddAssign<Point<T>> for Point<T>
+where
+    T: ops::AddAssign<T>,
+{
+    #[inline]
+    fn add_assign(&mut self, rhs: Point<T>) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+    }
+}
+
+impl<T> ops::Sub<Point<T>> for Point<T>
+where
+    T: ops::Sub<T, Output = T>,
+{
+    type Output = Point<T>;
+
+    #[inline]
+    fn sub(self, rhs: Point<T>) -> Self::Output {
+        Self::new(self.x - rhs.x, self.y - rhs.y)
+    }
+}
+
+impl<T> ops::SubAssign<Point<T>> for Point<T>
+where
+    T: ops::SubAssign<T>,
+{
+    #[inline]
+    fn sub_assign(&mut self, rhs: Point<T>) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+    }
+}
+
 impl<T, U> ops::Mul<U> for Point<T>
 where
     T: ops::Mul<U, Output = T>,
@@ -144,7 +353,7 @@ where
 // Rect
 
 #[derive(Debug, Clone, Copy)]
-struct Rect<T> {
+pub struct Rect<T> {
     pub x: T,
     pub y: T,
     pub w: T,
@@ -153,7 +362,7 @@ struct Rect<T> {
 
 impl<T> Rect<T>
 where
-    T: ops::Add<T, Output = T>,
+    T: ops::Add<T, Output = T> + Copy,
 {
     #[inline]
     pub fn new(x: T, y: T, w: T, h: T) -> Self {
@@ -161,20 +370,24 @@ where
     }
 
     #[inline]
-    pub fn top(self) -> T {
+    pub fn top(&self) -> T {
         self.y
     }
     #[inline]
-    pub fn left(self) -> T {
+    pub fn left(&self) -> T {
         self.x
     }
     #[inline]
-    pub fn right(self) -> T {
+    pub fn right(&self) -> T {
         self.x + self.w
     }
     #[inline]
-    pub fn bottom(self) -> T {
+    pub fn bottom(&self) -> T {
         self.y + self.h
+    }
+    #[inline]
+    pub fn top_left(&self) -> Point<T> {
+        Point::new(self.x, self.y)
     }
 }
 
@@ -195,9 +408,20 @@ where
     }
 }
 
+impl<T> ops::AddAssign<Point<T>> for Rect<T>
+where
+    T: ops::AddAssign<T>,
+{
+    #[inline]
+    fn add_assign(&mut self, rhs: Point<T>) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+    }
+}
+
 impl Rect<Subpixels> {
     #[inline]
-    fn as_pixels(&self) -> Rect<Pixels> {
+    pub fn as_pixels(&self) -> Rect<Pixels> {
         Rect {
             x: self.x.as_pixels(),
             y: self.y.as_pixels(),
@@ -219,22 +443,19 @@ impl From<Rect<Pixels>> for Rect<Subpixels> {
     }
 }
 
-/*
-// TODO: Implement these as needed.
-
-impl<T> Into<sdl2::rect::Rect> for Rect<T> {
+impl Into<sdl2::rect::Rect> for Rect<Pixels> {
     #[inline]
     fn into(self) -> sdl2::rect::Rect {
-        sdl2::rect::Rect::new(self.x, self.y, self.w as u32, self.h as u32)
+        sdl2::rect::Rect::new(self.x.0, self.y.0, self.w.0 as u32, self.h.0 as u32)
     }
 }
 
-impl<T> Into<Option<sdl2::rect::Rect>> for Rect<T> {
+impl Into<Option<sdl2::rect::Rect>> for Rect<Pixels> {
+    #[inline]
     fn into(self) -> Option<sdl2::rect::Rect> {
         Some(self.into())
     }
 }
-*/
 
 #[cfg(test)]
 mod tests {
@@ -245,6 +466,9 @@ mod tests {
         let pixels: Pixels = Pixels(4);
         let subpixels: Subpixels = pixels.into();
         assert_eq!(subpixels.0, 128);
+
+        let subpixels = pixels.as_subpixels();
+        assert_eq!(subpixels.0, 128);
     }
 
     #[test]
@@ -252,6 +476,16 @@ mod tests {
         let subpixels: Subpixels = Subpixels(128);
         let pixels: Pixels = subpixels.as_pixels();
         assert_eq!(pixels.0, 4);
+    }
+
+    #[test]
+    fn subpixels_math() {
+        let x1 = Subpixels(32);
+        let x2 = x1 + Subpixels(12);
+        assert_eq!(x2, Subpixels(44));
+
+        let x3 = x2 - Subpixels(12);
+        assert_eq!(x3, Subpixels(32));
     }
 
     #[test]

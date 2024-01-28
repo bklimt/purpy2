@@ -33,8 +33,8 @@ impl Scene for KillScreen {
 
         let text = "DEAD";
         let text_pos = (
-            dest.w / 2 - text.len() as i32 * (font.char_width / 2),
-            dest.h / 2 - text.len() as i32 * (font.char_height / 2),
+            dest.w / 2 - (font.char_width * text.len() as i32) / 2,
+            dest.h / 2 - (font.char_height * text.len() as i32) / 2,
         );
         font.draw_string(context, RenderLayer::Hud, text_pos.into(), text);
     }

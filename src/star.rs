@@ -3,14 +3,14 @@ use std::rc::Rc;
 use anyhow::{Context, Result};
 use rand::random;
 
-use crate::constants::SUBPIXELS;
+use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::rendercontext::{RenderContext, RenderLayer};
 use crate::tilemap::TileIndex;
 use crate::tilemap::{MapObject, TileMap};
-use crate::utils::{intersect, Point, Rect};
+use crate::utils::intersect;
 
 pub struct Star {
-    area: Rect,
+    area: Rect<Subpixels>,
     tilemap: Rc<TileMap>,
     tile_gid: TileIndex,
 }
@@ -23,12 +23,7 @@ impl Star {
     pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Star> {
         let gid = obj.gid.context("star must have gid")?;
         let tile_gid = gid as TileIndex;
-        let area = Rect {
-            x: obj.position.x * SUBPIXELS,
-            y: obj.position.y * SUBPIXELS,
-            w: obj.position.w * SUBPIXELS,
-            h: obj.position.h * SUBPIXELS,
-        };
+        let area = obj.position.into();
         Ok(Star {
             area,
             tile_gid,
@@ -36,18 +31,16 @@ impl Star {
         })
     }
 
-    pub fn intersects(&self, player_rect: Rect) -> bool {
+    pub fn intersects(&self, player_rect: Rect<Subpixels>) -> bool {
         return intersect(self.area, player_rect);
     }
 
-    pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, offset: Point) {
-        let mut x = self.area.x + offset.x();
-        let mut y = self.area.y + offset.y();
-        x += star_rand() * SUBPIXELS;
-        y += star_rand() * SUBPIXELS;
+    pub fn draw(&self, context: &mut RenderContext, layer: RenderLayer, offset: Point<Subpixels>) {
+        let rand = Point::new(Pixels::new(star_rand()), Pixels::new(star_rand()));
+        let pos = self.area.top_left() + offset + rand.into();
         let dest = Rect {
-            x,
-            y,
+            x: pos.x,
+            y: pos.y,
             w: self.area.w,
             h: self.area.h,
         };

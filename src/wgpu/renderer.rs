@@ -4,14 +4,16 @@ use std::path::Path;
 use anyhow::{bail, Context, Result};
 use bytemuck::Zeroable;
 use log::{error, info};
+use num_traits::Zero;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use wgpu::util::DeviceExt;
 
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
+use crate::geometry::{Pixels, Rect, Subpixels};
 use crate::rendercontext::{RenderContext, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;
-use crate::utils::{Color, Rect};
+use crate::utils::Color;
 
 use super::shader::ShaderUniform;
 use super::{shader::Vertex, texture::Texture};
@@ -261,6 +263,7 @@ where
         }
 
         let mut vertex_count = 0;
+        let one_pixel = Pixels::new(1);
 
         for entry in batch.entries.iter() {
             if vertex_count >= MAX_VERTICES {
@@ -271,10 +274,10 @@ where
                 SpriteBatchEntry::FillRect { destination, color } => (
                     *destination,
                     Rect {
-                        x: 0,
-                        y: 0,
-                        w: 0,
-                        h: 0,
+                        x: Pixels::zero(),
+                        y: Pixels::zero(),
+                        w: Pixels::zero(),
+                        h: Pixels::zero(),
                     },
                     *color,
                     false,
@@ -286,8 +289,8 @@ where
                     reversed,
                 } => {
                     let source = Rect {
-                        x: sprite.x as i32 + source.x,
-                        y: sprite.y as i32 + source.y,
+                        x: sprite.area.x + source.x,
+                        y: sprite.area.y + source.y,
                         w: source.w,
                         h: source.h,
                     };
@@ -301,15 +304,15 @@ where
                 }
             };
 
-            let dt = destination.y as f32;
-            let db = destination.bottom() as f32;
-            let dl = destination.x as f32;
-            let dr = destination.right() as f32;
+            let dt = (destination.y / one_pixel) as f32;
+            let db = (destination.bottom() / one_pixel) as f32;
+            let dl = (destination.x / one_pixel) as f32;
+            let dr = (destination.right() / one_pixel) as f32;
 
-            let st = source.y as f32;
-            let sb = source.bottom() as f32;
-            let mut sl = source.x as f32;
-            let mut sr = source.right() as f32;
+            let st = (source.y / one_pixel) as f32;
+            let sb = (source.bottom() / one_pixel) as f32;
+            let mut sl = (source.x / one_pixel) as f32;
+            let mut sr = (source.right() / one_pixel) as f32;
 
             if reversed {
                 mem::swap(&mut sl, &mut sr);
@@ -451,10 +454,12 @@ where
 
         Ok(Sprite {
             id: 0,
-            x: 0,
-            y: 0,
-            width: texture.width,
-            height: texture.height,
+            area: Rect {
+                x: Pixels::zero(),
+                y: Pixels::zero(),
+                w: Pixels::new(texture.width as i32),
+                h: Pixels::new(texture.height as i32),
+            },
         })
     }
 }

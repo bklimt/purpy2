@@ -2,15 +2,16 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 
+use num_traits::Zero;
 use sdl2::image::LoadSurface;
 use sdl2::render::{BlendMode, Canvas, Texture, TextureCreator};
 use sdl2::surface::Surface;
 use sdl2::video::{Window, WindowContext};
 
+use crate::geometry::{Pixels, Rect};
 use crate::rendercontext::{RenderContext, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;
-use crate::utils::Rect;
 
 struct SpriteInternal<'a> {
     _surface: Surface<'a>,
@@ -56,8 +57,8 @@ impl<'a> SdlRenderer<'a> {
                             .expect(format!("invalid sprite: {:?}", sprite).as_str());
 
                         let source = Rect {
-                            x: sprite.x as i32 + source.x,
-                            y: sprite.y as i32 + source.y,
+                            x: sprite.area.x + source.x,
+                            y: sprite.area.y + source.y,
                             w: source.w,
                             h: source.h,
                         };
@@ -99,8 +100,8 @@ impl Renderer for SdlRenderer<'_> {
         let surface = Surface::from_file(path)
             .map_err(|s: String| anyhow!("unable to load {:?}: {}", path, s))?;
 
-        let width = surface.width();
-        let height = surface.height();
+        let w = Pixels::new(surface.width() as i32);
+        let h = Pixels::new(surface.height() as i32);
 
         let texture = surface.as_texture(self.texture_creator)?;
         let sprite_internal = SpriteInternal {
@@ -111,15 +112,12 @@ impl Renderer for SdlRenderer<'_> {
         let id = self.sprites.len();
         self.sprites.push(sprite_internal);
 
-        let x = 0;
-        let y = 0;
+        let x = Pixels::zero();
+        let y = Pixels::zero();
 
         Ok(Sprite {
             id,
-            x,
-            y,
-            width,
-            height,
+            area: Rect { x, y, w, h },
         })
     }
 }

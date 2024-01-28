@@ -1,18 +1,19 @@
 use anyhow::Result;
+use num_traits::Zero;
 
-use crate::constants::SUBPIXELS;
+use crate::geometry::{Pixels, Rect, Subpixels};
 use crate::sprite::Sprite;
-use crate::utils::{Color, Rect};
+use crate::utils::Color;
 
 pub enum SpriteBatchEntry {
     Sprite {
         sprite: Sprite,
-        source: Rect,
-        destination: Rect,
+        source: Rect<Pixels>,
+        destination: Rect<Pixels>,
         reversed: bool,
     },
     FillRect {
-        destination: Rect,
+        destination: Rect<Pixels>,
         color: Color,
     },
 }
@@ -35,13 +36,14 @@ impl SpriteBatch {
         }
     }
 
-    pub fn draw(&mut self, sprite: Sprite, dst: Rect, src: Rect, reversed: bool) {
-        let dst = Rect {
-            x: dst.x / SUBPIXELS,
-            y: dst.y / SUBPIXELS,
-            w: dst.w / SUBPIXELS,
-            h: dst.h / SUBPIXELS,
-        };
+    pub fn draw(
+        &mut self,
+        sprite: Sprite,
+        dst: Rect<Subpixels>,
+        src: Rect<Pixels>,
+        reversed: bool,
+    ) {
+        let dst = dst.as_pixels();
         self.entries.push(SpriteBatchEntry::Sprite {
             sprite: sprite.clone(),
             source: src,
@@ -50,13 +52,8 @@ impl SpriteBatch {
         });
     }
 
-    pub fn fill_rect(&mut self, rect: Rect, color: Color) {
-        let rect = Rect {
-            x: rect.x / SUBPIXELS,
-            y: rect.y / SUBPIXELS,
-            w: rect.w / SUBPIXELS,
-            h: rect.h / SUBPIXELS,
-        };
+    pub fn fill_rect(&mut self, rect: Rect<Subpixels>, color: Color) {
+        let rect = rect.as_pixels();
         self.entries.push(SpriteBatchEntry::FillRect {
             destination: rect,
             color,
@@ -92,26 +89,40 @@ impl RenderContext {
         })
     }
 
-    pub fn logical_area_in_subpixels(&self) -> Rect {
+    pub fn logical_area_in_subpixels(&self) -> Rect<Subpixels> {
+        // TODO: This should be cacheable.
         Rect {
-            x: 0,
-            y: 0,
-            w: self.width as i32 * SUBPIXELS,
-            h: self.height as i32 * SUBPIXELS,
+            x: Pixels::zero(),
+            y: Pixels::zero(),
+            w: Pixels::new(self.width as i32),
+            h: Pixels::new(self.height as i32),
         }
+        .into()
     }
 
     // TODO: Get rid of these.
 
-    pub fn draw(&mut self, sprite: Sprite, _layer: RenderLayer, dst: Rect, src: Rect) {
+    pub fn draw(
+        &mut self,
+        sprite: Sprite,
+        _layer: RenderLayer,
+        dst: Rect<Subpixels>,
+        src: Rect<Pixels>,
+    ) {
         self.player_batch.draw(sprite, dst, src, false)
     }
 
-    pub fn draw_reversed(&mut self, sprite: Sprite, _layer: RenderLayer, dst: Rect, src: Rect) {
+    pub fn draw_reversed(
+        &mut self,
+        sprite: Sprite,
+        _layer: RenderLayer,
+        dst: Rect<Subpixels>,
+        src: Rect<Pixels>,
+    ) {
         self.player_batch.draw(sprite, dst, src, true)
     }
 
-    pub fn fill_rect(&mut self, rect: Rect, _layer: RenderLayer, color: Color) {
+    pub fn fill_rect(&mut self, rect: Rect<Subpixels>, _layer: RenderLayer, color: Color) {
         self.player_batch.fill_rect(rect, color);
     }
 

@@ -1,37 +1,13 @@
 use std::{
+    cmp::Ordering,
     path::{Path, PathBuf},
     str::FromStr,
 };
 
 use anyhow::{anyhow, bail, Error, Result};
+use num_traits::Zero;
 
-pub type Subpixels = i32;
-
-#[derive(Clone, Copy)]
-pub struct Point {
-    pub x: Subpixels,
-    pub y: Subpixels,
-}
-
-impl Point {
-    pub fn new(x: Subpixels, y: Subpixels) -> Point {
-        Point { x, y }
-    }
-
-    pub fn x(&self) -> Subpixels {
-        self.x
-    }
-
-    pub fn y(&self) -> Subpixels {
-        self.y
-    }
-}
-
-impl From<(i32, i32)> for Point {
-    fn from(value: (i32, i32)) -> Self {
-        Point::new(value.0, value.1)
-    }
-}
+use crate::geometry::{Rect, Subpixels};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Direction {
@@ -123,60 +99,17 @@ impl From<Color> for [f32; 4] {
     }
 }
 
-pub fn sign(n: Subpixels) -> Subpixels {
-    if n < 0 {
-        -1
-    } else if n > 0 {
-        1
+pub fn cmp_in_direction(a: Subpixels, b: Subpixels, direction: Direction) -> Ordering {
+    let sign = match direction {
+        Direction::Up | Direction::Left => b - a,
+        _ => a - b,
+    };
+    if sign < Subpixels::zero() {
+        Ordering::Less
+    } else if sign > Subpixels::zero() {
+        Ordering::Greater
     } else {
-        0
-    }
-}
-
-pub fn cmp_in_direction(a: Subpixels, b: Subpixels, direction: Direction) -> Subpixels {
-    match direction {
-        Direction::Up | Direction::Left => sign(b - a),
-        _ => sign(a - b),
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Rect {
-    pub x: Subpixels,
-    pub y: Subpixels,
-    pub w: Subpixels,
-    pub h: Subpixels,
-}
-
-impl Rect {
-    pub fn top(&self) -> Subpixels {
-        self.y
-    }
-    pub fn bottom(&self) -> Subpixels {
-        self.y + self.h
-    }
-    pub fn left(&self) -> Subpixels {
-        self.x
-    }
-    pub fn right(&self) -> Subpixels {
-        self.x + self.w
-    }
-}
-
-impl Into<sdl2::rect::Rect> for Rect {
-    fn into(self) -> sdl2::rect::Rect {
-        sdl2::rect::Rect::new(self.x, self.y, self.w as u32, self.h as u32)
-    }
-}
-
-impl Into<Option<sdl2::rect::Rect>> for Rect {
-    fn into(self) -> Option<sdl2::rect::Rect> {
-        Some(sdl2::rect::Rect::new(
-            self.x,
-            self.y,
-            self.w as u32,
-            self.h as u32,
-        ))
+        Ordering::Equal
     }
 }
 
@@ -185,15 +118,19 @@ impl Into<Option<sdl2::rect::Rect>> for Rect {
  *
  * Returns the maximum distance the actor can move.
  */
-pub fn try_move_to_bounds(actor: Rect, target: Rect, direction: Direction) -> Subpixels {
+pub fn try_move_to_bounds(
+    actor: Rect<Subpixels>,
+    target: Rect<Subpixels>,
+    direction: Direction,
+) -> Subpixels {
     if actor.bottom() <= target.top() {
-        0
+        Subpixels::zero()
     } else if actor.top() >= target.bottom() {
-        0
+        Subpixels::zero()
     } else if actor.right() <= target.left() {
-        0
+        Subpixels::zero()
     } else if actor.left() >= target.right() {
-        0
+        Subpixels::zero()
     } else {
         match direction {
             Direction::Up => target.bottom() - actor.top(),
@@ -204,7 +141,10 @@ pub fn try_move_to_bounds(actor: Rect, target: Rect, direction: Direction) -> Su
     }
 }
 
-pub fn intersect(rect1: Rect, rect2: Rect) -> bool {
+pub fn intersect<T>(rect1: Rect<T>, rect2: Rect<T>) -> bool
+where
+    T: std::ops::Add<T, Output = T> + PartialOrd + Copy,
+{
     if rect1.right() < rect2.left() {
         false
     } else if rect1.left() > rect2.right() {

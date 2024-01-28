@@ -7,9 +7,10 @@ use anyhow::{bail, Context, Result};
 use log::info;
 
 use crate::font::Font;
+use crate::geometry::{Pixels, Rect};
 use crate::renderer::Renderer;
 use crate::sprite::{Animation, Sprite, SpriteSheet};
-use crate::utils::{normalize_path, Rect};
+use crate::utils::normalize_path;
 
 pub trait ImageLoader {
     fn load_sprite(&mut self, path: &Path) -> Result<Sprite>;
@@ -17,15 +18,15 @@ pub trait ImageLoader {
     fn load_spritesheet(
         &mut self,
         path: &Path,
-        sprite_width: u32,
-        sprite_height: u32,
+        sprite_width: Pixels,
+        sprite_height: Pixels,
     ) -> Result<SpriteSheet>;
 
     fn load_animation(
         &mut self,
         path: &Path,
-        sprite_width: u32,
-        sprite_height: u32,
+        sprite_width: Pixels,
+        sprite_height: Pixels,
     ) -> Result<Animation>;
 }
 
@@ -84,10 +85,10 @@ where
             if parts.len() != 5 {
                 bail!("invalid texture atlas index entry: {}", line);
             }
-            let x = parts[0].parse()?;
-            let y = parts[1].parse()?;
-            let w = parts[2].parse()?;
-            let h = parts[3].parse()?;
+            let x = Pixels::new(parts[0].parse()?);
+            let y = Pixels::new(parts[1].parse()?);
+            let w = Pixels::new(parts[2].parse()?);
+            let h = Pixels::new(parts[3].parse()?);
             let area = Rect { x, y, w, h };
             let sprite = base_sprite.subview(area);
 
@@ -111,7 +112,7 @@ where
         let path = normalize_path(path)?;
         info!("loading sprite from normalized path: {:?}", path);
         if let Some(existing) = self.path_to_sprite.get(&path) {
-            info!("sprite already exists at {}, {}", existing.x, existing.y);
+            info!("sprite already exists at {:?}", existing.area);
             return Ok(*existing);
         }
         if self.locked {
@@ -125,8 +126,8 @@ where
     fn load_spritesheet(
         &mut self,
         path: &Path,
-        sprite_width: u32,
-        sprite_height: u32,
+        sprite_width: Pixels,
+        sprite_height: Pixels,
     ) -> Result<SpriteSheet> {
         let sprite = self.load_sprite(path)?;
         SpriteSheet::new(sprite, sprite_width, sprite_height)
@@ -135,8 +136,8 @@ where
     fn load_animation(
         &mut self,
         path: &Path,
-        sprite_width: u32,
-        sprite_height: u32,
+        sprite_width: Pixels,
+        sprite_height: Pixels,
     ) -> Result<Animation> {
         let sprite = self.load_sprite(path)?;
         Animation::new(sprite, sprite_width, sprite_height)

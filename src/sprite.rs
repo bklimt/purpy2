@@ -5,41 +5,36 @@ use std::path::Path;
 
 use anyhow::{anyhow, bail, Context, Result};
 
+use crate::geometry::{Pixels, Rect, Subpixels};
 use crate::rendercontext::{RenderContext, RenderLayer};
-use crate::utils::Rect;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug)]
 pub struct Sprite {
     pub id: usize,
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32,
+    pub area: Rect<Pixels>,
 }
 
 impl Sprite {
-    pub fn subview(&self, rect: Rect) -> Sprite {
+    // TODO: Technically, this only works if you start from zero.
+    pub fn subview(&self, rect: Rect<Pixels>) -> Sprite {
         Sprite {
             id: self.id,
-            x: rect.x as u32,
-            y: rect.y as u32,
-            width: rect.w as u32,
-            height: rect.h as u32,
+            area: rect,
         }
     }
 }
 
 pub struct SpriteSheet {
     sprite: Sprite,
-    sprite_width: u32,
-    sprite_height: u32,
+    sprite_width: Pixels,
+    sprite_height: Pixels,
     columns: u32,
 }
 
 impl SpriteSheet {
-    pub fn new(sprite: Sprite, sprite_width: u32, sprite_height: u32) -> Result<SpriteSheet> {
-        let w = sprite.width;
-        let columns = w / sprite_width;
+    pub fn new(sprite: Sprite, sprite_width: Pixels, sprite_height: Pixels) -> Result<SpriteSheet> {
+        let w = sprite.area.w;
+        let columns = (w / sprite_width) as u32;
         Ok(SpriteSheet {
             sprite,
             sprite_width,
@@ -48,14 +43,14 @@ impl SpriteSheet {
         })
     }
 
-    fn source_area(&self, index: u32, layer: u32) -> Rect {
+    fn source_area(&self, index: u32, layer: u32) -> Rect<Pixels> {
         let row = (index / self.columns) + layer;
         let column = index % self.columns;
 
-        let w = self.sprite_width as i32;
-        let h = self.sprite_height as i32;
-        let x = column as i32 * w;
-        let y = row as i32 * h;
+        let w = self.sprite_width;
+        let h = self.sprite_height;
+        let x = w * column as i32;
+        let y = h * row as i32;
         Rect { x, y, w, h }
     }
 
@@ -63,7 +58,7 @@ impl SpriteSheet {
         &self,
         context: &mut RenderContext,
         layer: RenderLayer,
-        dest: Rect,
+        dest: Rect<Subpixels>,
         index: u32,
         sprite_layer: u32,
         reverse: bool,
@@ -84,13 +79,13 @@ pub struct Animation {
 }
 
 impl Animation {
-    pub fn new(sprite: Sprite, sprite_width: u32, sprite_height: u32) -> Result<Animation> {
-        if sprite.height != sprite_height {
+    pub fn new(sprite: Sprite, sprite_width: Pixels, sprite_height: Pixels) -> Result<Animation> {
+        if sprite.area.h != sprite_height {
             bail!("animations can only have one row");
         }
-        let w = sprite.width;
+        let w = sprite.area.w;
         let spritesheet = SpriteSheet::new(sprite, sprite_width, sprite_height)?;
-        let frames = w / sprite_width;
+        let frames = (w / sprite_width) as u32;
         let frames_per_frame = 2;
         Ok(Animation {
             spritesheet,
@@ -99,7 +94,13 @@ impl Animation {
         })
     }
 
-    pub fn blit(&self, context: &mut RenderContext, layer: RenderLayer, dest: Rect, reverse: bool) {
+    pub fn blit(
+        &self,
+        context: &mut RenderContext,
+        layer: RenderLayer,
+        dest: Rect<Subpixels>,
+        reverse: bool,
+    ) {
         let index = ((context.frame / self.frames_per_frame as u64) % self.frames as u64) as u32;
         self.spritesheet
             .blit(context, layer, dest, index, 0, reverse)

@@ -1,20 +1,24 @@
+use std::cmp::Ordering;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use anyhow::{Context, Result};
 use log::{info, log_enabled};
+use num_traits::Zero;
 
 use crate::constants::{
     COYOTE_TIME, FALL_ACCELERATION, FALL_MAX_GRAVITY, JUMP_ACCELERATION, JUMP_GRACE_TIME,
-    JUMP_INITIAL_SPEED, JUMP_MAX_GRAVITY, SLIDE_SPEED_DECELERATION, SPRING_BOUNCE_DURATION,
-    SPRING_BOUNCE_VELOCITY, SPRING_JUMP_DURATION, SPRING_JUMP_VELOCITY, SUBPIXELS,
-    TARGET_WALK_SPEED, TOAST_HEIGHT, TOAST_SPEED, TOAST_TIME, VIEWPORT_PAN_SPEED,
-    WALK_SPEED_ACCELERATION, WALK_SPEED_DECELERATION, WALL_JUMP_HORIZONTAL_SPEED,
-    WALL_JUMP_VERTICAL_SPEED, WALL_SLIDE_SPEED, WALL_SLIDE_TIME, WALL_STICK_TIME,
+    JUMP_INITIAL_SPEED, JUMP_MAX_GRAVITY, PLAYER_DEFAULT_X, PLAYER_DEFAULT_Y,
+    SLIDE_SPEED_DECELERATION, SPRING_BOUNCE_DURATION, SPRING_BOUNCE_VELOCITY, SPRING_JUMP_DURATION,
+    SPRING_JUMP_VELOCITY, TARGET_WALK_SPEED, TOAST_HEIGHT, TOAST_SPEED, TOAST_TIME,
+    VIEWPORT_PAN_SPEED, WALK_SPEED_ACCELERATION, WALK_SPEED_DECELERATION,
+    WALL_JUMP_HORIZONTAL_SPEED, WALL_JUMP_VERTICAL_SPEED, WALL_SLIDE_SPEED, WALL_SLIDE_TIME,
+    WALL_STICK_TIME,
 };
 use crate::door::Door;
 use crate::font::Font;
+use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
 use crate::inputmanager::InputSnapshot;
 use crate::platform::{Bagel, Button, Conveyor, MovingPlatform, Platform, PlatformType, Spring};
@@ -27,16 +31,16 @@ use crate::star::Star;
 use crate::switchstate::SwitchState;
 use crate::tilemap::{TileIndex, TileMap};
 use crate::tileset::TileProperties;
-use crate::utils::{cmp_in_direction, Color, Direction, Point, Rect};
+use crate::utils::{cmp_in_direction, Color, Direction};
 
 struct PlatformIntersectionResult {
-    offset: i32,
+    offset: Subpixels,
     platforms: SmallIntSet<usize>,
 }
 
 // The results of trying to move.
 struct TryMovePlayerResult {
-    offset: i32,
+    offset: Subpixels,
     tile_ids: SmallIntSet<TileIndex>,
     platforms: SmallIntSet<usize>,
 }
@@ -90,9 +94,9 @@ pub struct Level {
     jump_grace_counter: i32,
     spring_counter: i32,
 
-    previous_map_offset: Option<Point>,
+    previous_map_offset: Option<Point<Subpixels>>,
     toast_text: String,
-    toast_position: i32,
+    toast_position: Subpixels,
     toast_counter: i32,
 
     // platforms, stars, and doors
@@ -110,12 +114,12 @@ pub struct Level {
     previous_transition: String,
 }
 
-fn inc_player_x(player: &mut Player, offset: i32) {
-    player.x += offset;
+fn inc_player_x(player: &mut Player, offset: Subpixels) {
+    player.position.x += offset;
 }
 
-fn inc_player_y(player: &mut Player, offset: i32) {
-    player.y += offset;
+fn inc_player_y(player: &mut Player, offset: Subpixels) {
+    player.position.y += offset;
 }
 
 impl Level {
@@ -128,7 +132,7 @@ impl Level {
         let jump_grace_counter = 0;
         let spring_counter = 0;
 
-        let toast_position = -TOAST_HEIGHT;
+        let toast_position = TOAST_HEIGHT * -1;
         let toast_counter = TOAST_TIME;
 
         let name: String = map_path
@@ -140,8 +144,8 @@ impl Level {
         let previous_map_offset = None;
         let map = Rc::new(TileMap::from_file(map_path, images)?);
         let mut player = Player::new(images)?;
-        player.x = (128 * SUBPIXELS) / 16;
-        player.y = (129 * SUBPIXELS) / 16;
+        player.position.x = PLAYER_DEFAULT_X;
+        player.position.y = PLAYER_DEFAULT_Y;
 
         let star_count = 0;
         let switches = SwitchState::new();
@@ -217,52 +221,54 @@ impl Level {
 
     fn update_player_trajectory_x(&mut self, inputs: &InputSnapshot) {
         if matches!(self.player.state, PlayerState::Crouching) {
-            if self.player.dx > 0 {
-                self.player.dx = (self.player.dx - SLIDE_SPEED_DECELERATION).max(0);
-            } else if self.player.dx < 0 {
-                self.player.dx = (self.player.dx + SLIDE_SPEED_DECELERATION).min(0);
+            if self.player.delta.x > Subpixels::zero() {
+                self.player.delta.x =
+                    (self.player.delta.x - SLIDE_SPEED_DECELERATION).max(Subpixels::zero());
+            } else if self.player.delta.x < Subpixels::zero() {
+                self.player.delta.x =
+                    (self.player.delta.x + SLIDE_SPEED_DECELERATION).min(Subpixels::zero());
             }
             return;
         }
 
         // Apply controller input.
-        let mut target_dx = 0;
+        let mut target_dx = Subpixels::zero();
         if inputs.player_left && !inputs.player_right {
-            target_dx = -1 * TARGET_WALK_SPEED;
+            target_dx = TARGET_WALK_SPEED * -1;
         } else if inputs.player_right && !inputs.player_left {
             target_dx = TARGET_WALK_SPEED;
         }
 
         // Change the velocity toward the target velocity.
-        if self.player.dx > 0 {
+        if self.player.delta.x > Subpixels::zero() {
             // We're facing right.
-            if target_dx > self.player.dx {
-                self.player.dx += WALK_SPEED_ACCELERATION;
-                self.player.dx = self.player.dx.min(target_dx);
+            if target_dx > self.player.delta.x {
+                self.player.delta.x += WALK_SPEED_ACCELERATION;
+                self.player.delta.x = self.player.delta.x.min(target_dx);
             }
-            if target_dx < self.player.dx {
-                self.player.dx -= WALK_SPEED_DECELERATION;
-                self.player.dx = self.player.dx.max(target_dx);
+            if target_dx < self.player.delta.x {
+                self.player.delta.x -= WALK_SPEED_DECELERATION;
+                self.player.delta.x = self.player.delta.x.max(target_dx);
             }
-        } else if self.player.dx < 0 {
+        } else if self.player.delta.x < Subpixels::zero() {
             // We're facing left.
-            if target_dx > self.player.dx {
-                self.player.dx += WALK_SPEED_DECELERATION;
-                self.player.dx = self.player.dx.min(target_dx);
+            if target_dx > self.player.delta.x {
+                self.player.delta.x += WALK_SPEED_DECELERATION;
+                self.player.delta.x = self.player.delta.x.min(target_dx);
             }
-            if target_dx < self.player.dx {
-                self.player.dx -= WALK_SPEED_ACCELERATION;
-                self.player.dx = self.player.dx.max(target_dx);
+            if target_dx < self.player.delta.x {
+                self.player.delta.x -= WALK_SPEED_ACCELERATION;
+                self.player.delta.x = self.player.delta.x.max(target_dx);
             }
         } else {
             // We're stopped.
-            if target_dx > self.player.dx {
-                self.player.dx += WALK_SPEED_ACCELERATION;
-                self.player.dx = self.player.dx.min(target_dx);
+            if target_dx > self.player.delta.x {
+                self.player.delta.x += WALK_SPEED_ACCELERATION;
+                self.player.delta.x = self.player.delta.x.min(target_dx);
             }
-            if target_dx < self.player.dx {
-                self.player.dx -= WALK_SPEED_ACCELERATION;
-                self.player.dx = self.player.dx.max(target_dx);
+            if target_dx < self.player.delta.x {
+                self.player.delta.x -= WALK_SPEED_ACCELERATION;
+                self.player.delta.x = self.player.delta.x.max(target_dx);
             }
         }
     }
@@ -271,29 +277,29 @@ impl Level {
         match self.player.state {
             PlayerState::Standing | PlayerState::Crouching => {
                 // Fall at least one pixel so that we hit the ground again.
-                self.player.dy = self.player.dy.max(1);
+                self.player.delta.y = self.player.delta.y.max(Subpixels::new(1));
             }
             PlayerState::Jumping => {
                 // Apply gravity.
-                if self.player.dy < JUMP_MAX_GRAVITY {
-                    self.player.dy += JUMP_ACCELERATION;
+                if self.player.delta.y < JUMP_MAX_GRAVITY {
+                    self.player.delta.y += JUMP_ACCELERATION;
                 }
-                self.player.dy = self.player.dy.min(JUMP_MAX_GRAVITY);
+                self.player.delta.y = self.player.delta.y.min(JUMP_MAX_GRAVITY);
             }
             PlayerState::Falling => {
                 // Apply gravity.
-                if self.player.dy < FALL_MAX_GRAVITY {
-                    self.player.dy += FALL_ACCELERATION;
+                if self.player.delta.y < FALL_MAX_GRAVITY {
+                    self.player.delta.y += FALL_ACCELERATION;
                 }
-                self.player.dy = self.player.dy.min(FALL_MAX_GRAVITY);
+                self.player.delta.y = self.player.delta.y.min(FALL_MAX_GRAVITY);
             }
             PlayerState::WallSliding => {
                 // When you first grab the wall, don't start sliding for a while.
                 if self.wall_slide_counter > 0 {
                     self.wall_slide_counter -= 1;
-                    self.player.dy = 0;
+                    self.player.delta.y = Subpixels::zero();
                 } else {
-                    self.player.dy = WALL_SLIDE_SPEED;
+                    self.player.delta.y = WALL_SLIDE_SPEED;
                 }
             }
             PlayerState::Stopped => {}
@@ -302,27 +308,30 @@ impl Level {
 
     fn find_platform_intersections(
         &self,
-        player_rect: Rect,
+        player_rect: Rect<Subpixels>,
         direction: Direction,
         is_backwards: bool,
     ) -> PlatformIntersectionResult {
         let mut result = PlatformIntersectionResult {
-            offset: 0,
+            offset: Subpixels::zero(),
             platforms: SmallIntSet::new(),
         };
         for (i, platform) in self.platforms.iter().enumerate() {
             let distance = platform.try_move_to(player_rect, direction, is_backwards);
-            if distance == 0 {
+            if distance.is_zero() {
                 continue;
             }
 
-            let cmp = cmp_in_direction(distance, result.offset, direction);
-            if cmp < 0 {
-                result.offset = distance;
-                result.platforms = SmallIntSet::new();
-                result.platforms.insert(i);
-            } else if cmp == 0 {
-                result.platforms.insert(i);
+            match cmp_in_direction(distance, result.offset, direction) {
+                Ordering::Less => {
+                    result.offset = distance;
+                    result.platforms = SmallIntSet::new();
+                    result.platforms.insert(i);
+                }
+                Ordering::Equal => {
+                    result.platforms.insert(i);
+                }
+                Ordering::Greater => {}
             }
         }
         result
@@ -338,18 +347,17 @@ impl Level {
         let platform_result =
             self.find_platform_intersections(player_rect, direction, is_backwards);
 
-        if cmp_in_direction(platform_result.offset, map_result.hard_offset, direction) <= 0 {
-            TryMovePlayerResult {
+        match cmp_in_direction(platform_result.offset, map_result.hard_offset, direction) {
+            Ordering::Less | Ordering::Equal => TryMovePlayerResult {
                 offset: platform_result.offset,
                 platforms: platform_result.platforms,
                 tile_ids: SmallIntSet::new(),
-            }
-        } else {
-            TryMovePlayerResult {
+            },
+            Ordering::Greater => TryMovePlayerResult {
                 offset: map_result.hard_offset,
                 platforms: SmallIntSet::new(),
                 tile_ids: map_result.tile_ids,
-            }
+            },
         }
     }
 
@@ -357,7 +365,7 @@ impl Level {
     fn move_and_check(
         &mut self,
         forward: Direction,
-        apply_offset: fn(&mut Player, i32) -> (),
+        apply_offset: fn(&mut Player, Subpixels) -> (),
     ) -> MoveAndCheckResult {
         let move_result1 = self.try_move_player(forward, false);
         apply_offset(&mut self.player, move_result1.offset);
@@ -391,7 +399,7 @@ impl Level {
         };
         match forward {
             Direction::Down => {
-                result.on_ground = move_result1.offset != 0;
+                result.on_ground = !move_result1.offset.is_zero();
                 result.on_tile_ids = move_result1.tile_ids;
                 result.on_platforms = move_result1.platforms;
             }
@@ -401,19 +409,21 @@ impl Level {
                 if !matches!(self.player.state, PlayerState::Jumping)
                     && !matches!(self.player.state, PlayerState::Falling)
                 {
-                    result.on_ground = move_result2.offset != 0;
+                    result.on_ground = !move_result2.offset.is_zero();
                 }
-                result.hit_ceiling = move_result1.offset != 0;
+                result.hit_ceiling = !move_result1.offset.is_zero();
                 result.on_tile_ids = move_result2.tile_ids;
                 result.on_platforms = move_result2.platforms;
             }
-            Direction::Left | Direction::Right => result.against_wall = move_result1.offset != 0,
+            Direction::Left | Direction::Right => {
+                result.against_wall = !move_result1.offset.is_zero()
+            }
         }
 
         // See if we're crushed.
-        if offset != 0 {
+        if !offset.is_zero() {
             let crush_check = self.try_move_player(forward, false);
-            if crush_check.offset != 0 {
+            if !crush_check.offset.is_zero() {
                 let crushed = hit_solid_platform1 || hit_solid_platform2;
                 if crushed {
                     result.crushed_by_platform = true;
@@ -427,23 +437,24 @@ impl Level {
     }
 
     fn move_player_x(&mut self, inputs: &InputSnapshot) -> MovePlayerXResult {
-        let mut dx = self.player.dx;
+        let mut dx = self.player.delta.x;
         if let Some(current_platform) = self.current_platform {
             dx += self.platforms[current_platform].dx();
         }
-        self.player.x += dx;
+        self.player.position.x += dx;
 
-        let (move_result, pushing) = if dx < 0 || (dx == 0 && !self.player.facing_right) {
-            // Moving left.
-            let move_result = self.move_and_check(Direction::Left, inc_player_x);
-            let pushing = inputs.player_left;
-            (move_result, pushing)
-        } else {
-            // Moving right.
-            let move_result = self.move_and_check(Direction::Right, inc_player_x);
-            let pushing = inputs.player_right;
-            (move_result, pushing)
-        };
+        let (move_result, pushing) =
+            if dx < Subpixels::zero() || (dx.is_zero() && !self.player.facing_right) {
+                // Moving left.
+                let move_result = self.move_and_check(Direction::Left, inc_player_x);
+                let pushing = inputs.player_left;
+                (move_result, pushing)
+            } else {
+                // Moving right.
+                let move_result = self.move_and_check(Direction::Right, inc_player_x);
+                let pushing = inputs.player_right;
+                (move_result, pushing)
+            };
 
         let result = MovePlayerXResult {
             pushing_against_wall: pushing && move_result.against_wall,
@@ -453,20 +464,22 @@ impl Level {
 
         // If you're against the wall, you're stopped.
         if result.pushing_against_wall {
-            self.player.dx = 0;
+            self.player.delta.x = Subpixels::zero();
         }
 
         result
     }
 
-    fn get_slope_dy(&self) -> i32 {
-        let mut slope_fall = 0;
+    fn get_slope_dy(&self) -> Subpixels {
+        let mut slope_fall = Subpixels::zero();
         for slope_id in self.current_slopes.iter() {
             let slope = self.map.get_slope(*slope_id).expect("must be valid");
             let left_y = slope.left_y;
             let right_y = slope.right_y;
-            let mut fall: i32 = 0;
-            if self.player.dx > 0 || (self.player.dx == 0 && self.player.facing_right) {
+            let mut fall: Subpixels = Subpixels::zero();
+            if self.player.delta.x > Subpixels::zero()
+                || (self.player.delta.x.is_zero() && self.player.facing_right)
+            {
                 // The player is facing right.
                 if right_y > left_y {
                     fall = right_y - left_y;
@@ -483,24 +496,24 @@ impl Level {
     }
 
     fn move_player_y(&mut self, sounds: &mut SoundManager) -> MovePlayerYResult {
-        let mut dy = self.player.dy;
+        let mut dy = self.player.delta.y;
         if let Some(current_platform) = self.current_platform {
             // This could be positive or negative.
             dy += self.platforms[current_platform].dy();
         }
 
         // If you're on a slope, make sure to fall at least the slope amount.
-        if dy >= 0 {
+        if dy >= Subpixels::zero() {
             dy = dy.max(self.get_slope_dy());
         }
 
-        self.player.y += dy;
+        self.player.position.y += dy;
 
-        if dy <= 0 {
+        if dy <= Subpixels::zero() {
             // Moving up.
             let move_result = self.move_and_check(Direction::Up, inc_player_y);
             if move_result.hit_ceiling {
-                self.player.dy = 0;
+                self.player.delta.y = Subpixels::zero();
             }
 
             self.handle_slopes(&move_result.on_tile_ids);
@@ -643,16 +656,16 @@ impl Level {
                         self.player.state = PlayerState::Jumping;
                         if movement.jump_triggered || self.jump_grace_counter > 0 {
                             self.spring_counter = SPRING_JUMP_DURATION;
-                            self.player.dy = -1 * SPRING_JUMP_VELOCITY;
+                            self.player.delta.y = SPRING_JUMP_VELOCITY * -1;
                         } else {
                             self.spring_counter = SPRING_BOUNCE_DURATION;
-                            self.player.dy = -1 * SPRING_BOUNCE_VELOCITY;
+                            self.player.delta.y = SPRING_BOUNCE_VELOCITY * -1;
                         }
                     } else if self.coyote_counter == 0 {
                         self.player.state = PlayerState::Falling;
-                        self.player.dy = 0;
+                        self.player.delta.y = Subpixels::zero();
                         if let Some(current_platform) = self.current_platform {
-                            self.player.dx = self.platforms[current_platform].dx();
+                            self.player.delta.x = self.platforms[current_platform].dx();
                         }
                     } else if movement.crouch_down {
                         self.player.state = PlayerState::Crouching;
@@ -677,13 +690,13 @@ impl Level {
                             };
                             if should_boost {
                                 self.spring_counter = SPRING_JUMP_DURATION;
-                                self.player.dy = -1 * SPRING_JUMP_VELOCITY;
+                                self.player.delta.y = SPRING_JUMP_VELOCITY * -1;
                             } else {
                                 self.spring_counter = 0;
-                                self.player.dy = -1 * JUMP_INITIAL_SPEED;
+                                self.player.delta.y = JUMP_INITIAL_SPEED * -1;
                             }
                             if let Some(current_platform) = self.current_platform {
-                                self.player.dx += self.platforms[current_platform].dx();
+                                self.player.delta.x += self.platforms[current_platform].dx();
                             }
                         }
                     }
@@ -694,9 +707,10 @@ impl Level {
                     }
                     if movement.on_ground {
                         self.player.state = PlayerState::Standing;
-                        self.player.dy = 0;
+                        self.player.delta.y = Subpixels::zero();
                     } else {
-                        if movement.pushing_against_wall && self.player.dy >= 0 {
+                        if movement.pushing_against_wall && self.player.delta.y >= Subpixels::zero()
+                        {
                             self.player.state = PlayerState::WallSliding;
                             self.wall_slide_counter = WALL_SLIDE_TIME;
                         }
@@ -705,14 +719,14 @@ impl Level {
                 PlayerState::Jumping => {
                     if movement.on_ground {
                         self.player.state = PlayerState::Standing;
-                        self.player.dy = 0;
-                    } else if self.player.dy >= 0 {
+                        self.player.delta.y = Subpixels::zero();
+                    } else if self.player.delta.y >= Subpixels::zero() {
                         self.player.state = PlayerState::Falling;
                     } else {
                         if !movement.jump_down {
                             if self.spring_counter == 0 {
                                 self.player.state = PlayerState::Falling;
-                                self.player.dy = 0;
+                                self.player.delta.y = Subpixels::zero();
                             } else {
                                 self.spring_counter -= 1;
                             }
@@ -722,11 +736,11 @@ impl Level {
                 PlayerState::WallSliding => {
                     if movement.jump_triggered {
                         self.player.state = PlayerState::Jumping;
-                        self.player.dy = -1 * WALL_JUMP_VERTICAL_SPEED;
+                        self.player.delta.y = WALL_JUMP_VERTICAL_SPEED * -1;
                         if self.player.facing_right {
-                            self.player.dx = -1 * WALL_JUMP_HORIZONTAL_SPEED;
+                            self.player.delta.x = WALL_JUMP_HORIZONTAL_SPEED * -1;
                         } else {
-                            self.player.dx = WALL_JUMP_HORIZONTAL_SPEED;
+                            self.player.delta.x = WALL_JUMP_HORIZONTAL_SPEED;
                         }
                     } else if movement.on_ground {
                         self.player.state = PlayerState::Standing;
@@ -746,7 +760,7 @@ impl Level {
                 PlayerState::Crouching => {
                     if !movement.on_ground {
                         self.player.state = PlayerState::Falling;
-                        self.player.dy = 0;
+                        self.player.delta.y = Subpixels::zero();
                     } else if !movement.crouch_down {
                         self.player.state = PlayerState::Standing;
                     }
@@ -837,12 +851,12 @@ impl Scene for Level {
         }
 
         if self.toast_counter == 0 {
-            if self.toast_position > -TOAST_HEIGHT {
+            if self.toast_position > TOAST_HEIGHT * -1 {
                 self.toast_position -= TOAST_SPEED;
             }
         } else {
             self.toast_counter -= 1;
-            if self.toast_position < 0 {
+            if self.toast_position < Subpixels::zero() {
                 self.toast_position += TOAST_SPEED;
             }
         }
@@ -856,35 +870,33 @@ impl Scene for Level {
         // Make sure the player is on the screen, and then center them if possible.
         let player_rect = self.player.get_target_bounds_rect(None);
         let (preferred_x, preferred_y) = self.map.get_preferred_view(player_rect);
-        let player_x = self.player.x;
-        let player_y = self.player.y;
-        let mut player_draw_x = dest.w / 2;
-        let mut player_draw_y = dest.h / 2;
+        let player = self.player.position;
+        let mut player_draw = Point::new(dest.w / 2, dest.h / 2);
         // Don't waste space on the sides of the screen beyond the map.
-        if player_draw_x > player_x {
-            player_draw_x = player_x;
+        if player_draw.x > player.x {
+            player_draw.x = player.x;
         }
         // The map is drawn 4 pixels from the top of the screen.
-        if player_draw_y > player_y + 4 {
-            player_draw_y = player_y + 4;
+        if player_draw.y > player.y + Pixels::new(4).as_subpixels() {
+            player_draw.y = player.y + Pixels::new(4).as_subpixels();
         }
-        let right_limit = dest.w - (self.map.width * self.map.tilewidth * SUBPIXELS);
-        if player_draw_x < player_x + right_limit {
-            player_draw_x = player_x + right_limit;
+        let right_limit = dest.w - self.map.tilewidth.as_subpixels() * self.map.width;
+        if player_draw.x < player.x + right_limit {
+            player_draw.x = player.x + right_limit;
         }
-        let bottom_limit = dest.h - (self.map.height * self.map.tileheight * SUBPIXELS);
-        if player_draw_y < player_y + bottom_limit {
-            player_draw_y = player_y + bottom_limit;
+        let bottom_limit = dest.h - self.map.tileheight.as_subpixels() * self.map.height;
+        if player_draw.y < player.y + bottom_limit {
+            player_draw.y = player.y + bottom_limit;
         }
-        let mut map_offset = Point::new(player_draw_x - player_x, player_draw_y - player_y);
+        let mut map_offset = player_draw - player;
 
         if let Some(preferred_x) = preferred_x {
-            map_offset = (-preferred_x, map_offset.y).into();
-            player_draw_x = player_x + map_offset.x;
+            map_offset = (preferred_x * -1, map_offset.y).into();
+            player_draw.x = player.x + map_offset.x;
         }
         if let Some(preferred_y) = preferred_y {
-            map_offset = (map_offset.x, -preferred_y).into();
-            player_draw_y = player_y + map_offset.y;
+            map_offset = (map_offset.x, preferred_y * -1).into();
+            player_draw.y = player.y + map_offset.y;
         }
 
         // Don't let the viewport move too much in between frames.
@@ -895,7 +907,7 @@ impl Scene for Level {
                 } else if prev.x > map_offset.x {
                     map_offset = (prev.x - VIEWPORT_PAN_SPEED, map_offset.y).into();
                 }
-                player_draw_x = player_x + map_offset.x;
+                player_draw.x = player.x + map_offset.x;
             }
             if (map_offset.y - prev.y).abs() > VIEWPORT_PAN_SPEED {
                 if prev.y < map_offset.y {
@@ -903,7 +915,7 @@ impl Scene for Level {
                 } else if prev.y > map_offset.y {
                     map_offset = (map_offset.x, prev.y - VIEWPORT_PAN_SPEED).into();
                 }
-                player_draw_y = player_y + map_offset.y;
+                player_draw.y = player.y + map_offset.y;
             }
         }
         self.previous_map_offset = Some(map_offset);
@@ -925,11 +937,7 @@ impl Scene for Level {
         for star in self.stars.iter() {
             star.draw(context, RenderLayer::Player, map_offset);
         }
-        self.player.draw(
-            context,
-            RenderLayer::Player,
-            (player_draw_x, player_draw_y).into(),
-        );
+        self.player.draw(context, RenderLayer::Player, player_draw);
         for door in self.doors.iter() {
             door.draw_foreground(context, RenderLayer::Player, map_offset);
         }
@@ -954,16 +962,14 @@ impl Scene for Level {
             w: dest.w,
             h: TOAST_HEIGHT,
         };
-        if top_bar_area.bottom() > 0 {
+        if top_bar_area.bottom() > Subpixels::zero() {
             context.fill_rect(top_bar_area, RenderLayer::Hud, top_bar_bgcolor);
+            let text_offset = Point::new(Pixels::new(2), Pixels::new(2));
+            let text_offset: Point<Subpixels> = text_offset.into();
             font.draw_string(
                 context,
                 RenderLayer::Hud,
-                (
-                    top_bar_area.x + 2 * SUBPIXELS,
-                    top_bar_area.y + 2 * SUBPIXELS,
-                )
-                    .into(),
+                top_bar_area.top_left() + text_offset,
                 &self.toast_text,
             );
         }

@@ -1,8 +1,9 @@
-use crate::constants::SUBPIXELS;
+use crate::geometry::{Rect, Subpixels};
 use crate::tileset::TileProperties;
-use crate::utils::{Direction, Rect, Subpixels};
+use crate::utils::Direction;
 
 use anyhow::Result;
+use num_traits::Zero;
 
 pub struct Slope {
     pub left_y: Subpixels,
@@ -11,8 +12,8 @@ pub struct Slope {
 
 impl Slope {
     pub fn new(properties: &TileProperties) -> Result<Self> {
-        let left_y = properties.left_y * SUBPIXELS;
-        let right_y = properties.right_y * SUBPIXELS;
+        let left_y = properties.left_y.into();
+        let right_y = properties.right_y.into();
         Ok(Slope { left_y, right_y })
     }
 
@@ -21,22 +22,27 @@ impl Slope {
      *
      * Returns the maximum distance the actor can move.
      */
-    pub fn try_move_to_bounds(&self, actor: Rect, target: Rect, direction: Direction) -> Subpixels {
+    pub fn try_move_to_bounds(
+        &self,
+        actor: Rect<Subpixels>,
+        target: Rect<Subpixels>,
+        direction: Direction,
+    ) -> Subpixels {
         let left_y = self.left_y;
         let right_y = self.right_y;
 
         if actor.bottom() <= target.top() {
-            return 0;
+            return Subpixels::zero();
         } else if actor.top() >= target.bottom() {
-            return 0;
+            return Subpixels::zero();
         } else if actor.right() <= target.left() {
-            return 0;
+            return Subpixels::zero();
         } else if actor.left() >= target.right() {
-            return 0;
+            return Subpixels::zero();
         }
 
         let Direction::Down = direction else {
-            return 0;
+            return Subpixels::zero();
         };
 
         let actor_center_x = (actor.left() + actor.right()) / 2;
@@ -51,18 +57,18 @@ impl Slope {
             if false {
                 println!("");
                 println!("direction = {:?}", direction);
-                println!("center_x = {actor_center_x}");
-                println!("x_offset = {}", x_offset / 16);
-                println!("slope = {slope}");
-                println!("actor_bottom = {}", actor.bottom() / 16);
+                println!("center_x = {:?}", actor_center_x);
+                println!("x_offset = {:?}", x_offset / 16);
+                println!("slope = {:?}", slope);
+                println!("actor_bottom = {:?}", actor.bottom() / 16);
             }
-            target.y + slope * x_offset + left_y
+            target.y + x_offset * slope + left_y
         };
 
         if target_y < actor.bottom() {
             target_y - actor.bottom()
         } else {
-            0
+            Subpixels::zero()
         }
     }
 }
