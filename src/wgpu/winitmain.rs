@@ -102,7 +102,7 @@ pub async fn run(args: Args) -> Result<()> {
     let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     let PhysicalSize { width, height } = window.inner_size();
-    let renderer = WgpuRenderer::new(&window, width, height).await;
+    let renderer = WgpuRenderer::new(&window, width, height).await?;
     let mut game = match GameState::new(args, renderer) {
         Ok(game) => game,
         Err(e) => {

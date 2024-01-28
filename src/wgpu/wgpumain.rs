@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use sdl2::event::Event;
 use sdl2::video::Window;
 
@@ -32,7 +32,7 @@ pub fn run(args: Args) -> Result<()> {
     let (width, height) = window.size();
 
     let future = WgpuRenderer::new(&window, width, height);
-    let renderer = pollster::block_on(future);
+    let renderer = pollster::block_on(future)?;
 
     let mut image_manager = ImageManager::new(renderer)?;
     let mut input_manager = InputManager::new(&args)?;
@@ -72,7 +72,10 @@ pub fn run(args: Args) -> Result<()> {
 
         context.clear();
         stage_manager.draw(&mut context, &font);
-        image_manager.renderer_mut().render(&context)?;
+        image_manager
+            .renderer_mut()
+            .render(&context)
+            .map_err(|e| anyhow!("rendering error: {}", e))?;
 
         frame += 1;
         let target_duration = Duration::new(0, 1_000_000_000u32 / FRAME_RATE);

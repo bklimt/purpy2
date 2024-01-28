@@ -49,6 +49,11 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
 
     vertex_buffer: wgpu::Buffer,
     vertices: Vec<Vertex>,
+
+    frame_buffer: Texture,
+    texture_bind_group_layout2: wgpu::BindGroupLayout,
+    texture_bind_group2: wgpu::BindGroup,
+    render_pipeline2: wgpu::RenderPipeline,
 }
 
 impl<'window, T> WgpuRenderer<'window, T>
@@ -56,7 +61,7 @@ where
     T: WindowHandle,
 {
     // Creating some of the wgpu types requires async code
-    pub async fn new(window: &'window T, width: u32, height: u32) -> Self {
+    pub async fn new(window: &'window T, width: u32, height: u32) -> Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -218,6 +223,90 @@ where
             multiview: None,
         });
 
+        let frame_buffer = Texture::frame_buffer(&device)?;
+
+        let texture_bind_group_layout2 =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        // This should match the filterable field of the
+                        // corresponding Texture entry above.
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("texture_bind_group_layout2"),
+            });
+
+        let texture_bind_group2 = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout2,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&frame_buffer.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&frame_buffer.sampler),
+                },
+            ],
+            label: Some("texture_bind_group 2"),
+        });
+
+        let render_pipeline_layout2 =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout 2"),
+                bind_group_layouts: &[&texture_bind_group_layout2],
+                push_constant_ranges: &[],
+            });
+
+        let render_pipeline2 = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline 2"),
+            layout: Some(&render_pipeline_layout2),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main2",
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main2",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
         let mut vertices = Vec::new();
         vertices.resize_with(MAX_VERTICES, Vertex::zeroed);
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -226,7 +315,7 @@ where
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
-        Self {
+        Ok(Self {
             surface,
             device,
             queue,
@@ -244,8 +333,12 @@ where
             _uniform_bind_group_layout: uniform_bind_group_layout,
             uniform_bind_group,
             vertices,
+            frame_buffer,
+            texture_bind_group_layout2,
+            texture_bind_group2,
+            render_pipeline2,
             window,
-        }
+        })
     }
 
     pub fn window(&self) -> &T {
@@ -379,10 +472,12 @@ where
     }
 
     pub fn render(&mut self, context: &RenderContext) -> Result<()> {
+        /*
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        */
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -396,11 +491,16 @@ where
             .as_ref()
             .context("texture atlas not loaded")?;
 
+        let output = self.surface.get_current_texture()?;
+        let view2 = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view: &self.frame_buffer.view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(context.player_batch.clear_color.into()),
@@ -419,7 +519,29 @@ where
             render_pass.draw(0..vertex_count, 0..1);
         }
 
+        {
+            let mut render_pass2 = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass 2"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view2,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(context.player_batch.clear_color.into()),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            render_pass2.set_pipeline(&self.render_pipeline2);
+            render_pass2.set_bind_group(0, &self.texture_bind_group2, &[]);
+            render_pass2.draw(0..3, 0..1);
+        }
+
         self.queue.submit(std::iter::once(encoder.finish()));
+
         output.present();
 
         Ok(())
