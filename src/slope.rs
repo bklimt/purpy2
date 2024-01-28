@@ -53,7 +53,11 @@ impl Slope {
             target.top() + right_y
         } else {
             let x_offset = actor_center_x - target.x;
-            let slope = (right_y - left_y) / target.w;
+            // A hacky way to divide two subpixels and get a float.
+            let one_subpixel = Subpixels::new(1);
+            let d_y_f = ((right_y - left_y) / one_subpixel) as f32;
+            let target_w_f = (target.w / one_subpixel) as f32;
+            let slope = d_y_f / target_w_f;
             if false {
                 println!("");
                 println!("direction = {:?}", direction);
@@ -62,7 +66,13 @@ impl Slope {
                 println!("slope = {:?}", slope);
                 println!("actor_bottom = {:?}", actor.bottom() / 16);
             }
-            target.y + x_offset * slope + left_y
+
+            // A hacky way to multiply a float times subpixels without losing precision.
+            let x_offset_f = (x_offset / Subpixels::new(1)) as f32;
+            let adjusted_x_offset = slope * x_offset_f;
+            let adjusted_x_offset = Subpixels::new(adjusted_x_offset as i32);
+
+            target.y + adjusted_x_offset + left_y
         };
 
         if target_y < actor.bottom() {
