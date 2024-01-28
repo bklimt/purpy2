@@ -89,13 +89,18 @@ where
 
         let surface_caps = surface.get_capabilities(&adapter);
 
+        for format in surface_caps.formats.iter() {
+            info!("available texture format: {:?}", format);
+        }
+
         let surface_format = surface_caps
             .formats
             .iter()
             .copied()
-            .filter(|f| f.is_srgb())
+            .filter(|f| !f.is_srgb())
             .next()
             .unwrap_or(surface_caps.formats[0]);
+        info!("using texture format: {:?}", surface_format);
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
