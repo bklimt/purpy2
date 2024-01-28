@@ -47,7 +47,7 @@ impl Slope {
             target.top() + right_y
         } else {
             let x_offset = actor_center_x - target.x;
-            let slope = (right_y - left_y) / target.w;
+            let slope = (right_y - left_y) as f32 / target.w as f32;
             if false {
                 println!("");
                 println!("direction = {:?}", direction);
@@ -56,7 +56,7 @@ impl Slope {
                 println!("slope = {slope}");
                 println!("actor_bottom = {}", actor.bottom() / 16);
             }
-            target.y + slope * x_offset + left_y
+            target.y + (slope * x_offset as f32) as i32 + left_y
         };
 
         if target_y < actor.bottom() {
