@@ -451,7 +451,7 @@ impl Spring {
                     self.launch = true;
                 }
             } else {
-                if self.pos < (Subpixels::new(SPRING_STEPS)) - SPRING_SPEED {
+                if self.pos < (Pixels::new(SPRING_STEPS).as_subpixels()) - SPRING_SPEED {
                     self.stall_counter = SPRING_STALL_FRAMES;
                     self.pos += SPRING_SPEED;
                     base.delta.y = SPRING_SPEED;
