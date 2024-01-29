@@ -1,3 +1,5 @@
+// Render pipeline 1.
+
 struct ShaderUniform {
     logical_size: vec2<f32>,
 };
@@ -51,6 +53,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 }
 
+// Render Pipeline 2
+
 struct VertexInput2 {
     @location(0) position: vec2<f32>,
     @location(1) tex_coords: vec2<f32>,
@@ -71,7 +75,32 @@ fn vs_main2(
     return out;
 }
 
+fn tube_warp(coord_: vec2<f32>, offset: vec2<f32>) -> vec2<f32> {
+    var coord = (coord_ * 2.0) - 1.0;
+    coord *= 0.5;
+
+    coord.x *= (1.0 + pow(coord.y / 2.5, 2.0));
+    coord.y *= (1.0 + pow(coord.x / 2.5, 2.0));
+
+    coord += offset;
+    coord += 0.5;
+
+    return coord;
+}
+
 @fragment
 fn fs_main2(in: VertexOutput2) -> @location(0) vec4<f32> {
+    // TODO: Put this into uniforms.
+    let iOffset = vec2<f32>(0.0, 0.0);
+
+    let uv = ((in.clip_position.xy - iOffset) / uniforms.logical_size);
+    let uv1 = tube_warp(uv, vec2<f32>(0.0, 0.0));
+    let uv2 = tube_warp(uv, vec2<f32>(0.002, 0.0));
+    let uv3 = tube_warp(uv, vec2<f32>(-0.002, 0.0));
+
+    if (uv1.x < 0.0 || uv1.y < 0.0 || uv1.x > 1.0 || uv1.y > 1.0) {
+         return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    }
+
     return textureSample(t_diffuse, s_diffuse, in.tex_coords);
 }
