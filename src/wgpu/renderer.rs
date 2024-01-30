@@ -1,5 +1,6 @@
 use std::mem;
 use std::path::Path;
+use std::time::Instant;
 
 use anyhow::Result;
 use bytemuck::Zeroable;
@@ -78,6 +79,8 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
     framebuffer: Texture,
     postprocess_pipeline: Pipeline,
     postprocess_vertex_buffer: wgpu::Buffer,
+
+    start_time: Instant,
 }
 
 impl<'window, T> WgpuRenderer<'window, T>
@@ -191,6 +194,8 @@ where
         let framebuffer = Texture::frame_buffer(&device)?;
         postprocess_pipeline.set_texture(&device, &framebuffer);
 
+        let start_time = Instant::now();
+
         Ok(Self {
             surface,
             device,
@@ -206,6 +211,7 @@ where
             texture_width,
             texture_height,
             framebuffer,
+            start_time,
             window,
         })
     }
@@ -354,8 +360,18 @@ where
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let fragment_uniform =
-            PostprocessFragmentUniform::new(output.texture.width(), output.texture.height());
+        let now = Instant::now();
+        let mut time_ms = ((now - self.start_time).as_secs_f32() * 1000.0) % 1000.0;
+
+        let fragment_uniform = PostprocessFragmentUniform {
+            texture_size: [RENDER_WIDTH as f32, RENDER_HEIGHT as f32],
+            render_size: [
+                output.texture.width() as f32,
+                output.texture.height() as f32,
+            ],
+            time_ms: time_ms,
+            _padding1: 0,
+        };
         self.postprocess_pipeline
             .set_fragment_uniform(&self.device, fragment_uniform);
 

@@ -79,15 +79,10 @@ impl PostprocessVertex {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PostprocessFragmentUniform {
-    render_size: [f32; 2],
-}
-
-impl PostprocessFragmentUniform {
-    pub fn new(width: u32, height: u32) -> Self {
-        Self {
-            render_size: [width as f32, height as f32],
-        }
-    }
+    pub render_size: [f32; 2],
+    pub texture_size: [f32; 2],
+    pub time_ms: f32,
+    pub _padding1: u32, // To enforce the time_ms field is aligned to 8 bytes.
 }
 
 #[repr(C)]
