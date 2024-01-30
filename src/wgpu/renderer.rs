@@ -175,6 +175,7 @@ where
             "vs_main",
             "fs_main",
             Vertex::desc(),
+            1,
             config.format,
         )?;
 
@@ -188,11 +189,15 @@ where
             "vs_main2",
             "fs_main2",
             PostprocessVertex::desc(),
+            2,
             config.format,
         )?;
 
         let framebuffer = Texture::frame_buffer(&device)?;
-        postprocess_pipeline.set_texture(&device, &framebuffer);
+        postprocess_pipeline.set_texture(&device, 0, &framebuffer);
+
+        let static_texture = Texture::static_texture(&device, &queue, RENDER_WIDTH, RENDER_HEIGHT)?;
+        postprocess_pipeline.set_texture(&device, 1, &static_texture);
 
         let start_time = Instant::now();
 
@@ -361,7 +366,7 @@ where
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         let now = Instant::now();
-        let mut time_ms = ((now - self.start_time).as_secs_f32() * 1000.0) % 1000.0;
+        let time_ms = (now - self.start_time).as_secs_f32();
 
         let fragment_uniform = PostprocessFragmentUniform {
             texture_size: [RENDER_WIDTH as f32, RENDER_HEIGHT as f32],
@@ -407,7 +412,7 @@ where
         info!("Reading texture atlas from {:?}", path);
 
         let texture = Texture::from_file(&self.device, &self.queue, path)?;
-        self.render_pipeline.set_texture(&self.device, &texture);
+        self.render_pipeline.set_texture(&self.device, 0, &texture);
         self.texture_width = texture.width;
         self.texture_height = texture.height;
 

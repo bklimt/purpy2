@@ -42,7 +42,7 @@ pub struct Pipeline {
     fragment_uniform_bind_group: wgpu::BindGroup,
 
     texture_bind_group_layout: wgpu::BindGroupLayout,
-    texture_bind_group: Option<wgpu::BindGroup>,
+    texture_bind_groups: Vec<Option<wgpu::BindGroup>>,
 }
 
 impl Pipeline {
@@ -53,6 +53,7 @@ impl Pipeline {
         vertex_shader_entry_point: &str,
         fragment_shader_entry_point: &str,
         vertex_buffer_layout: wgpu::VertexBufferLayout,
+        texture_count: usize,
         format: wgpu::TextureFormat,
     ) -> Result<Self> {
         let vertex_uniform_bind_group_layout =
@@ -126,14 +127,17 @@ impl Pipeline {
                 ],
             });
 
+        let mut bind_group_layouts = Vec::new();
+        bind_group_layouts.push(&vertex_uniform_bind_group_layout);
+        bind_group_layouts.push(&fragment_uniform_bind_group_layout);
+        for _ in 0..texture_count {
+            bind_group_layouts.push(&texture_bind_group_layout);
+        }
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(format!("[{}] Render Pipeline Layout", label).as_str()),
-                bind_group_layouts: &[
-                    &texture_bind_group_layout,
-                    &vertex_uniform_bind_group_layout,
-                    &fragment_uniform_bind_group_layout,
-                ],
+                bind_group_layouts: &bind_group_layouts,
                 push_constant_ranges: &[],
             });
 
@@ -173,7 +177,8 @@ impl Pipeline {
         });
 
         let label = label.to_owned();
-        let texture_bind_group = None;
+        let mut texture_bind_groups = Vec::new();
+        texture_bind_groups.resize_with(texture_count, || None);
 
         Ok(Self {
             label,
@@ -183,7 +188,7 @@ impl Pipeline {
             fragment_uniform_bind_group_layout,
             fragment_uniform_bind_group,
             texture_bind_group_layout,
-            texture_bind_group,
+            texture_bind_groups,
         })
     }
 
@@ -228,21 +233,22 @@ impl Pipeline {
         });
     }
 
-    pub fn set_texture(&mut self, device: &wgpu::Device, texture: &Texture) {
-        self.texture_bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(format!("[{}] Texture Bind Group", self.label).as_str()),
-            layout: &self.texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
-        }));
+    pub fn set_texture(&mut self, device: &wgpu::Device, index: usize, texture: &Texture) {
+        self.texture_bind_groups[index] =
+            Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(format!("[{}] Texture Bind Group", self.label).as_str()),
+                layout: &self.texture_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&texture.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                    },
+                ],
+            }));
     }
 
     pub fn render(
@@ -253,10 +259,11 @@ impl Pipeline {
         vertex_buffer: wgpu::BufferSlice,
         vertex_count: u32,
     ) {
-        let texture_bind_group = self
-            .texture_bind_group
-            .as_ref()
-            .expect("Texture was not set.");
+        let texture_bind_groups: Vec<&wgpu::BindGroup> = self
+            .texture_bind_groups
+            .iter()
+            .map(|group: &Option<wgpu::BindGroup>| group.as_ref().expect("Texture was not set."))
+            .collect();
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
@@ -274,9 +281,11 @@ impl Pipeline {
         });
 
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, texture_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.vertex_uniform_bind_group, &[]);
-        render_pass.set_bind_group(2, &self.fragment_uniform_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.vertex_uniform_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.fragment_uniform_bind_group, &[]);
+        for (i, texture_bind_group) in texture_bind_groups.iter().enumerate() {
+            render_pass.set_bind_group(2 + i as u32, texture_bind_group, &[]);
+        }
         render_pass.set_vertex_buffer(0, vertex_buffer);
         render_pass.draw(0..vertex_count, 0..1);
     }

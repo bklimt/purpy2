@@ -3,6 +3,7 @@ use std::path::Path;
 use anyhow::*;
 use image::GenericImageView;
 use log::info;
+use rand::random;
 
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
 
@@ -124,5 +125,25 @@ impl Texture {
             width,
             height,
         })
+    }
+
+    pub fn static_texture(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+    ) -> Result<Self> {
+        let mut img = image::ImageBuffer::new(width, height);
+        for x in 0..width {
+            for y in 0..height {
+                let r = random::<u8>();
+                let g = random::<u8>();
+                let b = random::<u8>();
+                let pixel = image::Rgba([r, g, b, 255u8]);
+                img.put_pixel(x, y, pixel);
+            }
+        }
+        let img = image::DynamicImage::ImageRgba8(img);
+        Self::from_image(device, queue, &img, Some("Static Texture"))
     }
 }
