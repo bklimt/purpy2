@@ -79,6 +79,7 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
     framebuffer: Texture,
     postprocess_pipeline: Pipeline,
     postprocess_vertex_buffer: wgpu::Buffer,
+    fragment_uniform: PostprocessFragmentUniform,
 
     start_time: Instant,
 }
@@ -200,6 +201,13 @@ where
         postprocess_pipeline.set_texture(&device, 1, &static_texture);
 
         let start_time = Instant::now();
+        let fragment_uniform = PostprocessFragmentUniform {
+            texture_size: [RENDER_WIDTH as f32, RENDER_HEIGHT as f32],
+            render_size: [width as f32, height as f32],
+            time_s: 0.0,
+            _padding1: 0,
+        };
+        postprocess_pipeline.set_fragment_uniform(&device, fragment_uniform);
 
         Ok(Self {
             surface,
@@ -213,6 +221,7 @@ where
             vertices,
             vertex_buffer,
             postprocess_vertex_buffer,
+            fragment_uniform,
             texture_width,
             texture_height,
             framebuffer,
@@ -365,21 +374,6 @@ where
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let now = Instant::now();
-        let time_ms = (now - self.start_time).as_secs_f32();
-
-        let fragment_uniform = PostprocessFragmentUniform {
-            texture_size: [RENDER_WIDTH as f32, RENDER_HEIGHT as f32],
-            render_size: [
-                output.texture.width() as f32,
-                output.texture.height() as f32,
-            ],
-            time_ms: time_ms,
-            _padding1: 0,
-        };
-        self.postprocess_pipeline
-            .set_fragment_uniform(&self.device, fragment_uniform);
-
         self.render_pipeline.render(
             &mut encoder,
             &self.framebuffer.view,
@@ -387,6 +381,12 @@ where
             self.vertex_buffer.slice(..),
             vertex_count,
         );
+
+        let now = Instant::now();
+        let time_s = (now - self.start_time).as_secs_f32();
+        self.fragment_uniform.time_s = time_s;
+        self.postprocess_pipeline
+            .update_fragment_uniform(&self.queue, self.fragment_uniform);
 
         self.postprocess_pipeline.render(
             &mut encoder,

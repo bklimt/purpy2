@@ -40,6 +40,7 @@ pub struct Pipeline {
 
     fragment_uniform_bind_group_layout: wgpu::BindGroupLayout,
     fragment_uniform_bind_group: wgpu::BindGroup,
+    fragment_uniform_buffer: Option<wgpu::Buffer>,
 
     texture_bind_group_layout: wgpu::BindGroupLayout,
     texture_bind_groups: Vec<Option<wgpu::BindGroup>>,
@@ -180,6 +181,8 @@ impl Pipeline {
         let mut texture_bind_groups = Vec::new();
         texture_bind_groups.resize_with(texture_count, || None);
 
+        let fragment_uniform_buffer = None;
+
         Ok(Self {
             label,
             render_pipeline,
@@ -187,6 +190,7 @@ impl Pipeline {
             vertex_uniform_bind_group,
             fragment_uniform_bind_group_layout,
             fragment_uniform_bind_group,
+            fragment_uniform_buffer,
             texture_bind_group_layout,
             texture_bind_groups,
         })
@@ -216,21 +220,40 @@ impl Pipeline {
     where
         T: Pod,
     {
-        let fragment_uniform_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        self.fragment_uniform_buffer = Some(device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
                 label: Some(format!("[{}] Fragment Uniform Buffer", self.label).as_str()),
                 contents: bytemuck::cast_slice(&[fragment_uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+            },
+        ));
 
         self.fragment_uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("[{}] Fragment Uniform_Bind_Group"),
             layout: &self.fragment_uniform_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: fragment_uniform_buffer.as_entire_binding(),
+                resource: self
+                    .fragment_uniform_buffer
+                    .as_ref()
+                    .unwrap()
+                    .as_entire_binding(),
             }],
         });
+    }
+
+    pub fn update_fragment_uniform<T>(&mut self, queue: &wgpu::Queue, fragment_uniform: T)
+    where
+        T: Pod,
+    {
+        queue.write_buffer(
+            &self
+                .fragment_uniform_buffer
+                .as_ref()
+                .expect("fragment uniform must be set before update"),
+            0,
+            bytemuck::cast_slice(&[fragment_uniform]),
+        );
     }
 
     pub fn set_texture(&mut self, device: &wgpu::Device, index: usize, texture: &Texture) {

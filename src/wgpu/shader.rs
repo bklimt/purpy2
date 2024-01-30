@@ -81,8 +81,8 @@ impl PostprocessVertex {
 pub struct PostprocessFragmentUniform {
     pub render_size: [f32; 2],
     pub texture_size: [f32; 2],
-    pub time_ms: f32,
-    pub _padding1: u32, // To enforce the time_ms field is aligned to 8 bytes.
+    pub time_s: f32,
+    pub _padding1: u32, // To enforce the time_s field is aligned to 8 bytes.
 }
 
 #[repr(C)]
