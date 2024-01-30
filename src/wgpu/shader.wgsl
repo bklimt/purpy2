@@ -91,6 +91,7 @@ fn tube_warp(coord_: vec2<f32>, offset: vec2<f32>) -> vec2<f32> {
 @fragment
 fn fs_main2(in: VertexOutput2) -> @location(0) vec4<f32> {
     // TODO: Put this into uniforms.
+    /*
     let iOffset = vec2<f32>(0.0, 0.0);
 
     let uv = ((in.clip_position.xy - iOffset) / uniforms.logical_size);
@@ -101,6 +102,7 @@ fn fs_main2(in: VertexOutput2) -> @location(0) vec4<f32> {
     if (uv1.x < 0.0 || uv1.y < 0.0 || uv1.x > 1.0 || uv1.y > 1.0) {
          return vec4<f32>(0.0, 0.0, 0.0, 1.0);
     }
+    */
 
     return textureSample(t_diffuse, s_diffuse, in.tex_coords);
 }
