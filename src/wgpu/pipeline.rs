@@ -4,14 +4,42 @@ use wgpu::util::DeviceExt;
 
 use crate::utils::Color;
 
-use super::texture::Texture;
+use super::{shader::DefaultUniform, texture::Texture};
+
+pub fn create_uniform<T>(
+    label: &str,
+    device: &wgpu::Device,
+    uniform: T,
+    layout: &wgpu::BindGroupLayout,
+) -> wgpu::BindGroup
+where
+    T: Pod,
+{
+    let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some(format!("[{}] Uniform Buffer", label).as_str()),
+        contents: bytemuck::cast_slice(&[uniform]),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+
+    return device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("[{}] Uniform Bind Group"),
+        layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: uniform_buffer.as_entire_binding(),
+        }],
+    });
+}
 
 pub struct Pipeline {
     label: String,
     render_pipeline: wgpu::RenderPipeline,
 
     vertex_uniform_bind_group_layout: wgpu::BindGroupLayout,
-    vertex_uniform_bind_group: Option<wgpu::BindGroup>,
+    vertex_uniform_bind_group: wgpu::BindGroup,
+
+    fragment_uniform_bind_group_layout: wgpu::BindGroupLayout,
+    fragment_uniform_bind_group: wgpu::BindGroup,
 
     texture_bind_group_layout: wgpu::BindGroupLayout,
     texture_bind_group: Option<wgpu::BindGroup>,
@@ -41,6 +69,37 @@ impl Pipeline {
                     count: None,
                 }],
             });
+
+        let default_uniform = DefaultUniform::new();
+
+        let vertex_uniform_bind_group = create_uniform(
+            format!("{} Vertex", label).as_str(),
+            &device,
+            default_uniform,
+            &vertex_uniform_bind_group_layout,
+        );
+
+        let fragment_uniform_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some(format!("[{}] Fragment Uniform Bind Group Layout", label).as_str()),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let fragment_uniform_bind_group = create_uniform(
+            format!("{} Fragment", label).as_str(),
+            &device,
+            default_uniform,
+            &fragment_uniform_bind_group_layout,
+        );
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -73,6 +132,7 @@ impl Pipeline {
                 bind_group_layouts: &[
                     &texture_bind_group_layout,
                     &vertex_uniform_bind_group_layout,
+                    &fragment_uniform_bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -113,7 +173,6 @@ impl Pipeline {
         });
 
         let label = label.to_owned();
-        let vertex_uniform_bind_group = None;
         let texture_bind_group = None;
 
         Ok(Self {
@@ -121,6 +180,8 @@ impl Pipeline {
             render_pipeline,
             vertex_uniform_bind_group_layout,
             vertex_uniform_bind_group,
+            fragment_uniform_bind_group_layout,
+            fragment_uniform_bind_group,
             texture_bind_group_layout,
             texture_bind_group,
         })
@@ -136,15 +197,35 @@ impl Pipeline {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        self.vertex_uniform_bind_group =
-            Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("[{}] Vertex Uniform_Bind_Group"),
-                layout: &self.vertex_uniform_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: vertex_uniform_buffer.as_entire_binding(),
-                }],
-            }));
+        self.vertex_uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("[{}] Vertex Uniform Bind Group"),
+            layout: &self.vertex_uniform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: vertex_uniform_buffer.as_entire_binding(),
+            }],
+        });
+    }
+
+    pub fn set_fragment_uniform<T>(&mut self, device: &wgpu::Device, fragment_uniform: T)
+    where
+        T: Pod,
+    {
+        let fragment_uniform_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(format!("[{}] Fragment Uniform Buffer", self.label).as_str()),
+                contents: bytemuck::cast_slice(&[fragment_uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        self.fragment_uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("[{}] Fragment Uniform_Bind_Group"),
+            layout: &self.fragment_uniform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: fragment_uniform_buffer.as_entire_binding(),
+            }],
+        });
     }
 
     pub fn set_texture(&mut self, device: &wgpu::Device, texture: &Texture) {
@@ -172,11 +253,6 @@ impl Pipeline {
         vertex_buffer: wgpu::BufferSlice,
         vertex_count: u32,
     ) {
-        let vertex_uniform_bind_group = self
-            .vertex_uniform_bind_group
-            .as_ref()
-            .expect("Vertex Uniform was not set.");
-
         let texture_bind_group = self
             .texture_bind_group
             .as_ref()
@@ -199,7 +275,8 @@ impl Pipeline {
 
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, texture_bind_group, &[]);
-        render_pass.set_bind_group(1, vertex_uniform_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.vertex_uniform_bind_group, &[]);
+        render_pass.set_bind_group(2, &self.fragment_uniform_bind_group, &[]);
         render_pass.set_vertex_buffer(0, vertex_buffer);
         render_pass.draw(0..vertex_count, 0..1);
     }

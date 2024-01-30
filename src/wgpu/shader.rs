@@ -13,18 +13,6 @@ impl RenderVertexUniform {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct PostprocessVertexUniform {
-    unused: [f32; 1],
-}
-
-impl PostprocessVertexUniform {
-    pub fn new() -> Self {
-        Self { unused: [0.0; 1] }
-    }
-}
-
-#[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
     pub position: [f32; 2],
@@ -85,5 +73,31 @@ impl PostprocessVertex {
                 },
             ],
         }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PostprocessFragmentUniform {
+    render_size: [f32; 2],
+}
+
+impl PostprocessFragmentUniform {
+    pub fn new(width: u32, height: u32) -> Self {
+        Self {
+            render_size: [width as f32, height as f32],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct DefaultUniform {
+    unused: [u8; 1],
+}
+
+impl DefaultUniform {
+    pub fn new() -> DefaultUniform {
+        DefaultUniform { unused: [0] }
     }
 }

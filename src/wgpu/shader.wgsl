@@ -1,18 +1,18 @@
 // Render pipeline 1.
 
-struct ShaderUniform {
+struct RenderVertexUniform {
     logical_size: vec2<f32>,
 };
 @group(1) @binding(0)
-var<uniform> uniforms: ShaderUniform;
+var<uniform> render_vertex_uniform: RenderVertexUniform;
 
-struct VertexInput {
+struct RenderVertexInput {
     @location(0) position: vec2<f32>,
     @location(1) tex_coords: vec2<f32>,
     @location(2) color: vec4<f32>,
 }
 
-struct VertexOutput {
+struct RenderVertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
     @location(1) color: vec4<f32>,
@@ -20,14 +20,14 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(
-    model: VertexInput,
-) -> VertexOutput {
-    var out: VertexOutput;
+    model: RenderVertexInput,
+) -> RenderVertexOutput {
+    var out: RenderVertexOutput;
     out.tex_coords = model.tex_coords;
     out.color = model.color;
 
-    var x: f32 = model.position.x / uniforms.logical_size.x;
-    var y: f32 = model.position.y / uniforms.logical_size.y;
+    var x: f32 = model.position.x / render_vertex_uniform.logical_size.x;
+    var y: f32 = model.position.y / render_vertex_uniform.logical_size.y;
 
     out.clip_position =  vec4<f32>(
         x * 2.0 - 1.0,
@@ -44,7 +44,7 @@ var t_diffuse: texture_2d<f32>;
 var s_diffuse: sampler;
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(in: RenderVertexOutput) -> @location(0) vec4<f32> {
     let col: vec4<f32> = in.color;
     if col.a > 0.0 {
         return col;
@@ -55,21 +55,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
 // Render Pipeline 2
 
-struct VertexInput2 {
+struct PostprocessFragmentUniform {
+    render_size: vec2<f32>,
+};
+@group(2) @binding(0)
+var<uniform> postprocessing_fragment_uniform: PostprocessFragmentUniform;
+
+struct PostprocessVertexInput {
     @location(0) position: vec2<f32>,
     @location(1) tex_coords: vec2<f32>,
 }
 
-struct VertexOutput2 {
+struct PostprocessVertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
 }
 
 @vertex
 fn vs_main2(
-    model: VertexInput2,
-) -> VertexOutput2 {
-    var out: VertexOutput2;
+    model: PostprocessVertexInput,
+) -> PostprocessVertexOutput {
+    var out: PostprocessVertexOutput;
     out.tex_coords = model.tex_coords;
     out.clip_position = vec4<f32>(model.position, 0.0f, 1.0f);
     return out;
@@ -89,12 +95,11 @@ fn tube_warp(coord_: vec2<f32>, offset: vec2<f32>) -> vec2<f32> {
 }
 
 @fragment
-fn fs_main2(in: VertexOutput2) -> @location(0) vec4<f32> {
+fn fs_main2(in: PostprocessVertexOutput) -> @location(0) vec4<f32> {
     // TODO: Put this into uniforms.
-    /*
     let iOffset = vec2<f32>(0.0, 0.0);
 
-    let uv = ((in.clip_position.xy - iOffset) / uniforms.logical_size);
+    let uv = ((in.clip_position.xy - iOffset) / postprocessing_fragment_uniform.render_size);
     let uv1 = tube_warp(uv, vec2<f32>(0.0, 0.0));
     let uv2 = tube_warp(uv, vec2<f32>(0.002, 0.0));
     let uv3 = tube_warp(uv, vec2<f32>(-0.002, 0.0));
@@ -102,7 +107,6 @@ fn fs_main2(in: VertexOutput2) -> @location(0) vec4<f32> {
     if (uv1.x < 0.0 || uv1.y < 0.0 || uv1.x > 1.0 || uv1.y > 1.0) {
          return vec4<f32>(0.0, 0.0, 0.0, 1.0);
     }
-    */
 
     return textureSample(t_diffuse, s_diffuse, in.tex_coords);
 }

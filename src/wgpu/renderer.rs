@@ -16,10 +16,11 @@ use crate::sprite::Sprite;
 use crate::utils::Color;
 use crate::wgpu::pipeline::Pipeline;
 use crate::wgpu::shader::PostprocessVertex;
-use crate::wgpu::shader::PostprocessVertexUniform;
 use crate::wgpu::shader::RenderVertexUniform;
 use crate::wgpu::shader::Vertex;
 use crate::wgpu::texture::Texture;
+
+use super::shader::PostprocessFragmentUniform;
 
 const MAX_ENTRIES: usize = 4096;
 const MAX_VERTICES: usize = MAX_ENTRIES * 6;
@@ -187,9 +188,6 @@ where
             config.format,
         )?;
 
-        let postprocess_uniform = PostprocessVertexUniform::new();
-        postprocess_pipeline.set_vertex_uniform(&device, postprocess_uniform);
-
         let framebuffer = Texture::frame_buffer(&device)?;
         postprocess_pipeline.set_texture(&device, &framebuffer);
 
@@ -355,6 +353,11 @@ where
         let output_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let fragment_uniform =
+            PostprocessFragmentUniform::new(output.texture.width(), output.texture.height());
+        self.postprocess_pipeline
+            .set_fragment_uniform(&self.device, fragment_uniform);
 
         self.render_pipeline.render(
             &mut encoder,
