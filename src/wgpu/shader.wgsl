@@ -153,10 +153,12 @@ fn scanline(y_: f32) -> vec4<f32> {
 fn get_scene_pixel(uv: vec2<f32>) -> vec4<f32> {
     // vec4 spot = spotlight(uv);
 
-    let player_color = textureSample(player_framebuffer_texture, player_framebuffer_sampler, fuzz_sample_uv(uv));
+    let fuzzed_sample_uv = fuzz_sample_uv(uv);
+
+    let player_color = textureSample(player_framebuffer_texture, player_framebuffer_sampler, fuzzed_sample_uv);
     //player_color = vec4(mix(player_color.rgb, spot.rgb, spot.a), 1.0);
 
-    let hud_color = textureSample(hud_framebuffer_texture, hud_framebuffer_sampler, fuzz_sample_uv(uv));
+    let hud_color = textureSample(hud_framebuffer_texture, hud_framebuffer_sampler, fuzzed_sample_uv);
     let color = vec4<f32>(mix(hud_color.rgb, player_color.rgb, 1.0 - hud_color.a), 1.0);
 
     return color;

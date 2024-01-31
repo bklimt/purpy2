@@ -11,7 +11,7 @@ use wgpu::util::DeviceExt;
 
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
 use crate::geometry::{Pixels, Rect};
-use crate::rendercontext::{RenderContext, SpriteBatch, SpriteBatchEntry};
+use crate::rendercontext::{RenderContext, RenderLayer, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;
 use crate::utils::Color;
@@ -73,8 +73,10 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
     texture_atlas_width: u32,
     texture_atlas_height: u32,
 
-    vertices: Vec<Vertex>,
-    vertex_buffer: wgpu::Buffer,
+    player_vertices: Vec<Vertex>,
+    player_vertex_buffer: wgpu::Buffer,
+    hud_vertices: Vec<Vertex>,
+    hud_vertex_buffer: wgpu::Buffer,
 
     player_framebuffer: Texture,
     hud_framebuffer: Texture,
@@ -162,11 +164,19 @@ where
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
-        let mut vertices = Vec::new();
-        vertices.resize_with(MAX_VERTICES, Vertex::zeroed);
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let mut player_vertices = Vec::new();
+        player_vertices.resize_with(MAX_VERTICES, Vertex::zeroed);
+        let player_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&mut vertices),
+            contents: bytemuck::cast_slice(&mut player_vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let mut hud_vertices = Vec::new();
+        hud_vertices.resize_with(MAX_VERTICES, Vertex::zeroed);
+        let hud_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(&mut hud_vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -191,8 +201,8 @@ where
         let vertex_uniform = RenderVertexUniform::new(RENDER_WIDTH, RENDER_HEIGHT);
         render_pipeline.set_vertex_uniform(&device, vertex_uniform);
 
-        let player_framebuffer = Texture::frame_buffer(&device)?;
-        let hud_framebuffer = Texture::frame_buffer(&device)?;
+        let player_framebuffer = Texture::frame_buffer(&device, config.format)?;
+        let hud_framebuffer = Texture::frame_buffer(&device, config.format)?;
         let static_texture = Texture::static_texture(&device, &queue, RENDER_WIDTH, RENDER_HEIGHT)?;
 
         let mut postprocess_pipeline = Pipeline::new(
@@ -224,8 +234,10 @@ where
             height,
             render_pipeline,
             postprocess_pipeline,
-            vertices,
-            vertex_buffer,
+            player_vertices,
+            player_vertex_buffer,
+            hud_vertices,
+            hud_vertex_buffer,
             postprocess_vertex_buffer,
             fragment_uniform,
             texture_atlas_width,
@@ -251,7 +263,12 @@ where
         }
     }
 
-    fn fill_vertex_buffer(&mut self, batch: &SpriteBatch) -> u32 {
+    fn fill_vertex_buffer(&mut self, layer: RenderLayer, batch: &SpriteBatch) -> u32 {
+        let (vertex_buffer, vertices) = match layer {
+            RenderLayer::Player => (&self.player_vertex_buffer, &mut self.player_vertices),
+            RenderLayer::Hud => (&self.hud_vertex_buffer, &mut self.hud_vertices),
+        };
+
         if batch.entries.len() > MAX_ENTRIES {
             error!("sprite batch is too large: {}", batch.entries.len());
         }
@@ -325,32 +342,32 @@ where
             let i = vertex_count;
             vertex_count += 6;
 
-            self.vertices[i] = Vertex {
+            vertices[i] = Vertex {
                 position: [dl, dt],
                 tex_coords: [sl, st],
                 color,
             };
-            self.vertices[i + 1] = Vertex {
+            vertices[i + 1] = Vertex {
                 position: [dl, db],
                 tex_coords: [sl, sb],
                 color,
             };
-            self.vertices[i + 2] = Vertex {
+            vertices[i + 2] = Vertex {
                 position: [dr, dt],
                 tex_coords: [sr, st],
                 color,
             };
-            self.vertices[i + 3] = Vertex {
+            vertices[i + 3] = Vertex {
                 position: [dr, dt],
                 tex_coords: [sr, st],
                 color,
             };
-            self.vertices[i + 4] = Vertex {
+            vertices[i + 4] = Vertex {
                 position: [dl, db],
                 tex_coords: [sl, sb],
                 color,
             };
-            self.vertices[i + 5] = Vertex {
+            vertices[i + 5] = Vertex {
                 position: [dr, db],
                 tex_coords: [sr, sb],
                 color,
@@ -359,9 +376,9 @@ where
         //info!("created {} vertices", vertex_count);
 
         self.queue.write_buffer(
-            &self.vertex_buffer,
+            vertex_buffer,
             0,
-            bytemuck::cast_slice(&self.vertices[0..vertex_count]),
+            bytemuck::cast_slice(&vertices[0..vertex_count]),
         );
 
         vertex_count as u32
@@ -374,21 +391,21 @@ where
                 label: Some("Render Encoder"),
             });
 
-        let vertex_count = self.fill_vertex_buffer(&context.player_batch);
+        let vertex_count = self.fill_vertex_buffer(RenderLayer::Player, &context.player_batch);
         self.render_pipeline.render(
             &mut encoder,
             &self.player_framebuffer.view,
             context.player_batch.clear_color,
-            self.vertex_buffer.slice(..),
+            self.player_vertex_buffer.slice(..),
             vertex_count,
         );
 
-        let vertex_count = self.fill_vertex_buffer(&context.hud_batch);
+        let vertex_count = self.fill_vertex_buffer(RenderLayer::Hud, &context.hud_batch);
         self.render_pipeline.render(
             &mut encoder,
             &self.hud_framebuffer.view,
             context.hud_batch.clear_color,
-            self.vertex_buffer.slice(..),
+            self.hud_vertex_buffer.slice(..),
             vertex_count,
         );
 
@@ -403,10 +420,16 @@ where
         self.postprocess_pipeline
             .update_fragment_uniform(&self.queue, self.fragment_uniform);
 
+        let clear_color = Color {
+            r: 0,
+            b: 0,
+            g: 0,
+            a: 255,
+        };
         self.postprocess_pipeline.render(
             &mut encoder,
             &output_view,
-            context.player_batch.clear_color.into(),
+            clear_color.into(),
             self.postprocess_vertex_buffer.slice(..),
             6,
         );

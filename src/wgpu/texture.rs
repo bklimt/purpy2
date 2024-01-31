@@ -21,7 +21,7 @@ impl Texture {
         Self::from_image(device, queue, &img, Some("texture atlas"))
     }
 
-    pub fn frame_buffer(device: &wgpu::Device) -> Result<Self> {
+    pub fn frame_buffer(device: &wgpu::Device, format: wgpu::TextureFormat) -> Result<Self> {
         let width = RENDER_WIDTH;
         let height = RENDER_HEIGHT;
         let size = wgpu::Extent3d {
@@ -37,7 +37,8 @@ impl Texture {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Bgra8Unorm,
+            //format: wgpu::TextureFormat::Bgra8Unorm,
+            format,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
@@ -47,7 +48,7 @@ impl Texture {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
+            mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
