@@ -6,6 +6,12 @@ struct RenderVertexUniform {
 @group(0) @binding(0)
 var<uniform> render_vertex_uniform: RenderVertexUniform;
 
+struct DefaultUniform {
+    unused: f32,
+}
+@group(1) @binding(0)
+var<uniform> default_uniform: DefaultUniform;
+
 struct RenderVertexInput {
     @location(0) position: vec2<f32>,
     @location(1) tex_coords: vec2<f32>,
@@ -88,13 +94,18 @@ struct PostprocessFragmentUniform {
 var<uniform> postprocessing_fragment_uniform: PostprocessFragmentUniform;
 
 @group(2) @binding(0)
-var framebuffer_texture: texture_2d<f32>;
+var player_framebuffer_texture: texture_2d<f32>;
 @group(2) @binding(1)
-var framebuffer_sampler: sampler;
+var player_framebuffer_sampler: sampler;
 
-@group(3) @binding(0)
+@group(2) @binding(2)
+var hud_framebuffer_texture: texture_2d<f32>;
+@group(2) @binding(3)
+var hud_framebuffer_sampler: sampler;
+
+@group(2) @binding(4)
 var static_texture: texture_2d<f32>;
-@group(3) @binding(1)
+@group(2) @binding(5)
 var static_sampler: sampler;
 
 // This is like, halfway between LINEAR and NEAREST.
@@ -139,21 +150,16 @@ fn scanline(y_: f32) -> vec4<f32> {
     return vec4<f32>(scanline_color, 1.0);
 }
 
-// Like textureSample, but fuzzes partway between linear and nearest.
-fn sample_texture(uv: vec2<f32>) -> vec4<f32> {
-    return textureSample(framebuffer_texture, framebuffer_sampler, fuzz_sample_uv(uv));
-}
-
 fn get_scene_pixel(uv: vec2<f32>) -> vec4<f32> {
     // vec4 spot = spotlight(uv);
 
-    let player_color = sample_texture(uv);
+    let player_color = textureSample(player_framebuffer_texture, player_framebuffer_sampler, fuzz_sample_uv(uv));
     //player_color = vec4(mix(player_color.rgb, spot.rgb, spot.a), 1.0);
 
-    //vec4 hud_color = sample_texture(iHudTexture, uv);
-    //vec4 color = vec4(mix(hud_color.rgb, player_color.rgb, 1.0 - hud_color.a), 1.0);
+    let hud_color = textureSample(hud_framebuffer_texture, hud_framebuffer_sampler, fuzz_sample_uv(uv));
+    let color = vec4<f32>(mix(hud_color.rgb, player_color.rgb, 1.0 - hud_color.a), 1.0);
 
-    return player_color;
+    return color;
 }
 
 @fragment

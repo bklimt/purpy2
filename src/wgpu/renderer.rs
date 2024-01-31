@@ -70,13 +70,14 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
 
     render_pipeline: Pipeline,
 
-    texture_width: u32,
-    texture_height: u32,
+    texture_atlas_width: u32,
+    texture_atlas_height: u32,
 
     vertices: Vec<Vertex>,
     vertex_buffer: wgpu::Buffer,
 
-    framebuffer: Texture,
+    player_framebuffer: Texture,
+    hud_framebuffer: Texture,
     postprocess_pipeline: Pipeline,
     postprocess_vertex_buffer: wgpu::Buffer,
     fragment_uniform: PostprocessFragmentUniform,
@@ -89,7 +90,12 @@ where
     T: WindowHandle,
 {
     // Creating some of the wgpu types requires async code
-    pub async fn new(window: &'window T, width: u32, height: u32) -> Result<Self> {
+    pub async fn new(
+        window: &'window T,
+        width: u32,
+        height: u32,
+        texture_atlas_path: &Path,
+    ) -> Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -120,6 +126,11 @@ where
             .await
             .unwrap();
 
+        info!("Reading texture atlas from {:?}", texture_atlas_path);
+        let texture_atlas = Texture::from_file(&device, &queue, texture_atlas_path)?;
+        let texture_atlas_width = texture_atlas.width;
+        let texture_atlas_height = texture_atlas.height;
+
         let surface_caps = surface.get_capabilities(&adapter);
 
         for format in surface_caps.formats.iter() {
@@ -145,9 +156,6 @@ where
             view_formats: vec![],
         };
         surface.configure(&device, &config);
-
-        let texture_width = 0;
-        let texture_height = 0;
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -176,12 +184,16 @@ where
             "vs_main",
             "fs_main",
             Vertex::desc(),
-            1,
+            &[&texture_atlas],
             config.format,
         )?;
 
         let vertex_uniform = RenderVertexUniform::new(RENDER_WIDTH, RENDER_HEIGHT);
         render_pipeline.set_vertex_uniform(&device, vertex_uniform);
+
+        let player_framebuffer = Texture::frame_buffer(&device)?;
+        let hud_framebuffer = Texture::frame_buffer(&device)?;
+        let static_texture = Texture::static_texture(&device, &queue, RENDER_WIDTH, RENDER_HEIGHT)?;
 
         let mut postprocess_pipeline = Pipeline::new(
             "Postprocess Pipeline",
@@ -190,15 +202,9 @@ where
             "vs_main2",
             "fs_main2",
             PostprocessVertex::desc(),
-            2,
+            &[&player_framebuffer, &hud_framebuffer, &static_texture],
             config.format,
         )?;
-
-        let framebuffer = Texture::frame_buffer(&device)?;
-        postprocess_pipeline.set_texture(&device, 0, &framebuffer);
-
-        let static_texture = Texture::static_texture(&device, &queue, RENDER_WIDTH, RENDER_HEIGHT)?;
-        postprocess_pipeline.set_texture(&device, 1, &static_texture);
 
         let start_time = Instant::now();
         let fragment_uniform = PostprocessFragmentUniform {
@@ -222,9 +228,10 @@ where
             vertex_buffer,
             postprocess_vertex_buffer,
             fragment_uniform,
-            texture_width,
-            texture_height,
-            framebuffer,
+            texture_atlas_width,
+            texture_atlas_height,
+            player_framebuffer,
+            hud_framebuffer,
             start_time,
             window,
         })
@@ -306,8 +313,8 @@ where
             }
 
             // TODO: Consider moving this scaling into the shader.
-            let xscale = self.texture_width as f32;
-            let yscale = self.texture_height as f32;
+            let xscale = self.texture_atlas_width as f32;
+            let yscale = self.texture_atlas_height as f32;
             let st = st / yscale;
             let sb = sb / yscale;
             let sl = sl / xscale;
@@ -368,19 +375,27 @@ where
             });
 
         let vertex_count = self.fill_vertex_buffer(&context.player_batch);
+        self.render_pipeline.render(
+            &mut encoder,
+            &self.player_framebuffer.view,
+            context.player_batch.clear_color,
+            self.vertex_buffer.slice(..),
+            vertex_count,
+        );
+
+        let vertex_count = self.fill_vertex_buffer(&context.hud_batch);
+        self.render_pipeline.render(
+            &mut encoder,
+            &self.hud_framebuffer.view,
+            context.hud_batch.clear_color,
+            self.vertex_buffer.slice(..),
+            vertex_count,
+        );
 
         let output = self.surface.get_current_texture()?;
         let output_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-
-        self.render_pipeline.render(
-            &mut encoder,
-            &self.framebuffer.view,
-            context.player_batch.clear_color,
-            self.vertex_buffer.slice(..),
-            vertex_count,
-        );
 
         let now = Instant::now();
         let time_s = (now - self.start_time).as_secs_f32();
@@ -409,20 +424,14 @@ where
     T: WindowHandle,
 {
     fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
-        info!("Reading texture atlas from {:?}", path);
-
-        let texture = Texture::from_file(&self.device, &self.queue, path)?;
-        self.render_pipeline.set_texture(&self.device, 0, &texture);
-        self.texture_width = texture.width;
-        self.texture_height = texture.height;
-
+        // TODO: Check that the path actually matches the texture_atlas_path.
         Ok(Sprite {
             id: 0,
             area: Rect {
                 x: Pixels::zero(),
                 y: Pixels::zero(),
-                w: Pixels::new(texture.width as i32),
-                h: Pixels::new(texture.height as i32),
+                w: Pixels::new(self.texture_atlas_width as i32),
+                h: Pixels::new(self.texture_atlas_height as i32),
             },
         })
     }

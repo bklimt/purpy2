@@ -73,6 +73,7 @@ pub enum RenderLayer {
 
 pub struct RenderContext {
     pub player_batch: SpriteBatch,
+    pub hud_batch: SpriteBatch,
     pub width: u32,
     pub height: u32,
     pub frame: u64,
@@ -81,8 +82,10 @@ pub struct RenderContext {
 impl RenderContext {
     pub fn new(width: u32, height: u32, frame: u64) -> Result<RenderContext> {
         let player_batch = SpriteBatch::new();
+        let hud_batch = SpriteBatch::new();
         Ok(RenderContext {
             player_batch,
+            hud_batch,
             width,
             height,
             frame,
@@ -100,39 +103,55 @@ impl RenderContext {
         .into()
     }
 
-    // TODO: Get rid of these.
+    // TODO: Get rid of these?
 
     pub fn draw(
         &mut self,
         sprite: Sprite,
-        _layer: RenderLayer,
+        layer: RenderLayer,
         dst: Rect<Subpixels>,
         src: Rect<Pixels>,
     ) {
-        self.player_batch.draw(sprite, dst, src, false)
+        match layer {
+            RenderLayer::Player => self.player_batch.draw(sprite, dst, src, false),
+            RenderLayer::Hud => self.hud_batch.draw(sprite, dst, src, false),
+        }
     }
 
     pub fn draw_reversed(
         &mut self,
         sprite: Sprite,
-        _layer: RenderLayer,
+        layer: RenderLayer,
         dst: Rect<Subpixels>,
         src: Rect<Pixels>,
     ) {
-        self.player_batch.draw(sprite, dst, src, true)
+        match layer {
+            RenderLayer::Player => self.player_batch.draw(sprite, dst, src, true),
+            RenderLayer::Hud => self.hud_batch.draw(sprite, dst, src, true),
+        }
     }
 
-    pub fn fill_rect(&mut self, rect: Rect<Subpixels>, _layer: RenderLayer, color: Color) {
-        self.player_batch.fill_rect(rect, color);
+    pub fn fill_rect(&mut self, rect: Rect<Subpixels>, layer: RenderLayer, color: Color) {
+        match layer {
+            RenderLayer::Player => self.player_batch.fill_rect(rect, color),
+            RenderLayer::Hud => self.hud_batch.fill_rect(rect, color),
+        }
     }
 
     pub fn clear(&mut self) {
         self.player_batch.entries.clear();
+        self.hud_batch.entries.clear();
         self.player_batch.clear_color = Color {
             r: 0,
             g: 0,
             b: 0,
             a: 255,
         };
+        self.hud_batch.clear_color = Color {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        }
     }
 }

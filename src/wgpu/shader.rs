@@ -88,11 +88,11 @@ pub struct PostprocessFragmentUniform {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct DefaultUniform {
-    unused: [u8; 1],
+    unused: [f32; 1],
 }
 
 impl DefaultUniform {
     pub fn new() -> DefaultUniform {
-        DefaultUniform { unused: [0] }
+        DefaultUniform { unused: [0.0] }
     }
 }
