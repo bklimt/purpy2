@@ -1,7 +1,9 @@
 use anyhow::Result;
+use log::warn;
 use num_traits::Zero;
 
-use crate::geometry::{Pixels, Rect, Subpixels};
+use crate::constants::MAX_LIGHTS;
+use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::sprite::Sprite;
 use crate::utils::Color;
 
@@ -59,10 +61,11 @@ impl SpriteBatch {
             color,
         });
     }
+}
 
-    /*pub fn clear(&mut self, color: Color) {
-        self.entries.push(SpriteBatchEntry::Clear { color })
-    }*/
+pub struct Light {
+    pub position: Point<Subpixels>,
+    pub radius: Subpixels,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -77,18 +80,24 @@ pub struct RenderContext {
     pub width: u32,
     pub height: u32,
     pub frame: u64,
+    pub lights: Vec<Light>,
+    pub is_dark: bool,
 }
 
 impl RenderContext {
     pub fn new(width: u32, height: u32, frame: u64) -> Result<RenderContext> {
         let player_batch = SpriteBatch::new();
         let hud_batch = SpriteBatch::new();
+        let lights = Vec::new();
+        let is_dark = false;
         Ok(RenderContext {
             player_batch,
             hud_batch,
             width,
             height,
             frame,
+            lights,
+            is_dark,
         })
     }
 
@@ -102,8 +111,6 @@ impl RenderContext {
         }
         .into()
     }
-
-    // TODO: Get rid of these?
 
     pub fn draw(
         &mut self,
@@ -153,5 +160,13 @@ impl RenderContext {
             b: 0,
             a: 0,
         }
+    }
+
+    pub fn add_light(&mut self, position: Point<Subpixels>, radius: Subpixels) {
+        if self.lights.len() >= MAX_LIGHTS {
+            warn!("too many lights set");
+            return;
+        }
+        self.lights.push(Light { position, radius });
     }
 }

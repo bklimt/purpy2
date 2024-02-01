@@ -974,14 +974,12 @@ impl Scene for Level {
             );
         }
 
-        // context.dark = self.map.is_dark;
+        context.is_dark = self.map.is_dark;
 
-        /*
-        spotlight_pos = (
-            player_draw_x + 12 * SUBPIXELS,
-            player_draw_y + 12 * SUBPIXELS)
-        spotlight_radius = 120.0 * SUBPIXELS
-        context.add_light(spotlight_pos, spotlight_radius)
-        */
+        let spotlight_pos =
+            player_draw + Point::new(Subpixels::from_pixels(12), Subpixels::from_pixels(12));
+
+        let spotlight_radius = Subpixels::from_pixels(120);
+        context.add_light(spotlight_pos, spotlight_radius);
     }
 }

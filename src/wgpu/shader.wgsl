@@ -85,10 +85,21 @@ fn vs_main2(
 
 // Postprocessing Fragment
 
+struct Light {
+    position: vec2<f32>,
+    radius: f32,
+    padding: f32,
+}
+
 struct PostprocessFragmentUniform {
     render_size: vec2<f32>,
     texture_size: vec2<f32>,
     time_s: f32,
+
+    // Lighting
+    is_dark: i32,
+    spotlight_count: i32,
+    spotlight: array<Light, 32>,
 };
 @group(1) @binding(0)
 var<uniform> postprocessing_fragment_uniform: PostprocessFragmentUniform;
@@ -107,6 +118,29 @@ var hud_framebuffer_sampler: sampler;
 var static_texture: texture_2d<f32>;
 @group(2) @binding(5)
 var static_sampler: sampler;
+
+fn spotlight(position_: vec2<f32>) -> vec4<f32> {
+    var position = position_;
+
+    if (postprocessing_fragment_uniform.is_dark == 0) {
+        return vec4<f32>(1.0, 1.0, 1.0, 0.0);
+    }
+    if (postprocessing_fragment_uniform.spotlight_count == 0) {
+        return vec4<f32>(1.0, 1.0, 1.0, 0.0);
+    }
+    //position.y = 1.0 - position.y;
+    position *= postprocessing_fragment_uniform.texture_size;
+
+    var alpha: f32 = 1.0;
+    for (var i = 0; i < postprocessing_fragment_uniform.spotlight_count; i++) {
+        let spotlight_position = postprocessing_fragment_uniform.spotlight[i].position;
+        let d = distance(spotlight_position, position);
+        let a = smoothstep(0.0, 1.0, d / postprocessing_fragment_uniform.spotlight[i].radius) * 0.85;
+        alpha = min(alpha, a);
+    }
+
+    return vec4<f32>(0.0, 0.0, 0.0, alpha);
+}
 
 // This is like, halfway between LINEAR and NEAREST.
 // It requires the texture be sampled with LINEAR.
@@ -151,12 +185,12 @@ fn scanline(y_: f32) -> vec4<f32> {
 }
 
 fn get_scene_pixel(uv: vec2<f32>) -> vec4<f32> {
-    // vec4 spot = spotlight(uv);
+    let spot = spotlight(uv);
 
     let fuzzed_sample_uv = fuzz_sample_uv(uv);
 
-    let player_color = textureSample(player_framebuffer_texture, player_framebuffer_sampler, fuzzed_sample_uv);
-    //player_color = vec4(mix(player_color.rgb, spot.rgb, spot.a), 1.0);
+    var player_color = textureSample(player_framebuffer_texture, player_framebuffer_sampler, fuzzed_sample_uv);
+    player_color = vec4(mix(player_color.rgb, spot.rgb, spot.a), 1.0);
 
     let hud_color = textureSample(hud_framebuffer_texture, hud_framebuffer_sampler, fuzzed_sample_uv);
     let color = vec4<f32>(mix(hud_color.rgb, player_color.rgb, 1.0 - hud_color.a), 1.0);

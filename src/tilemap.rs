@@ -464,7 +464,7 @@ pub struct TileMap {
     layers: Vec<Layer>,
     player_layer: Option<i32>, // TODO: Should just be i32.
     pub objects: Vec<MapObject>,
-    _is_dark: bool,
+    pub is_dark: bool,
 }
 
 impl TileMap {
@@ -547,7 +547,7 @@ impl TileMap {
             layers,
             player_layer,
             objects,
-            _is_dark: is_dark,
+            is_dark,
         })
     }
 

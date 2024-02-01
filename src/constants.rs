@@ -8,7 +8,7 @@ pub const RENDER_HEIGHT: u32 = 180;
 pub const FRAME_RATE: u32 = 60;
 
 // Rendering details.
-// pub const MAX_LIGHTS: u32 = 20;
+pub const MAX_LIGHTS: usize = 32;
 
 // How quickly should the viewport pan to where it wants to be.
 pub const VIEWPORT_PAN_SPEED: Subpixels = Subpixels::from_pixels(5);

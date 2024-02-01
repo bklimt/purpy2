@@ -9,16 +9,16 @@ use num_traits::Zero;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use wgpu::util::DeviceExt;
 
-use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
+use crate::constants::{MAX_LIGHTS, RENDER_HEIGHT, RENDER_WIDTH};
 use crate::geometry::{Pixels, Rect};
 use crate::rendercontext::{RenderContext, RenderLayer, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;
 use crate::utils::Color;
 use crate::wgpu::pipeline::Pipeline;
-use crate::wgpu::shader::PostprocessVertex;
 use crate::wgpu::shader::RenderVertexUniform;
 use crate::wgpu::shader::Vertex;
+use crate::wgpu::shader::{self, PostprocessVertex};
 use crate::wgpu::texture::Texture;
 
 use super::shader::PostprocessFragmentUniform;
@@ -217,11 +217,19 @@ where
         )?;
 
         let start_time = Instant::now();
+
         let fragment_uniform = PostprocessFragmentUniform {
             texture_size: [RENDER_WIDTH as f32, RENDER_HEIGHT as f32],
             render_size: [width as f32, height as f32],
             time_s: 0.0,
-            _padding1: 0,
+            is_dark: 0,
+            spotlight_count: 0,
+            _padding: 0,
+            spotlight: [shader::Light {
+                position: [0.0, 0.0],
+                radius: 0.0,
+                _padding: 0.0,
+            }; MAX_LIGHTS],
         };
         postprocess_pipeline.set_fragment_uniform(&device, fragment_uniform);
 
@@ -417,6 +425,20 @@ where
         let now = Instant::now();
         let time_s = (now - self.start_time).as_secs_f32();
         self.fragment_uniform.time_s = time_s;
+
+        let one_pixel = Pixels::new(1);
+        self.fragment_uniform.is_dark = if context.is_dark { 1 } else { 0 };
+        self.fragment_uniform.spotlight_count = context.lights.len() as i32;
+        for (i, light) in context.lights.iter().enumerate() {
+            let position = light.position.as_pixels();
+            self.fragment_uniform.spotlight[i].position = [
+                (position.x / one_pixel) as f32,
+                (position.y / one_pixel) as f32,
+            ];
+            self.fragment_uniform.spotlight[i].radius =
+                (light.radius.as_pixels() / one_pixel) as f32;
+        }
+
         self.postprocess_pipeline
             .update_fragment_uniform(&self.queue, self.fragment_uniform);
 
@@ -446,7 +468,7 @@ impl<'window, T> Renderer for WgpuRenderer<'window, T>
 where
     T: WindowHandle,
 {
-    fn load_sprite(&mut self, path: &Path) -> Result<Sprite> {
+    fn load_sprite(&mut self, _path: &Path) -> Result<Sprite> {
         // TODO: Check that the path actually matches the texture_atlas_path.
         Ok(Sprite {
             id: 0,

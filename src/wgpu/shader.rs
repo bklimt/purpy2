@@ -1,3 +1,5 @@
+use crate::constants::MAX_LIGHTS;
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RenderVertexUniform {
@@ -78,11 +80,22 @@ impl PostprocessVertex {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Light {
+    pub position: [f32; 2],
+    pub radius: f32,
+    pub _padding: f32,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PostprocessFragmentUniform {
     pub render_size: [f32; 2],
     pub texture_size: [f32; 2],
     pub time_s: f32,
-    pub _padding1: u32, // To enforce the time_s field is aligned to 8 bytes.
+    pub is_dark: i32,
+    pub spotlight_count: i32,
+    pub _padding: u32,
+    pub spotlight: [Light; MAX_LIGHTS],
 }
 
 #[repr(C)]

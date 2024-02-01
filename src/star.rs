@@ -44,6 +44,10 @@ impl Star {
             h: self.area.h,
         };
         self.tilemap.draw_tile(context, self.tile_gid, layer, dest);
-        // TODO: Add lights.
+
+        let light_position = pos + (Subpixels::from_pixels(3), Subpixels::from_pixels(5)).into();
+        let light_radius = Subpixels::from_pixels(12);
+
+        context.add_light(light_position, light_radius);
     }
 }

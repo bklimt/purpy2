@@ -230,6 +230,13 @@ impl<T> Point<T> {
     }
 }
 
+impl Point<Subpixels> {
+    #[inline]
+    pub fn as_pixels(&self) -> Point<Pixels> {
+        Point::new(self.x.as_pixels(), self.y.as_pixels())
+    }
+}
+
 impl<T> Zero for Point<T>
 where
     T: Zero,
