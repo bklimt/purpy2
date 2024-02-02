@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use anyhow::{Context, Result};
-use log::{info, log_enabled};
+use log::{debug, info, log_enabled};
 use num_traits::Zero;
 
 use crate::constants::{
@@ -859,6 +859,10 @@ impl Scene for Level {
             if self.toast_position < Subpixels::zero() {
                 self.toast_position += TOAST_SPEED;
             }
+        }
+
+        if log_enabled!(log::Level::Debug) {
+            debug!("Level state: {:?}", self.player);
         }
 
         SceneResult::Continue

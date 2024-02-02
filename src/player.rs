@@ -158,3 +158,16 @@ impl Player {
         raw_bounds + self.position
     }
 }
+
+impl std::fmt::Debug for Player {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Player")
+            .field("position", &self.position)
+            .field("delta", &self.delta)
+            .field("facing_right", &self.facing_right)
+            .field("state", &self.state)
+            .field("is_idle", &self.is_idle)
+            .field("is_dead", &self.is_dead)
+            .finish()
+    }
+}
