@@ -81,9 +81,9 @@ struct ObjectXml {
     #[serde(rename = "@y")]
     y: i32,
     #[serde(rename = "@width")]
-    width: i32,
+    width: Option<i32>,
     #[serde(rename = "@height")]
-    height: i32,
+    height: Option<i32>,
     #[serde(rename = "@gid")]
     gid: Option<u32>,
 
@@ -320,6 +320,7 @@ pub struct MapObjectProperties {
     pub button: bool,
     pub door: bool,
     pub star: bool,
+    pub spawn: bool,
     // Tiles
     pub solid: bool,
     // Map Areas
@@ -339,6 +340,10 @@ pub struct MapObjectProperties {
     pub sprite: Option<String>,
     pub destination: Option<String>,
     pub stars_needed: i32,
+    // Spawn points
+    pub facing_left: bool,
+    // Warp zones
+    pub warp: Option<String>,
     _raw: PropertyMap,
 }
 
@@ -352,6 +357,7 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
             button: properties.get_bool("button")?.unwrap_or(false),
             door: properties.get_bool("door")?.unwrap_or(false),
             star: properties.get_bool("star")?.unwrap_or(false),
+            spawn: properties.get_bool("spawn")?.unwrap_or(false),
             solid: properties.get_bool("solid")?.unwrap_or(false),
             preferred_x: properties.get_int("preferred_x")?.map(|x| Pixels::new(x)),
             preferred_y: properties.get_int("preferred_y")?.map(|y| Pixels::new(y)),
@@ -375,6 +381,8 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
             sprite: properties.get_string("sprite")?.map(str::to_string),
             destination: properties.get_string("destination")?.map(str::to_string),
             stars_needed: properties.get_int("stars_needed")?.unwrap_or(0),
+            facing_left: properties.get_bool("facing_left")?.unwrap_or(false),
+            warp: properties.get_string("warp")?.map(str::to_string),
             _raw: properties,
         })
     }
@@ -392,8 +400,8 @@ impl MapObject {
         let id = xml.id;
         let x = xml.x;
         let mut y = xml.y;
-        let width = xml.width;
-        let height = xml.height;
+        let width = xml.width.unwrap_or(0);
+        let height = xml.height.unwrap_or(0);
         let mut properties: PropertyMap = xml
             .properties
             .map(|x| x.try_into())

@@ -32,6 +32,7 @@ use crate::switchstate::SwitchState;
 use crate::tilemap::{TileIndex, TileMap};
 use crate::tileset::TileProperties;
 use crate::utils::{cmp_in_direction, Color, Direction};
+use crate::warp::Warp;
 
 struct PlatformIntersectionResult {
     offset: Subpixels,
@@ -103,6 +104,7 @@ pub struct Level {
     platforms: Vec<Platform>,
     stars: Vec<Star>,
     doors: Vec<Door>,
+    warps: Vec<Warp>,
 
     star_count: i32,
     current_platform: Option<usize>,
@@ -157,6 +159,7 @@ impl Level {
         let mut platforms: Vec<Platform> = Vec::new();
         let mut stars = Vec::new();
         let mut doors = Vec::new();
+        let mut warps = Vec::new();
 
         for obj in map.objects.iter() {
             if obj.properties.platform {
@@ -174,11 +177,19 @@ impl Level {
             if obj.properties.button {
                 platforms.push(Button::new(obj, map.clone(), images)?);
             }
+            if obj.properties.spawn {
+                player.position.x = obj.position.x.as_subpixels();
+                player.position.y = obj.position.y.as_subpixels();
+                player.facing_right = !obj.properties.facing_left;
+            }
             if obj.properties.door {
                 doors.push(Door::new(obj, images)?);
             }
             if obj.properties.star {
                 stars.push(Star::new(obj, map.clone())?);
+            }
+            if obj.properties.warp.is_some() {
+                warps.push(Warp::new(obj)?);
             }
         }
 
@@ -203,6 +214,7 @@ impl Level {
             platforms,
             stars,
             doors,
+            warps,
             star_count,
             current_platform,
             current_slopes,
@@ -816,6 +828,14 @@ impl Scene for Level {
             }
             if door.active {
                 self.current_door = Some(i);
+            }
+        }
+
+        for warp in self.warps.iter() {
+            if warp.is_inside(player_rect) {
+                return SceneResult::SwitchToLevel {
+                    path: Path::new(&warp.destination).to_owned(),
+                };
             }
         }
 
