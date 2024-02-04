@@ -28,9 +28,8 @@ pub const COYOTE_TIME: i32 = 6; // How long to hover in the air before officiall
 pub const JUMP_GRACE_TIME: i32 = 12; // How long to remember jump was pressed while falling.
 pub const JUMP_INITIAL_SPEED: Subpixels = Subpixels::from_pixels(3);
 pub const JUMP_ACCELERATION: Subpixels = Subpixels::new(4);
-pub const JUMP_MAX_GRAVITY: Subpixels = Subpixels::from_pixels(2);
 pub const FALL_ACCELERATION: Subpixels = Subpixels::new(10);
-pub const FALL_MAX_GRAVITY: Subpixels = Subpixels::from_pixels(2);
+pub const MAX_GRAVITY: Subpixels = Subpixels::from_pixels(2);
 
 // Wall sliding.
 pub const WALL_SLIDE_SPEED: Subpixels = Subpixels::new(8);

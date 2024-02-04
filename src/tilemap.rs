@@ -4,6 +4,7 @@ use std::ops::{Index, IndexMut};
 use std::str::FromStr;
 use std::{fs, path::Path};
 
+use crate::constants::MAX_GRAVITY;
 use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
 use crate::properties::{PropertiesXml, PropertyMap};
@@ -342,6 +343,8 @@ pub struct MapObjectProperties {
     pub stars_needed: i32,
     // Spawn points
     pub facing_left: bool,
+    pub dx: Pixels,
+    pub dy: Pixels,
     // Warp zones
     pub warp: Option<String>,
     _raw: PropertyMap,
@@ -381,6 +384,8 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
             sprite: properties.get_string("sprite")?.map(str::to_string),
             destination: properties.get_string("destination")?.map(str::to_string),
             stars_needed: properties.get_int("stars_needed")?.unwrap_or(0),
+            dx: Pixels::new(properties.get_int("dx")?.unwrap_or(0)),
+            dy: Pixels::new(properties.get_int("dy")?.unwrap_or(0)),
             facing_left: properties.get_bool("facing_left")?.unwrap_or(false),
             warp: properties.get_string("warp")?.map(str::to_string),
             _raw: properties,
@@ -462,6 +467,21 @@ impl TileSetList {
     }
 }
 
+pub struct TileMapProperties {
+    pub dark: bool,
+    pub gravity: Option<Subpixels>,
+}
+
+impl TryFrom<PropertyMap> for TileMapProperties {
+    type Error = anyhow::Error;
+    fn try_from(properties: PropertyMap) -> Result<Self> {
+        Ok(TileMapProperties {
+            dark: properties.get_bool("is_dark")?.unwrap_or(false),
+            gravity: properties.get_int("gravity")?.map(|n| Subpixels::new(n)),
+        })
+    }
+}
+
 pub struct TileMap {
     pub width: i32,
     pub height: i32,
@@ -472,7 +492,7 @@ pub struct TileMap {
     layers: Vec<Layer>,
     player_layer: Option<i32>, // TODO: Should just be i32.
     pub objects: Vec<MapObject>,
-    pub is_dark: bool,
+    pub properties: TileMapProperties,
 }
 
 impl TileMap {
@@ -543,7 +563,7 @@ impl TileMap {
             PropertyMap::new()
         };
 
-        let is_dark = properties.get_bool("dark")?.unwrap_or(false);
+        let properties = properties.try_into()?;
 
         Ok(TileMap {
             width,
@@ -555,7 +575,7 @@ impl TileMap {
             layers,
             player_layer,
             objects,
-            is_dark,
+            properties,
         })
     }
 
@@ -910,6 +930,10 @@ impl TileMap {
             }
         }
         result
+    }
+
+    pub fn get_gravity(&self) -> Subpixels {
+        self.properties.gravity.unwrap_or(MAX_GRAVITY)
     }
 
     pub fn get_preferred_view(

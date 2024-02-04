@@ -8,13 +8,12 @@ use log::{debug, info, log_enabled};
 use num_traits::Zero;
 
 use crate::constants::{
-    COYOTE_TIME, FALL_ACCELERATION, FALL_MAX_GRAVITY, JUMP_ACCELERATION, JUMP_GRACE_TIME,
-    JUMP_INITIAL_SPEED, JUMP_MAX_GRAVITY, PLAYER_DEFAULT_X, PLAYER_DEFAULT_Y,
-    SLIDE_SPEED_DECELERATION, SPRING_BOUNCE_DURATION, SPRING_BOUNCE_VELOCITY, SPRING_JUMP_DURATION,
-    SPRING_JUMP_VELOCITY, TARGET_WALK_SPEED, TOAST_HEIGHT, TOAST_SPEED, TOAST_TIME,
-    VIEWPORT_PAN_SPEED, WALK_SPEED_ACCELERATION, WALK_SPEED_DECELERATION,
-    WALL_JUMP_HORIZONTAL_SPEED, WALL_JUMP_VERTICAL_SPEED, WALL_SLIDE_SPEED, WALL_SLIDE_TIME,
-    WALL_STICK_TIME,
+    COYOTE_TIME, FALL_ACCELERATION, JUMP_ACCELERATION, JUMP_GRACE_TIME, JUMP_INITIAL_SPEED,
+    PLAYER_DEFAULT_X, PLAYER_DEFAULT_Y, SLIDE_SPEED_DECELERATION, SPRING_BOUNCE_DURATION,
+    SPRING_BOUNCE_VELOCITY, SPRING_JUMP_DURATION, SPRING_JUMP_VELOCITY, TARGET_WALK_SPEED,
+    TOAST_HEIGHT, TOAST_SPEED, TOAST_TIME, VIEWPORT_PAN_SPEED, WALK_SPEED_ACCELERATION,
+    WALK_SPEED_DECELERATION, WALL_JUMP_HORIZONTAL_SPEED, WALL_JUMP_VERTICAL_SPEED,
+    WALL_SLIDE_SPEED, WALL_SLIDE_TIME, WALL_STICK_TIME,
 };
 use crate::door::Door;
 use crate::font::Font;
@@ -180,6 +179,9 @@ impl Level {
             if obj.properties.spawn {
                 player.position.x = obj.position.x.as_subpixels();
                 player.position.y = obj.position.y.as_subpixels();
+                player.delta.x = obj.properties.dx.as_subpixels();
+                player.delta.y = obj.properties.dy.as_subpixels();
+                player.state = PlayerState::Jumping;
                 player.facing_right = !obj.properties.facing_left;
             }
             if obj.properties.door {
@@ -286,6 +288,7 @@ impl Level {
     }
 
     fn update_player_trajectory_y(&mut self) {
+        let gravity = self.map.get_gravity();
         match self.player.state {
             PlayerState::Standing | PlayerState::Crouching => {
                 // Fall at least one pixel so that we hit the ground again.
@@ -293,17 +296,17 @@ impl Level {
             }
             PlayerState::Jumping => {
                 // Apply gravity.
-                if self.player.delta.y < JUMP_MAX_GRAVITY {
+                if self.player.delta.y < gravity {
                     self.player.delta.y += JUMP_ACCELERATION;
                 }
-                self.player.delta.y = self.player.delta.y.min(JUMP_MAX_GRAVITY);
+                self.player.delta.y = self.player.delta.y.min(gravity);
             }
             PlayerState::Falling => {
                 // Apply gravity.
-                if self.player.delta.y < FALL_MAX_GRAVITY {
+                if self.player.delta.y < gravity {
                     self.player.delta.y += FALL_ACCELERATION;
                 }
-                self.player.delta.y = self.player.delta.y.min(FALL_MAX_GRAVITY);
+                self.player.delta.y = self.player.delta.y.min(gravity);
             }
             PlayerState::WallSliding => {
                 // When you first grab the wall, don't start sliding for a while.
@@ -998,7 +1001,7 @@ impl Scene for Level {
             );
         }
 
-        context.is_dark = self.map.is_dark;
+        context.is_dark = self.map.properties.dark;
 
         let spotlight_pos =
             player_draw + Point::new(Subpixels::from_pixels(12), Subpixels::from_pixels(12));
