@@ -97,18 +97,23 @@ pub struct TileSetXml {
 
 pub struct TileProperties {
     pub solid: bool,
-    pub alternate: Option<LocalTileIndex>,
+    // switches
+    pub switch: Option<String>,
     pub condition: Option<String>,
+    pub alternate: Option<LocalTileIndex>,
+    // oneway
     pub oneway: Option<String>,
+    // slopes
     pub slope: bool,
     pub left_y: Pixels,
     pub right_y: Pixels,
+    // custom hitboxes
     pub hitbox_top: Pixels,
     pub hitbox_left: Pixels,
     pub hitbox_right: Pixels,
     pub hitbox_bottom: Pixels,
+    // spikes
     pub deadly: bool,
-    pub switch: Option<String>,
 
     pub raw: PropertyMap,
 }
