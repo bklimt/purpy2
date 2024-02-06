@@ -1,3 +1,6 @@
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
 use std::path::Path;
 use std::time::Instant;
 
@@ -35,13 +38,21 @@ struct GameState<'window> {
 
 impl<'window> GameState<'window> {
     fn new(args: Args, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
-        let sdl_context = sdl2::init().expect("failed to init SDL");
-        let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
+        let mut sounds = None;
+        cfg_if::cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                sounds = Some(SoundManager::noop_manager());
+            } else {
+                let sdl_context = sdl2::init().expect("failed to init SDL");
+                let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
+                sounds = Some(SoundManager::with_sdl(&audio_subsystem)?);
+            }
+        }
+        let sounds = sounds.unwrap();
 
         let mut images = ImageManager::new(renderer)?;
         let inputs = InputManager::new(&args)?;
         let stage_manager = StageManager::new(&images)?;
-        let sounds = SoundManager::new(&audio_subsystem)?;
 
         images.load_texture_atlas(
             Path::new("assets/textures.png"),
@@ -98,9 +109,49 @@ impl<'window> GameState<'window> {
     }
 }
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+pub async fn wasm_main() {
+    cfg_if::cfg_if! {
+        if #[cfg(target_arch = "wasm32")] {
+            std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+            console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
+        }
+    }
+
+    let args = Args {
+        fullscreen: false,
+        record: None,
+        playback: None,
+        speed_test: false,
+    };
+    if let Err(e) = run(args).await {
+        panic!("error: {}", e);
+    }
+}
+
 pub async fn run(args: Args) -> Result<()> {
     let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        // Winit prevents sizing with CSS, so we have to set
+        // the size manually when on web.
+        use winit::dpi::PhysicalSize;
+        window.set_inner_size(PhysicalSize::new(450, 400));
+
+        use winit::platform::web::WindowExtWebSys;
+        web_sys::window()
+            .and_then(|win| win.document())
+            .and_then(|doc| {
+                let dst = doc.get_element_by_id("wasm-example")?;
+                let canvas = web_sys::Element::from(window.canvas());
+                dst.append_child(&canvas).ok()?;
+                Some(())
+            })
+            .expect("Couldn't append canvas to document body.");
+    }
+
     let PhysicalSize { width, height } = window.inner_size();
     let texture_atlas_path = Path::new("assets/textures.png");
     let renderer = WgpuRenderer::new(&window, width, height, texture_atlas_path).await?;

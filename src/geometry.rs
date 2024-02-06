@@ -433,6 +433,7 @@ impl From<Rect<Pixels>> for Rect<Subpixels> {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Into<sdl2::rect::Rect> for Rect<Pixels> {
     #[inline]
     fn into(self) -> sdl2::rect::Rect {
@@ -440,6 +441,7 @@ impl Into<sdl2::rect::Rect> for Rect<Pixels> {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Into<Option<sdl2::rect::Rect>> for Rect<Pixels> {
     #[inline]
     fn into(self) -> Option<sdl2::rect::Rect> {

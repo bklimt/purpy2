@@ -14,8 +14,6 @@ mod properties;
 mod rendercontext;
 mod renderer;
 mod scene;
-mod sdlmain;
-mod sdlrenderer;
 mod slope;
 mod smallintmap;
 mod smallintset;
@@ -31,6 +29,11 @@ mod warp;
 mod wgpu;
 
 pub use args::Args;
-pub use sdlmain::sdl_main;
-pub use wgpu::wgpumain::run as wgpu_main;
 pub use wgpu::winitmain::run as winit_main;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod sdl;
+#[cfg(not(target_arch = "wasm32"))]
+pub use sdl::sdlmain::sdl_main;
+#[cfg(not(target_arch = "wasm32"))]
+pub use wgpu::wgpumain::run as wgpu_main;

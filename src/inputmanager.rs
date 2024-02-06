@@ -25,6 +25,7 @@ enum KeyboardKey {
 }
 
 impl KeyboardKey {
+    #[cfg(not(target_arch = "wasm32"))]
     fn from_sdl_key(key: sdl2::keyboard::Keycode) -> Option<Self> {
         use sdl2::keyboard::Keycode;
         Some(match key {
@@ -65,14 +66,6 @@ impl KeyboardKey {
 impl Into<usize> for KeyboardKey {
     fn into(self) -> usize {
         self as usize
-    }
-}
-
-struct MouseButtonIndex(sdl2::mouse::MouseButton);
-
-impl Into<usize> for MouseButtonIndex {
-    fn into(self) -> usize {
-        self.0 as usize
     }
 }
 
@@ -117,7 +110,6 @@ struct InputState {
     joystick_buttons_down: SmallIntMap<u8, bool>,
     joy_axes: SmallIntMap<JoystickAxis, f32>,
     joy_hats: SmallIntMap<u8, sdl2::joystick::HatState>,
-    mouse_buttons_down: SmallIntMap<MouseButtonIndex, bool>,
 }
 
 impl InputState {
@@ -127,7 +119,6 @@ impl InputState {
             joystick_buttons_down: SmallIntMap::new(),
             joy_axes: SmallIntMap::new(),
             joy_hats: SmallIntMap::new(),
-            mouse_buttons_down: SmallIntMap::new(),
         }
     }
 
@@ -155,27 +146,11 @@ impl InputState {
         *self.joystick_buttons_down.get(button).unwrap_or(&false)
     }
 
-    fn set_mouse_button_down(&mut self, button: sdl2::mouse::MouseButton) {
-        self.mouse_buttons_down
-            .insert(MouseButtonIndex(button), true);
-    }
-
-    fn set_mouse_button_up(&mut self, button: sdl2::mouse::MouseButton) {
-        self.mouse_buttons_down
-            .insert(MouseButtonIndex(button), false);
-    }
-
-    fn is_mouse_button_down(&self, button: sdl2::mouse::MouseButton) -> bool {
-        *self
-            .mouse_buttons_down
-            .get(MouseButtonIndex(button))
-            .unwrap_or(&false)
-    }
-
     fn set_joy_axis(&mut self, axis: JoystickAxis, value: f32) {
         self.joy_axes.insert(axis, value);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn set_joy_hat(&mut self, hat: u8, state: sdl2::joystick::HatState) {
         self.joy_hats.insert(hat, state);
     }
@@ -294,18 +269,6 @@ impl TransientBinaryInput for JoystickButtonInput {
     }
 }
 
-struct MouseButtonInput {
-    button: sdl2::mouse::MouseButton,
-}
-
-impl MouseButtonInput {}
-
-impl TransientBinaryInput for MouseButtonInput {
-    fn is_on(&self, state: &InputState) -> bool {
-        state.is_mouse_button_down(self.button)
-    }
-}
-
 struct JoystickThresholdInput {
     axis: JoystickAxis,
     low_threshold: Option<f32>,
@@ -321,6 +284,7 @@ impl JoystickThresholdInput {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn get_hat(&self, state: &InputState) -> Option<f32> {
         use sdl2::joystick::HatState;
 
@@ -808,6 +772,7 @@ impl InputManager {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn handle_sdl_event(&mut self, event: &sdl2::event::Event) {
         use sdl2::event::Event;
 
@@ -848,12 +813,6 @@ impl InputManager {
                 state,
                 ..
             } => self.state.set_joy_hat(*hat, *state),
-            Event::MouseButtonDown {
-                mouse_btn: button, ..
-            } => self.state.set_mouse_button_down(*button),
-            Event::MouseButtonUp {
-                mouse_btn: button, ..
-            } => self.state.set_mouse_button_up(*button),
             _ => {}
         }
     }

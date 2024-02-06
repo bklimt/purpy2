@@ -12,7 +12,7 @@ use crate::constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, W
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
 use crate::rendercontext::RenderContext;
-use crate::sdlrenderer::SdlRenderer;
+use crate::sdl::sdlrenderer::SdlRenderer;
 use crate::soundmanager::SoundManager;
 use crate::stagemanager::StageManager;
 
@@ -45,7 +45,7 @@ pub fn sdl_main(args: Args) -> Result<()> {
     let mut image_manager = ImageManager::new(renderer)?;
     let mut input_manager = InputManager::new(&args)?;
     let mut stage_manager = StageManager::new(&image_manager)?;
-    let mut sound_manager = SoundManager::new(&audio_subsystem)?;
+    let mut sound_manager = SoundManager::with_sdl(&audio_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     image_manager.load_texture_atlas(

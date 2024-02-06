@@ -1,12 +1,4 @@
-use std::ops::DerefMut;
-use std::path::Path;
-
-use anyhow::{anyhow, bail, Result};
-use log::debug;
-use sdl2::audio::{
-    AudioCVT, AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired, AudioSpecWAV,
-};
-use sdl2::AudioSubsystem;
+use anyhow::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sound {
@@ -14,117 +6,37 @@ pub enum Sound {
     Star,
 }
 
-const MAX_SOUNDS: usize = 4;
-
-struct SoundCallback {
-    clips: Vec<Vec<u8>>,
-    playing: Vec<(Sound, usize)>,
+pub trait SoundPlayer {
+    fn play(&mut self, sound: Sound);
 }
 
-impl SoundCallback {
-    fn load_wav(&mut self, sound: Sound, name: &str, spec: &AudioSpec) -> Result<()> {
-        let path_str = format!("./assets/sounds/{}.wav", name);
-        let path = Path::new(&path_str);
-        let wav = load_wav(path, spec)?;
-        if self.clips.len() != sound as usize {
-            bail!("sounds must be loaded in order");
-        }
-        self.clips.push(wav);
-        Ok(())
-    }
-}
+pub struct NoopSoundPlayer {}
 
-impl AudioCallback for SoundCallback {
-    type Channel = u8;
-
-    fn callback(&mut self, buffer: &mut [Self::Channel]) {
-        for sample in buffer.iter_mut() {
-            *sample = 127;
-        }
-
-        let playing = std::mem::replace(&mut self.playing, Vec::new());
-        for (sound, offset) in playing.into_iter() {
-            let clip = &self.clips[sound as usize];
-
-            for (i, sample) in buffer.iter_mut().enumerate() {
-                if offset + i >= clip.len() {
-                    break;
-                }
-                *sample -= 127 / (MAX_SOUNDS as u8);
-                *sample += clip[i + offset] / (MAX_SOUNDS as u8);
-            }
-
-            let next_offset = offset + buffer.len();
-            if next_offset < clip.len() {
-                self.playing.push((sound, next_offset));
-            }
-        }
-    }
-}
-
-fn load_wav(path: &Path, spec: &AudioSpec) -> Result<Vec<u8>> {
-    let wav = AudioSpecWAV::load_wav(path)
-        .map_err(|s| anyhow!("unable to load wav {:?}: {}", path, s))?;
-
-    let cvt = AudioCVT::new(
-        wav.format,
-        wav.channels,
-        wav.freq,
-        spec.format,
-        spec.channels,
-        spec.freq,
-    )
-    .map_err(|s| anyhow!("unable to create audio converter: {}", s))?;
-
-    let buffer = cvt.convert(wav.buffer().into());
-
-    if wav.buffer().len() % 2 != 0 {
-        bail!("wav parity error");
-    }
-
-    Ok(buffer)
+impl SoundPlayer for NoopSoundPlayer {
+    fn play(&mut self, sound: Sound) {}
 }
 
 pub struct SoundManager {
-    device: AudioDevice<SoundCallback>,
+    internal: Box<dyn SoundPlayer>,
 }
 
 impl SoundManager {
-    pub fn new(audio: &AudioSubsystem) -> Result<SoundManager> {
-        let desired_spec = AudioSpecDesired {
-            freq: Some(44100),
-            channels: Some(1),
-            samples: Some(512),
-        };
-
-        let mut device = audio
-            .open_playback(None, &desired_spec, |_spec| SoundCallback {
-                clips: Vec::new(),
-                playing: Vec::new(),
-            })
-            .map_err(|s| anyhow!("error initializing audio device: {}", s))?;
-
-        SoundManager::load_sounds(&mut device)?;
-
-        device.resume();
-        Ok(SoundManager { device })
+    fn with_internal(internal: Box<dyn SoundPlayer>) -> SoundManager {
+        Self { internal }
     }
 
-    fn load_sounds(device: &mut AudioDevice<SoundCallback>) -> Result<()> {
-        let spec = device.spec().clone();
-        let mut lock = device.lock();
-        let callback = lock.deref_mut();
-        callback.load_wav(Sound::Click, "click", &spec)?;
-        callback.load_wav(Sound::Star, "star", &spec)?;
-        Ok(())
+    pub fn noop_manager() -> SoundManager {
+        Self::with_internal(Box::new(NoopSoundPlayer {}))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_sdl(audio: &sdl2::AudioSubsystem) -> Result<Self> {
+        Ok(Self::with_internal(Box::new(
+            crate::sdl::sdlsoundmanager::SdlSoundManager::new(audio)?,
+        )))
     }
 
     pub fn play(&mut self, sound: Sound) {
-        debug!("playing sound {:?}", sound);
-        let mut lock = self.device.lock();
-        let callback = lock.deref_mut();
-        if callback.playing.len() < MAX_SOUNDS {
-            callback.playing.push((sound, 0));
-        }
+        self.internal.play(sound)
     }
 }
