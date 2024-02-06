@@ -7,6 +7,7 @@ use sdl2::video::Window;
 
 use crate::args::Args;
 use crate::constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::filemanager::FileManager;
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
 use crate::rendercontext::RenderContext;
@@ -22,6 +23,9 @@ pub fn run(args: Args) -> Result<()> {
     let video_subsystem = sdl_context.video().expect("failed to get video context");
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
+    let file_manager =
+        FileManager::new().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
+
     // We create a window.
     let title = "purpy2";
     let mut window = video_subsystem.window(title, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -32,7 +36,7 @@ pub fn run(args: Args) -> Result<()> {
     let (width, height) = window.size();
 
     let texture_atlas_path = Path::new("assets/textures.png");
-    let future = WgpuRenderer::new(&window, width, height, texture_atlas_path);
+    let future = WgpuRenderer::new(&window, &file_manager, width, height, texture_atlas_path);
     let renderer = pollster::block_on(future)?;
 
     let mut image_manager = ImageManager::new(renderer)?;
@@ -42,6 +46,7 @@ pub fn run(args: Args) -> Result<()> {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     image_manager.load_texture_atlas(
+        &file_manager,
         Path::new("assets/textures.png"),
         Path::new("assets/textures_index.txt"),
     )?;

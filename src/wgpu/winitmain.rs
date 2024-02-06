@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::Instant;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use log::error;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
@@ -10,6 +10,7 @@ use winit::window::{Window, WindowBuilder};
 
 use crate::args::Args;
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
+use crate::filemanager::FileManager;
 use crate::font::Font;
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
@@ -34,7 +35,11 @@ struct GameState<'window> {
 }
 
 impl<'window> GameState<'window> {
-    fn new(args: Args, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
+    fn new(
+        args: Args,
+        renderer: WgpuRenderer<'window, Window>,
+        files: &FileManager,
+    ) -> Result<Self> {
         let sdl_context = sdl2::init().expect("failed to init SDL");
         let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
@@ -44,6 +49,7 @@ impl<'window> GameState<'window> {
         let sounds = SoundManager::new(&audio_subsystem)?;
 
         images.load_texture_atlas(
+            files,
             Path::new("assets/textures.png"),
             Path::new("assets/textures_index.txt"),
         )?;
@@ -99,12 +105,16 @@ impl<'window> GameState<'window> {
 }
 
 pub async fn run(args: Args) -> Result<()> {
+    let file_manager =
+        FileManager::new().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
+
     let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     let PhysicalSize { width, height } = window.inner_size();
     let texture_atlas_path = Path::new("assets/textures.png");
-    let renderer = WgpuRenderer::new(&window, width, height, texture_atlas_path).await?;
-    let mut game = match GameState::new(args, renderer) {
+    let renderer =
+        WgpuRenderer::new(&window, &file_manager, width, height, texture_atlas_path).await?;
+    let mut game = match GameState::new(args, renderer, &file_manager) {
         Ok(game) => game,
         Err(e) => {
             bail!("unable to initialize game: {:?}", e);

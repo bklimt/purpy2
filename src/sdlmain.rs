@@ -9,6 +9,7 @@ use sdl2::video::Window;
 
 use crate::args::Args;
 use crate::constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::filemanager::FileManager;
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
 use crate::rendercontext::RenderContext;
@@ -20,6 +21,8 @@ pub fn sdl_main(args: Args) -> Result<()> {
     let sdl_context = sdl2::init().expect("failed to init SDL");
     let video_subsystem = sdl_context.video().expect("failed to get video context");
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
+
+    let file_manager = FileManager::new().expect("failed to create file manager");
 
     // We create a window.
     let title = "purpy2";
@@ -49,6 +52,7 @@ pub fn sdl_main(args: Args) -> Result<()> {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     image_manager.load_texture_atlas(
+        &file_manager,
         Path::new("assets/textures.png"),
         Path::new("assets/textures_index.txt"),
     )?;

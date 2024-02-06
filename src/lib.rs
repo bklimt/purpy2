@@ -1,12 +1,14 @@
 mod args;
 mod constants;
 mod door;
+mod filemanager;
 mod font;
 mod geometry;
 mod imagemanager;
 mod inputmanager;
 mod killscreen;
 mod level;
+mod levelindex;
 mod levelselect;
 mod platform;
 mod player;
