@@ -31,14 +31,12 @@ impl Texture {
             depth_or_array_layers: 1,
         };
 
-        // TODO: Pick the texture format more smartly.
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Temp Texture"),
             size,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            //format: wgpu::TextureFormat::Bgra8Unorm,
             format,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
