@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
-use gilrs::{Axis, Button, GamepadId, Gilrs};
+use gilrs::Gilrs;
 use log::{debug, error, info};
 
 use crate::args::Args;
@@ -68,11 +68,39 @@ impl Into<usize> for KeyboardKey {
     }
 }
 
-struct MouseButtonIndex(sdl2::mouse::MouseButton);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum JoystickButton {
+    Up = 0,
+    Down,
+    Left,
+    Right,
+    North,
+    South,
+    East,
+    West,
+}
 
-impl Into<usize> for MouseButtonIndex {
-    fn into(self) -> usize {
-        self.0 as usize
+impl JoystickButton {
+    fn from_button(value: gilrs::Button) -> Option<Self> {
+        use gilrs::Button;
+
+        Some(match value {
+            Button::South => JoystickButton::South,
+            Button::East => JoystickButton::East,
+            Button::North => JoystickButton::North,
+            Button::West => JoystickButton::West,
+            Button::DPadUp => JoystickButton::Up,
+            Button::DPadDown => JoystickButton::Down,
+            Button::DPadLeft => JoystickButton::Left,
+            Button::DPadRight => JoystickButton::Right,
+            _ => return None,
+        })
+    }
+}
+
+impl From<JoystickButton> for usize {
+    fn from(value: JoystickButton) -> Self {
+        value as usize
     }
 }
 
@@ -100,6 +128,7 @@ impl TryInto<JoystickAxis> for gilrs::Axis {
     }
 }
 
+// TODO: Is this needed?
 impl TryInto<JoystickAxis> for u8 {
     type Error = anyhow::Error;
 
@@ -114,10 +143,8 @@ impl TryInto<JoystickAxis> for u8 {
 
 struct InputState {
     keys_down: SmallIntMap<KeyboardKey, bool>,
-    joystick_buttons_down: SmallIntMap<u8, bool>,
+    joystick_buttons_down: SmallIntMap<JoystickButton, bool>,
     joy_axes: SmallIntMap<JoystickAxis, f32>,
-    joy_hats: SmallIntMap<u8, sdl2::joystick::HatState>,
-    mouse_buttons_down: SmallIntMap<MouseButtonIndex, bool>,
 }
 
 impl InputState {
@@ -126,8 +153,6 @@ impl InputState {
             keys_down: SmallIntMap::new(),
             joystick_buttons_down: SmallIntMap::new(),
             joy_axes: SmallIntMap::new(),
-            joy_hats: SmallIntMap::new(),
-            mouse_buttons_down: SmallIntMap::new(),
         }
     }
 
@@ -143,41 +168,20 @@ impl InputState {
         *self.keys_down.get(key).unwrap_or(&false)
     }
 
-    fn set_joystick_button_down(&mut self, button: u8) {
+    fn set_joystick_button_down(&mut self, button: JoystickButton) {
         self.joystick_buttons_down.insert(button, true);
     }
 
-    fn set_joystick_button_up(&mut self, button: u8) {
+    fn set_joystick_button_up(&mut self, button: JoystickButton) {
         self.joystick_buttons_down.insert(button, false);
     }
 
-    fn is_joystick_button_down(&self, button: u8) -> bool {
+    fn is_joystick_button_down(&self, button: JoystickButton) -> bool {
         *self.joystick_buttons_down.get(button).unwrap_or(&false)
-    }
-
-    fn set_mouse_button_down(&mut self, button: sdl2::mouse::MouseButton) {
-        self.mouse_buttons_down
-            .insert(MouseButtonIndex(button), true);
-    }
-
-    fn set_mouse_button_up(&mut self, button: sdl2::mouse::MouseButton) {
-        self.mouse_buttons_down
-            .insert(MouseButtonIndex(button), false);
-    }
-
-    fn is_mouse_button_down(&self, button: sdl2::mouse::MouseButton) -> bool {
-        *self
-            .mouse_buttons_down
-            .get(MouseButtonIndex(button))
-            .unwrap_or(&false)
     }
 
     fn set_joy_axis(&mut self, axis: JoystickAxis, value: f32) {
         self.joy_axes.insert(axis, value);
-    }
-
-    fn set_joy_hat(&mut self, hat: u8, state: sdl2::joystick::HatState) {
-        self.joy_hats.insert(hat, state);
     }
 }
 
@@ -279,11 +283,11 @@ impl TransientBinaryInput for KeyInput {
 }
 
 struct JoystickButtonInput {
-    button: u8,
+    button: JoystickButton,
 }
 
 impl JoystickButtonInput {
-    fn new(button: u8) -> Self {
+    fn new(button: JoystickButton) -> Self {
         JoystickButtonInput { button }
     }
 }
@@ -291,18 +295,6 @@ impl JoystickButtonInput {
 impl TransientBinaryInput for JoystickButtonInput {
     fn is_on(&self, state: &InputState) -> bool {
         state.is_joystick_button_down(self.button)
-    }
-}
-
-struct MouseButtonInput {
-    button: sdl2::mouse::MouseButton,
-}
-
-impl MouseButtonInput {}
-
-impl TransientBinaryInput for MouseButtonInput {
-    fn is_on(&self, state: &InputState) -> bool {
-        state.is_mouse_button_down(self.button)
     }
 }
 
@@ -321,36 +313,6 @@ impl JoystickThresholdInput {
         }
     }
 
-    fn get_hat(&self, state: &InputState) -> Option<f32> {
-        use sdl2::joystick::HatState;
-
-        let diag = 0.7;
-        state.joy_hats.get(0).map(|hat| match self.axis {
-            JoystickAxis::Horizontal => match hat {
-                HatState::Centered => 0.0,
-                HatState::Up => 0.0,
-                HatState::RightUp => diag,
-                HatState::Right => 1.0,
-                HatState::RightDown => diag,
-                HatState::Down => 0.0,
-                HatState::LeftDown => -diag,
-                HatState::Left => -1.0,
-                HatState::LeftUp => -diag,
-            },
-            JoystickAxis::Vertical => match hat {
-                HatState::Centered => 0.0,
-                HatState::Up => 1.0,
-                HatState::RightUp => diag,
-                HatState::Right => 0.0,
-                HatState::RightDown => -diag,
-                HatState::Down => -1.0,
-                HatState::LeftDown => -diag,
-                HatState::Left => 0.0,
-                HatState::LeftUp => diag,
-            },
-        })
-    }
-
     fn get_axis(&self, state: &InputState) -> Option<f32> {
         state.joy_axes.get(self.axis).copied()
     }
@@ -358,18 +320,6 @@ impl JoystickThresholdInput {
 
 impl TransientBinaryInput for JoystickThresholdInput {
     fn is_on(&self, state: &InputState) -> bool {
-        if let Some(hat) = self.get_hat(state) {
-            if let Some(low) = self.low_threshold {
-                if hat < low {
-                    return true;
-                }
-            }
-            if let Some(high) = self.high_threshold {
-                if hat > high {
-                    return true;
-                }
-            }
-        }
         if let Some(axis) = self.get_axis(state) {
             if let Some(low) = self.low_threshold {
                 if axis < low {
@@ -446,11 +396,11 @@ fn key_trigger(key: KeyboardKey) -> Box<TriggerInput<KeyInput>> {
     Box::new(TriggerInput::from(KeyInput::new(key)))
 }
 
-fn joystick_button_input(button: u8) -> Box<CachedBinaryInput<JoystickButtonInput>> {
+fn joystick_button_input(button: JoystickButton) -> Box<CachedBinaryInput<JoystickButtonInput>> {
     Box::new(CachedBinaryInput::from(JoystickButtonInput::new(button)))
 }
 
-fn joystick_button_trigger(button: u8) -> Box<TriggerInput<JoystickButtonInput>> {
+fn joystick_button_trigger(button: JoystickButton) -> Box<TriggerInput<JoystickButtonInput>> {
     Box::new(TriggerInput::from(JoystickButtonInput::new(button)))
 }
 
@@ -476,43 +426,54 @@ fn joystick_trigger(
 
 fn create_input(input: BinaryInput) -> AnyOfInput {
     AnyOfInput(match input {
-        BinaryInput::Ok => vec![key_trigger(KeyboardKey::Enter), joystick_button_trigger(0)],
-        BinaryInput::Cancel => vec![key_trigger(KeyboardKey::Escape), joystick_button_trigger(2)],
+        BinaryInput::Ok => vec![
+            key_trigger(KeyboardKey::Enter),
+            joystick_button_trigger(JoystickButton::South),
+        ],
+        BinaryInput::Cancel => vec![
+            key_trigger(KeyboardKey::Escape),
+            joystick_button_trigger(JoystickButton::West),
+        ],
         BinaryInput::PlayerLeft => vec![
             key_input(KeyboardKey::Left),
             key_input(KeyboardKey::A),
+            joystick_button_input(JoystickButton::Left),
             joystick_threshold(JoystickAxis::Horizontal, Some(-0.5), None),
         ],
         BinaryInput::PlayerRight => vec![
             key_input(KeyboardKey::Right),
             key_input(KeyboardKey::D),
+            joystick_button_input(JoystickButton::Right),
             joystick_threshold(JoystickAxis::Horizontal, None, Some(0.5)),
         ],
         BinaryInput::PlayerCrouch => vec![
             key_input(KeyboardKey::Down),
             key_input(KeyboardKey::S),
+            joystick_button_input(JoystickButton::Down),
             joystick_threshold(JoystickAxis::Vertical, None, Some(0.5)),
         ],
         BinaryInput::PlayerJumpTrigger => vec![
             key_trigger(KeyboardKey::Space),
             key_trigger(KeyboardKey::W),
             key_trigger(KeyboardKey::Up),
-            joystick_button_trigger(0),
+            joystick_button_trigger(JoystickButton::South),
         ],
         BinaryInput::PlayerJumpDown => vec![
             key_input(KeyboardKey::Space),
             key_input(KeyboardKey::W),
             key_input(KeyboardKey::Up),
-            joystick_button_input(0),
+            joystick_button_input(JoystickButton::South),
         ],
         BinaryInput::MenuDown => vec![
             key_trigger(KeyboardKey::Down),
             key_trigger(KeyboardKey::S),
+            joystick_button_trigger(JoystickButton::Down),
             joystick_trigger(JoystickAxis::Vertical, None, Some(0.5)),
         ],
         BinaryInput::MenuUp => vec![
             key_trigger(KeyboardKey::W),
             key_trigger(KeyboardKey::Up),
+            joystick_button_trigger(JoystickButton::Up),
             joystick_trigger(JoystickAxis::Vertical, Some(-0.5), None),
         ],
     })
@@ -661,7 +622,7 @@ pub struct InputManager {
     binary_hooks: SmallIntMap<BinaryInput, AnyOfInput>,
     all_binary_hooks: Vec<BinaryInput>,
     gilrs: Gilrs,
-    current_gamepad: Option<GamepadId>,
+    current_gamepad: Option<gilrs::GamepadId>,
     record_option: RecordOption,
     recorder: InputRecorder,
 }
@@ -779,25 +740,19 @@ impl InputManager {
                 }
             }
             gilrs::EventType::ButtonPressed(button, _) => {
-                if let Some(index) = match button {
-                    Button::South => Some(0),
-                    _ => None,
-                } {
-                    self.state.set_joystick_button_down(index);
+                if let Some(button) = JoystickButton::from_button(button) {
+                    self.state.set_joystick_button_down(button);
                 }
             }
             gilrs::EventType::ButtonReleased(button, _) => {
-                if let Some(index) = match button {
-                    Button::South => Some(0),
-                    _ => None,
-                } {
-                    self.state.set_joystick_button_up(index);
+                if let Some(button) = JoystickButton::from_button(button) {
+                    self.state.set_joystick_button_up(button);
                 }
             }
             gilrs::EventType::AxisChanged(axis, amount, _) => {
                 if let Some((axis, polarity)) = match axis {
-                    Axis::LeftStickY => Some((0, -1.0)),
-                    Axis::LeftStickX => Some((1, 1.0)),
+                    gilrs::Axis::LeftStickY => Some((0, -1.0)),
+                    gilrs::Axis::LeftStickX => Some((1, 1.0)),
                     _ => None,
                 } {
                     let axis = axis.try_into().expect("should be valid");
@@ -826,34 +781,6 @@ impl InputManager {
                     self.state.set_key_up(key);
                 }
             }
-            Event::JoyButtonDown {
-                button_idx: button, ..
-            } => self.state.set_joystick_button_down(*button),
-            Event::JoyButtonUp {
-                button_idx: button, ..
-            } => self.state.set_joystick_button_up(*button),
-            Event::JoyAxisMotion {
-                axis_idx: axis,
-                value,
-                ..
-            } => {
-                let axis = *axis;
-                if let Ok(axis) = axis.try_into() {
-                    let value = *value as f32 / i16::MAX as f32;
-                    self.state.set_joy_axis(axis, value);
-                }
-            }
-            Event::JoyHatMotion {
-                hat_idx: hat,
-                state,
-                ..
-            } => self.state.set_joy_hat(*hat, *state),
-            Event::MouseButtonDown {
-                mouse_btn: button, ..
-            } => self.state.set_mouse_button_down(*button),
-            Event::MouseButtonUp {
-                mouse_btn: button, ..
-            } => self.state.set_mouse_button_up(*button),
             _ => {}
         }
     }
