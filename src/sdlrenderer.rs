@@ -9,7 +9,7 @@ use sdl2::surface::Surface;
 use sdl2::video::{Window, WindowContext};
 
 use crate::geometry::{Pixels, Rect};
-use crate::rendercontext::{RenderContext, SpriteBatchEntry};
+use crate::rendercontext::{RenderContext, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
 use crate::sprite::Sprite;
 
@@ -32,6 +32,56 @@ impl<'a> SdlRenderer<'a> {
         }
     }
 
+    fn render_batch(&self, canvas: &mut Canvas<Window>, batch: &SpriteBatch) {
+        canvas.set_draw_color(batch.clear_color);
+        canvas
+            .fill_rect(None)
+            .map_err(|s| anyhow!("unable to clear rect: {}", s))
+            .expect("must succeed");
+        for entry in batch.entries.iter() {
+            match entry {
+                SpriteBatchEntry::Sprite {
+                    sprite,
+                    source,
+                    destination,
+                    reversed,
+                } => {
+                    let sprite_internal = self
+                        .sprites
+                        .get(sprite.id)
+                        .expect(format!("invalid sprite: {:?}", sprite).as_str());
+
+                    let source = Rect {
+                        x: sprite.area.x + source.x,
+                        y: sprite.area.y + source.y,
+                        w: source.w,
+                        h: source.h,
+                    };
+
+                    canvas
+                        .copy_ex(
+                            &sprite_internal.texture,
+                            source,
+                            *destination,
+                            0.0,
+                            None,
+                            *reversed,
+                            false,
+                        )
+                        .map_err(|s| anyhow!("unable to copy sprite: {}", s))
+                        .expect("must succeed");
+                }
+                SpriteBatchEntry::FillRect { destination, color } => {
+                    canvas.set_draw_color(*color);
+                    canvas
+                        .fill_rect(*destination)
+                        .map_err(|s| anyhow!("unable to fill rect: {}", s))
+                        .expect("must succeed");
+                }
+            }
+        }
+    }
+
     pub fn render(&self, canvas: &mut Canvas<Window>, context: &RenderContext) -> Result<()> {
         let pixel_format = canvas.default_pixel_format();
 
@@ -41,50 +91,10 @@ impl<'a> SdlRenderer<'a> {
 
         canvas.set_blend_mode(BlendMode::Blend);
         canvas.with_texture_canvas(&mut player_texture, |canvas| {
-            canvas.set_draw_color(context.player_batch.clear_color);
+            canvas.set_draw_color((0, 0, 0));
             canvas.clear();
-            for entry in context.player_batch.entries.iter() {
-                match entry {
-                    SpriteBatchEntry::Sprite {
-                        sprite,
-                        source,
-                        destination,
-                        reversed,
-                    } => {
-                        let sprite_internal = self
-                            .sprites
-                            .get(sprite.id)
-                            .expect(format!("invalid sprite: {:?}", sprite).as_str());
-
-                        let source = Rect {
-                            x: sprite.area.x + source.x,
-                            y: sprite.area.y + source.y,
-                            w: source.w,
-                            h: source.h,
-                        };
-
-                        canvas
-                            .copy_ex(
-                                &sprite_internal.texture,
-                                source,
-                                *destination,
-                                0.0,
-                                None,
-                                *reversed,
-                                false,
-                            )
-                            .map_err(|s| anyhow!("unable to copy sprite: {}", s))
-                            .expect("must succeed");
-                    }
-                    SpriteBatchEntry::FillRect { destination, color } => {
-                        canvas.set_draw_color(*color);
-                        canvas
-                            .fill_rect(*destination)
-                            .map_err(|s| anyhow!("unable to fill rect: {}", s))
-                            .expect("must succeed");
-                    }
-                }
-            }
+            self.render_batch(canvas, &context.player_batch);
+            self.render_batch(canvas, &context.hud_batch);
         })?;
 
         canvas
