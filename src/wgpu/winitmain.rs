@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 use std::path::Path;
 use std::time::Instant;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use log::error;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
@@ -137,15 +137,14 @@ pub async fn run(args: Args) -> Result<()> {
     {
         // Winit prevents sizing with CSS, so we have to set
         // the size manually when on web.
-        use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(450, 400));
+        window.request_inner_size(PhysicalSize::new(450, 400));
 
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()
             .and_then(|win| win.document())
             .and_then(|doc| {
                 let dst = doc.get_element_by_id("wasm-example")?;
-                let canvas = web_sys::Element::from(window.canvas());
+                let canvas = web_sys::Element::from(window.canvas().unwrap());
                 dst.append_child(&canvas).ok()?;
                 Some(())
             })
@@ -154,13 +153,11 @@ pub async fn run(args: Args) -> Result<()> {
 
     let PhysicalSize { width, height } = window.inner_size();
     let texture_atlas_path = Path::new("assets/textures.png");
-    let renderer = WgpuRenderer::new(&window, width, height, texture_atlas_path).await?;
-    let mut game = match GameState::new(args, renderer) {
-        Ok(game) => game,
-        Err(e) => {
-            bail!("unable to initialize game: {:?}", e);
-        }
-    };
+    let renderer = WgpuRenderer::new(&window, width, height, texture_atlas_path)
+        .await
+        .map_err(|e| anyhow!("unable to create renderer: {}", e))?;
+    let mut game = GameState::new(args, renderer)
+        .map_err(|e| anyhow!("unable to initialize game: {:?}", e))?;
 
     event_loop.set_control_flow(ControlFlow::Poll);
     event_loop.run(move |event, elwt| match event {
@@ -181,7 +178,7 @@ pub async fn run(args: Args) -> Result<()> {
                         }
                     }
                     Err(e) => {
-                        error!("{:?}", e);
+                        error!("error stepping game: {:?}", e);
                         elwt.exit();
                     }
                 },
@@ -198,7 +195,7 @@ pub async fn run(args: Args) -> Result<()> {
                 }
             }
             Err(e) => {
-                error!("{:?}", e);
+                error!("error stepping game: {:?}", e);
                 elwt.exit();
             }
         },

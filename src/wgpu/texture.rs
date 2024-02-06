@@ -17,7 +17,8 @@ pub struct Texture {
 
 impl Texture {
     pub fn from_file(device: &wgpu::Device, queue: &wgpu::Queue, path: &Path) -> Result<Self> {
-        let img = image::open(path)?;
+        let img =
+            image::open(path).map_err(|e| anyhow!("unable to open image at {:?}: {}", path, e))?;
         Self::from_image(device, queue, &img, Some("texture atlas"))
     }
 

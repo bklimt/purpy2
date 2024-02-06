@@ -2,7 +2,7 @@ use std::mem;
 use std::path::Path;
 use std::time::Instant;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use bytemuck::Zeroable;
 use log::{error, info};
 use num_traits::Zero;
@@ -116,11 +116,17 @@ where
             .await
             .unwrap();
 
+        let limits = if cfg!(target_arch = "wasm32") {
+            wgpu::Limits::downlevel_webgl2_defaults()
+        } else {
+            wgpu::Limits::default()
+        };
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
+                    limits,
                     label: None,
                 },
                 None,
@@ -129,7 +135,8 @@ where
             .unwrap();
 
         info!("Reading texture atlas from {:?}", texture_atlas_path);
-        let texture_atlas = Texture::from_file(&device, &queue, texture_atlas_path)?;
+        let texture_atlas = Texture::from_file(&device, &queue, texture_atlas_path)
+            .map_err(|e| anyhow!("unable to read texture_atlas: {}", e))?;
         let texture_atlas_width = texture_atlas.width;
         let texture_atlas_height = texture_atlas.height;
 
@@ -196,14 +203,18 @@ where
             Vertex::desc(),
             &[&texture_atlas],
             config.format,
-        )?;
+        )
+        .map_err(|e| anyhow!("unable to create render pipeline: {}", e))?;
 
         let vertex_uniform = RenderVertexUniform::new(RENDER_WIDTH, RENDER_HEIGHT);
         render_pipeline.set_vertex_uniform(&device, vertex_uniform);
 
-        let player_framebuffer = Texture::frame_buffer(&device, config.format)?;
-        let hud_framebuffer = Texture::frame_buffer(&device, config.format)?;
-        let static_texture = Texture::static_texture(&device, &queue, RENDER_WIDTH, RENDER_HEIGHT)?;
+        let player_framebuffer = Texture::frame_buffer(&device, config.format)
+            .map_err(|e| anyhow!("unable to create player framebuffer: {}", e))?;
+        let hud_framebuffer = Texture::frame_buffer(&device, config.format)
+            .map_err(|e| anyhow!("unable to create hud framebuffer: {}", e))?;
+        let static_texture = Texture::static_texture(&device, &queue, RENDER_WIDTH, RENDER_HEIGHT)
+            .map_err(|e| anyhow!("unable to create static texture: {}", e))?;
 
         let mut postprocess_pipeline = Pipeline::new(
             "Postprocess Pipeline",
@@ -214,7 +225,8 @@ where
             PostprocessVertex::desc(),
             &[&player_framebuffer, &hud_framebuffer, &static_texture],
             config.format,
-        )?;
+        )
+        .map_err(|e| anyhow!("unable to create postprocess pipeline: {}", e))?;
 
         let start_time = Instant::now();
 

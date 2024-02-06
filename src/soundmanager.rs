@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use anyhow::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -25,6 +26,7 @@ impl SoundManager {
         Self { internal }
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn noop_manager() -> SoundManager {
         Self::with_internal(Box::new(NoopSoundPlayer {}))
     }
