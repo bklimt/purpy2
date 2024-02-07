@@ -120,8 +120,9 @@ impl ArchiveFileManager {
 
 impl FileManagerImpl for ArchiveFileManager {
     fn read(&self, path: &Path) -> Result<Vec<u8>> {
-        let Some(data) = self.files.get(path) else {
-            return Err(anyhow!("file not found: {:?}", path));
+        let path = normalize_path(path)?;
+        let Some(data) = self.files.get(&path) else {
+            return Err(anyhow!("file not found: {:?}", &path));
         };
         Ok(data.clone())
     }
@@ -134,19 +135,20 @@ impl FileManagerImpl for ArchiveFileManager {
     }
 
     fn read_dir(&self, dir_path: &Path) -> Result<Vec<DirEntry>> {
+        let dir_path = normalize_path(dir_path)?;
         let mut children: Vec<DirEntry> = self
             .files
             .keys()
             .filter_map(|known_path| {
-                if !known_path.starts_with(dir_path) {
+                if !known_path.starts_with(&dir_path) {
                     return None;
                 }
-                let rest = match known_path.strip_prefix(dir_path) {
+                let rest = match known_path.strip_prefix(&dir_path) {
                     Ok(rest) => rest,
                     Err(e) => {
                         error!(
                             "unable to strip prefix {:?} from {:?}: {}",
-                            dir_path, known_path, e
+                            &dir_path, known_path, e
                         );
                         return None;
                     }
