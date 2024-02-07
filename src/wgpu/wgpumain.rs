@@ -25,8 +25,10 @@ pub fn run(args: Args) -> Result<()> {
 
     //let file_manager =
     //    FileManager::new().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
-    let file_manager = FileManager::from_file(Path::new("assets.tar.gz"))
-        .map_err(|e| anyhow!("unable to create file manager: {}", e))?;
+    //let file_manager = FileManager::from_file(Path::new("assets.tar.gz"))
+    //    .map_err(|e| anyhow!("unable to create file manager: {}", e))?;
+    let file_manager =
+        FileManager::builtin().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
 
     // We create a window.
     let title = "purpy2";

@@ -9,6 +9,8 @@ use log::{error, info, warn};
 
 use crate::utils::normalize_path;
 
+const ARCHIVE_BYTES: &[u8] = include_bytes!("../assets.tar.gz");
+
 pub enum DirEntryType {
     Directory,
     File,
@@ -81,36 +83,37 @@ struct ArchiveFileManager {
 impl ArchiveFileManager {
     pub fn from_file(path: &Path) -> Result<ArchiveFileManager> {
         info!("Reading archive {:?}", path);
-
         let file = fs::File::open(path)
             .map_err(|e| anyhow!("unable to open archive at {:?}: {}", path, e))?;
+        Self::from_reader(file)
+            .map_err(|e| anyhow!("error reading archive from file {:?}: {}", path, e))
+    }
 
-        let gz_file = GzDecoder::new(file);
+    pub fn from_reader<R>(reader: R) -> Result<ArchiveFileManager>
+    where
+        R: Read,
+    {
+        let gz_file = GzDecoder::new(reader);
 
         let mut tar_file = tar::Archive::new(gz_file);
         let entries = tar_file
             .entries()
-            .map_err(|e| anyhow!("unable to read entries of archive: {:?}: {}", path, e))?;
+            .map_err(|e| anyhow!("unable to read entries of archive: {}", e))?;
 
         let mut files = BTreeMap::new();
 
         for entry in entries {
-            let mut entry = entry.map_err(|e| anyhow!("error with entry in {:?}: {}", path, e))?;
+            let mut entry = entry.map_err(|e| anyhow!("error with entry: {}", e))?;
             let file_path = entry
                 .path()
-                .map_err(|e| anyhow!("error decoding path in {:?}: {}", path, e))?
+                .map_err(|e| anyhow!("error decoding path: {}", e))?
                 .to_path_buf();
             info!("  {:?}", file_path);
 
             let mut data = Vec::new();
-            let _ = entry.read_to_end(&mut data).map_err(|e| {
-                anyhow!(
-                    "unable to read bytes for {:?} from {:?}: {}",
-                    file_path,
-                    path,
-                    e
-                )
-            })?;
+            let _ = entry
+                .read_to_end(&mut data)
+                .map_err(|e| anyhow!("unable to read bytes for {:?}: {}", file_path, e))?;
             files.insert(file_path, data);
         }
 
@@ -192,6 +195,12 @@ impl FileManager {
     pub fn from_file(path: &Path) -> Result<Self> {
         Ok(Self {
             internal: Box::new(ArchiveFileManager::from_file(path)?),
+        })
+    }
+
+    pub fn builtin() -> Result<Self> {
+        Ok(Self {
+            internal: Box::new(ArchiveFileManager::from_reader(&ARCHIVE_BYTES[..])?),
         })
     }
 
