@@ -1,4 +1,5 @@
 assets
+assets.tar.gz
 /target
 SDL2.dll
 SDL2_image.dll
