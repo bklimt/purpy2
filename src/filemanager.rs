@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::{fs, path::PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use log::warn;
 
 pub struct FileManager {}
@@ -35,8 +35,9 @@ impl FileManager {
             .map_err(|e| anyhow!("unable to read directory {:?}: {}", dir_path, e))?;
         let mut entries = Vec::new();
         for entry in dir {
-            let entry =
-                entry.map_err(|e| anyhow!("unable to unwrap directory entry in {:?}", dir_path))?;
+            let entry = entry.map_err(|e| {
+                anyhow!("unable to unwrap directory entry in {:?}: {}", dir_path, e)
+            })?;
             let full_path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
 
