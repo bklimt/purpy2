@@ -1,9 +1,8 @@
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use log::info;
 
 use crate::filemanager::FileManager;
@@ -51,8 +50,8 @@ where
         })
     }
 
-    pub fn load_font(&mut self) -> Result<Font> {
-        Font::new(Path::new("assets/8bitfont.tsx"), self)
+    pub fn load_font(&mut self, files: &FileManager) -> Result<Font> {
+        Font::new(Path::new("assets/8bitfont.tsx"), files, self)
     }
 
     pub fn renderer(&self) -> &T {

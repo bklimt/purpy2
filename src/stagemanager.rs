@@ -3,6 +3,7 @@ use std::{mem, path::Path};
 use anyhow::Result;
 
 use crate::{
+    filemanager::FileManager,
     font::Font,
     imagemanager::ImageLoader,
     inputmanager::InputSnapshot,
@@ -45,6 +46,7 @@ impl StageManager {
     pub fn update(
         &mut self,
         inputs: &InputSnapshot,
+        files: &FileManager,
         images: &mut dyn ImageLoader,
         sounds: &mut SoundManager,
     ) -> Result<bool> {
@@ -60,14 +62,14 @@ impl StageManager {
                 }
             }
             SceneResult::PushLevel { path } => {
-                let level = Level::new(&path, images)?;
+                let level = Level::new(&path, files, images)?;
                 let level = Box::new(level);
                 let previous = mem::replace(&mut self.current, level);
                 self.stack.push(previous);
                 true
             }
             SceneResult::SwitchToLevel { path } => {
-                self.current = Box::new(Level::new(&path, images)?);
+                self.current = Box::new(Level::new(&path, files, images)?);
                 true
             }
             SceneResult::PushLevelSelect { path } => {

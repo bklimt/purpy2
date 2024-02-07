@@ -56,7 +56,7 @@ pub fn sdl_main(args: Args) -> Result<()> {
         Path::new("assets/textures.png"),
         Path::new("assets/textures_index.txt"),
     )?;
-    let font = image_manager.load_font()?;
+    let font = image_manager.load_font(&file_manager)?;
 
     let mut frame = 0;
     let speed_test_start_time = Instant::now();
@@ -80,7 +80,12 @@ pub fn sdl_main(args: Args) -> Result<()> {
 
         let input_snapshot = input_manager.update(frame);
 
-        if !stage_manager.update(&input_snapshot, &mut image_manager, &mut sound_manager)? {
+        if !stage_manager.update(
+            &input_snapshot,
+            &file_manager,
+            &mut image_manager,
+            &mut sound_manager,
+        )? {
             break 'running;
         }
 

@@ -1,9 +1,10 @@
 use std::path::Path;
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use log::debug;
 
+use crate::filemanager::FileManager;
 use crate::font::Font;
 use crate::inputmanager::InputSnapshot;
 use crate::rendercontext::RenderContext;
@@ -20,22 +21,15 @@ pub struct LevelSelect {
 }
 
 impl LevelSelect {
-    pub fn new(directory: &Path) -> Result<LevelSelect> {
+    pub fn new(directory: &Path, file_manager: &FileManager) -> Result<LevelSelect> {
         debug!("Scanning directory {:?}", directory);
         let mut files = Vec::new();
-        let file_list =
-            fs::read_dir(&directory).context(format!("unable to read {:?}", directory))?;
+        let file_list = file_manager
+            .read_dir(&directory)
+            .context(format!("unable to read {:?}", directory))?;
         for file in file_list {
-            let file = file.context(format!(
-                "error iterating through contents of {:?}",
-                directory
-            ))?;
-            let path = file.path();
-            let name = file
-                .file_name()
-                .to_str()
-                .context(format!("unable to encode name {:?}", path))?
-                .to_owned();
+            let path = file.full_path;
+            let name = file.name;
             debug!("Found directory entry {:?} named {}", path, &name);
             files.push((path, name));
         }

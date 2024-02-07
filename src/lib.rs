@@ -8,7 +8,6 @@ mod imagemanager;
 mod inputmanager;
 mod killscreen;
 mod level;
-mod levelindex;
 mod levelselect;
 mod platform;
 mod player;

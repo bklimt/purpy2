@@ -25,6 +25,7 @@ impl WindowHandle for Window {}
 
 struct GameState<'window> {
     stage_manager: StageManager,
+    files: FileManager,
     images: ImageManager<WgpuRenderer<'window, Window>>,
     sounds: SoundManager,
     inputs: InputManager,
@@ -38,10 +39,13 @@ impl<'window> GameState<'window> {
     fn new(
         args: Args,
         renderer: WgpuRenderer<'window, Window>,
-        files: &FileManager,
+        files: FileManager,
     ) -> Result<Self> {
         let sdl_context = sdl2::init().expect("failed to init SDL");
         let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
+
+        let file_manager =
+            FileManager::new().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
 
         let mut images = ImageManager::new(renderer)?;
         let inputs = InputManager::new(&args)?;
@@ -49,17 +53,18 @@ impl<'window> GameState<'window> {
         let sounds = SoundManager::new(&audio_subsystem)?;
 
         images.load_texture_atlas(
-            files,
+            &files,
             Path::new("assets/textures.png"),
             Path::new("assets/textures_index.txt"),
         )?;
-        let font = images.load_font()?;
+        let font = images.load_font(&file_manager)?;
         let frame = 0;
         let start_time = Instant::now();
         let speed_test = args.speed_test;
 
         Ok(Self {
             stage_manager,
+            files,
             images,
             sounds,
             inputs,
@@ -78,7 +83,7 @@ impl<'window> GameState<'window> {
         let inputs = self.inputs.update(self.frame);
         if !self
             .stage_manager
-            .update(&inputs, &mut self.images, &mut self.sounds)?
+            .update(&inputs, &self.files, &mut self.images, &mut self.sounds)?
         {
             let finish_time = Instant::now();
             if self.speed_test {
@@ -114,7 +119,7 @@ pub async fn run(args: Args) -> Result<()> {
     let texture_atlas_path = Path::new("assets/textures.png");
     let renderer =
         WgpuRenderer::new(&window, &file_manager, width, height, texture_atlas_path).await?;
-    let mut game = match GameState::new(args, renderer, &file_manager) {
+    let mut game = match GameState::new(args, renderer, file_manager) {
         Ok(game) => game,
         Err(e) => {
             bail!("unable to initialize game: {:?}", e);
