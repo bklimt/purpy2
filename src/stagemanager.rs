@@ -34,9 +34,9 @@ pub struct StageManager {
 }
 
 impl StageManager {
-    pub fn new(_images: &dyn ImageLoader) -> Result<StageManager> {
+    pub fn new(files: &FileManager, _images: &dyn ImageLoader) -> Result<StageManager> {
         let path = Path::new("assets/levels");
-        let level_select = LevelSelect::new(&path)?;
+        let level_select = LevelSelect::new(&path, files)?;
         Ok(StageManager {
             current: Box::new(level_select),
             stack: Vec::new(),
@@ -73,7 +73,7 @@ impl StageManager {
                 true
             }
             SceneResult::PushLevelSelect { path } => {
-                let level_select = LevelSelect::new(&path)?;
+                let level_select = LevelSelect::new(&path, files)?;
                 let level_select = Box::new(level_select);
                 let previous = mem::replace(&mut self.current, level_select);
                 self.stack.push(previous);

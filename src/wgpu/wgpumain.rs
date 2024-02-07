@@ -41,7 +41,7 @@ pub fn run(args: Args) -> Result<()> {
 
     let mut image_manager = ImageManager::new(renderer)?;
     let mut input_manager = InputManager::new(&args)?;
-    let mut stage_manager = StageManager::new(&image_manager)?;
+    let mut stage_manager = StageManager::new(&file_manager, &image_manager)?;
     let mut sound_manager = SoundManager::new(&audio_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
 

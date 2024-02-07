@@ -49,7 +49,7 @@ impl<'window> GameState<'window> {
 
         let mut images = ImageManager::new(renderer)?;
         let inputs = InputManager::new(&args)?;
-        let stage_manager = StageManager::new(&images)?;
+        let stage_manager = StageManager::new(&files, &images)?;
         let sounds = SoundManager::new(&audio_subsystem)?;
 
         images.load_texture_atlas(
