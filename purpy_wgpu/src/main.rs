@@ -1,22 +1,48 @@
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
+use clap::Parser;
 use sdl2::event::Event;
-use sdl2::pixels::Color;
-use sdl2::render::Canvas;
-use sdl2::video::Window;
 
-use crate::args::Args;
-use crate::constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
-use crate::imagemanager::ImageManager;
-use crate::inputmanager::InputManager;
-use crate::rendercontext::RenderContext;
-use crate::sdlrenderer::SdlRenderer;
-use crate::soundmanager::SoundManager;
-use crate::stagemanager::StageManager;
+use purpy::{
+    ImageManager, InputManager, RecordOption, RenderContext, SoundManager, StageManager,
+    WgpuRenderer, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
+};
 
-pub fn sdl_main(args: Args) -> Result<()> {
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    // TODO: Use this or lose this.
+    #[arg(long)]
+    pub fullscreen: bool,
+
+    #[arg(long)]
+    pub record: Option<String>,
+
+    #[arg(long)]
+    pub playback: Option<String>,
+
+    #[arg(long)]
+    pub speed_test: bool,
+}
+
+impl Args {
+    pub fn record_option(&self) -> Result<RecordOption> {
+        if self.record.is_some() && self.playback.is_some() {
+            bail!("either --record or --playback or neither, but not both")
+        }
+        Ok(if let Some(record) = &self.record {
+            RecordOption::Record(Path::new(&record).to_owned())
+        } else if let Some(playback) = &self.playback {
+            RecordOption::Playback(Path::new(&playback).to_owned())
+        } else {
+            RecordOption::None
+        })
+    }
+}
+
+fn run(args: Args) -> Result<()> {
     let sdl_context = sdl2::init().expect("failed to init SDL");
     let video_subsystem = sdl_context.video().expect("failed to get video context");
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
@@ -28,24 +54,17 @@ pub fn sdl_main(args: Args) -> Result<()> {
         window.fullscreen_desktop();
     }
     let window = window.resizable().build().expect("failed to build window");
+    let (width, height) = window.size();
 
-    // We get the canvas from which we can get the `TextureCreator`.
-    let mut canvas: Canvas<Window> = window
-        .into_canvas()
-        .build()
-        .expect("failed to build window's canvas");
-    let texture_creator = canvas.texture_creator();
-    let renderer = SdlRenderer::new(&texture_creator);
+    let texture_atlas_path = Path::new("assets/textures.png");
+    let future = WgpuRenderer::new(&window, width, height, texture_atlas_path);
+    let renderer = pollster::block_on(future)?;
 
-    canvas.set_logical_size(RENDER_WIDTH, RENDER_HEIGHT)?;
-    canvas.set_draw_color(Color::RGB(40, 40, 40));
-    canvas.clear();
-    canvas.present();
-
-    let mut image_manager = ImageManager::new(renderer)?;
-    let mut input_manager = InputManager::new(&args)?;
+    let mut image_manager: ImageManager<WgpuRenderer<'_, sdl2::video::Window>> =
+        ImageManager::new(renderer)?;
+    let mut input_manager = InputManager::with_options(args.record_option()?)?;
     let mut stage_manager = StageManager::new(&image_manager)?;
-    let mut sound_manager = SoundManager::new(&audio_subsystem)?;
+    let mut sound_manager = SoundManager::with_sdl(&audio_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     image_manager.load_texture_atlas(
@@ -55,15 +74,13 @@ pub fn sdl_main(args: Args) -> Result<()> {
     let font = image_manager.load_font()?;
 
     let mut frame = 0;
-    let speed_test_start_time = Instant::now();
+    let speed_test_start_time: Instant = Instant::now();
 
     'running: loop {
         let start_time = Instant::now();
 
-        canvas.set_draw_color(Color::RGB(40, 40, 40));
-        canvas.clear();
-
-        let (width, height) = canvas.logical_size();
+        let width = RENDER_WIDTH;
+        let height = RENDER_HEIGHT;
         let mut context = RenderContext::new(width, height, frame)?;
 
         for event in event_pump.poll_iter() {
@@ -82,8 +99,10 @@ pub fn sdl_main(args: Args) -> Result<()> {
 
         context.clear();
         stage_manager.draw(&mut context, &font);
-        image_manager.renderer().render(&mut canvas, &context)?;
-        canvas.present();
+        image_manager
+            .renderer_mut()
+            .render(&context)
+            .map_err(|e| anyhow!("rendering error: {}", e))?;
 
         frame += 1;
         let target_duration = Duration::new(0, 1_000_000_000u32 / FRAME_RATE);
@@ -105,4 +124,14 @@ pub fn sdl_main(args: Args) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn main() {
+    env_logger::init();
+    let args = Args::parse();
+
+    match run(args) {
+        Ok(_) => {}
+        Err(e) => panic!("{}", e),
+    }
 }

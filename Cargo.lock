@@ -505,6 +505,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "create_texture_atlas"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "image",
+ "log",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1441,9 +1452,38 @@ dependencies = [
 name = "purpy_sdl"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
  "env_logger",
  "purpy",
+ "sdl2",
+]
+
+[[package]]
+name = "purpy_wgpu"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "log",
+ "pollster",
+ "purpy",
+ "sdl2",
+ "winit",
+]
+
+[[package]]
+name = "purpy_winit"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "log",
+ "pollster",
+ "purpy",
+ "winit",
 ]
 
 [[package]]

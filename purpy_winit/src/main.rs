@@ -2,25 +2,49 @@ use std::path::Path;
 use std::time::Instant;
 
 use anyhow::{bail, Result};
+use clap::Parser;
 use log::error;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
-use crate::args::Args;
-use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
-use crate::font::Font;
-use crate::imagemanager::ImageManager;
-use crate::inputmanager::InputManager;
-use crate::rendercontext::RenderContext;
-use crate::soundmanager::SoundManager;
-use crate::stagemanager::StageManager;
-use crate::wgpu::renderer::WgpuRenderer;
+use purpy::{
+    Font, ImageManager, InputManager, RecordOption, RenderContext, SoundManager, StageManager,
+    WgpuRenderer, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
+};
 
-use super::renderer::WindowHandle;
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+pub struct Args {
+    // TODO: Use this or lose this.
+    #[arg(long)]
+    pub fullscreen: bool,
 
-impl WindowHandle for Window {}
+    #[arg(long)]
+    pub record: Option<String>,
+
+    #[arg(long)]
+    pub playback: Option<String>,
+
+    #[arg(long)]
+    pub speed_test: bool,
+}
+
+impl Args {
+    pub fn record_option(&self) -> Result<RecordOption> {
+        if self.record.is_some() && self.playback.is_some() {
+            bail!("either --record or --playback or neither, but not both")
+        }
+        Ok(if let Some(record) = &self.record {
+            RecordOption::Record(Path::new(&record).to_owned())
+        } else if let Some(playback) = &self.playback {
+            RecordOption::Playback(Path::new(&playback).to_owned())
+        } else {
+            RecordOption::None
+        })
+    }
+}
 
 struct GameState<'window> {
     stage_manager: StageManager,
@@ -35,13 +59,10 @@ struct GameState<'window> {
 
 impl<'window> GameState<'window> {
     fn new(args: Args, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
-        let sdl_context = sdl2::init().expect("failed to init SDL");
-        let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
-
         let mut images = ImageManager::new(renderer)?;
-        let inputs = InputManager::new(&args)?;
+        let inputs = InputManager::with_options(args.record_option()?)?;
         let stage_manager = StageManager::new(&images)?;
-        let sounds = SoundManager::new(&audio_subsystem)?;
+        let sounds = SoundManager::noop_manager();
 
         images.load_texture_atlas(
             Path::new("assets/textures.png"),
@@ -83,8 +104,8 @@ impl<'window> GameState<'window> {
             return Ok(false);
         }
 
-        let width = RENDER_WIDTH; //self.images.renderer().width();
-        let height = RENDER_HEIGHT; //self.images.renderer().height();
+        let width = RENDER_WIDTH;
+        let height = RENDER_HEIGHT;
         let mut context = RenderContext::new(width, height, self.frame)?;
         self.stage_manager.draw(&mut context, &self.font);
 
@@ -100,8 +121,13 @@ impl<'window> GameState<'window> {
 
 pub async fn run(args: Args) -> Result<()> {
     let event_loop = EventLoop::new()?;
+
     let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let _ = window.request_inner_size(PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
     let PhysicalSize { width, height } = window.inner_size();
+    let width = if width == 0 { WINDOW_WIDTH } else { width };
+    let height = if height == 0 { WINDOW_HEIGHT } else { height };
+
     let texture_atlas_path = Path::new("assets/textures.png");
     let renderer = WgpuRenderer::new(&window, width, height, texture_atlas_path).await?;
     let mut game = match GameState::new(args, renderer) {
@@ -140,19 +166,19 @@ pub async fn run(args: Args) -> Result<()> {
                 _ => {}
             }
         }
-        Event::AboutToWait => match game.run_one_frame() {
-            Ok(running) => {
-                if !running {
-                    elwt.exit();
-                }
-            }
-            Err(e) => {
-                error!("{:?}", e);
-                elwt.exit();
-            }
-        },
+        Event::AboutToWait => game.images.renderer().window().request_redraw(),
         _ => {}
     })?;
 
     Ok(())
+}
+
+fn main() {
+    env_logger::init();
+    let args = Args::parse();
+
+    match pollster::block_on(run(args)) {
+        Ok(_) => {}
+        Err(e) => panic!("{}", e),
+    }
 }

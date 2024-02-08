@@ -69,6 +69,7 @@ impl FromStr for Color {
     }
 }
 
+#[cfg(feature = "sdl2")]
 impl From<Color> for sdl2::pixels::Color {
     fn from(value: Color) -> Self {
         sdl2::pixels::Color::RGBA(value.r, value.g, value.b, value.a)

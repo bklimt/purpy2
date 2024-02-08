@@ -6,7 +6,6 @@ use anyhow::{anyhow, bail, Context, Result};
 use gilrs::Gilrs;
 use log::{debug, error, info};
 
-use crate::args::Args;
 use crate::smallintmap::SmallIntMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -25,6 +24,7 @@ enum KeyboardKey {
 }
 
 impl KeyboardKey {
+    #[cfg(feature = "sdl2")]
     fn from_sdl_key(key: sdl2::keyboard::Keycode) -> Option<Self> {
         use sdl2::keyboard::Keycode;
         Some(match key {
@@ -610,10 +610,10 @@ impl InputRecorder {
 }
 
 #[derive(Debug)]
-enum RecordOption {
+pub enum RecordOption {
     None,
     Record(PathBuf),
-    Playback,
+    Playback(PathBuf),
 }
 
 pub struct InputManager {
@@ -628,20 +628,12 @@ pub struct InputManager {
 }
 
 impl InputManager {
-    pub fn new(args: &Args) -> Result<InputManager> {
+    pub fn with_options(record_option: RecordOption) -> Result<InputManager> {
         let mut recorder = InputRecorder::new();
 
-        if args.record.is_some() && args.playback.is_some() {
-            bail!("either --record or --playback or neither, but not both")
+        if let RecordOption::Playback(path) = &record_option {
+            recorder.load(Path::new(path))?;
         }
-        let record_option = if let Some(record) = &args.record {
-            RecordOption::Record(Path::new(&record).to_owned())
-        } else if let Some(playback) = &args.playback {
-            recorder.load(Path::new(&playback))?;
-            RecordOption::Playback
-        } else {
-            RecordOption::None
-        };
 
         let mut binary_hooks = SmallIntMap::new();
         let all_binary_hooks = all_binary_inputs();
@@ -677,7 +669,7 @@ impl InputManager {
     }
 
     pub fn update(&mut self, frame: u64) -> InputSnapshot {
-        if matches!(self.record_option, RecordOption::Playback) {
+        if let RecordOption::Playback(_) = self.record_option {
             return self.recorder.playback(frame);
         }
 
@@ -763,6 +755,7 @@ impl InputManager {
         }
     }
 
+    #[cfg(feature = "sdl2")]
     pub fn handle_sdl_event(&mut self, event: &sdl2::event::Event) {
         use sdl2::event::Event;
 

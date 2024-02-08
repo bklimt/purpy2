@@ -2,6 +2,9 @@
 resolver = "2"
 
 members = [
+    "create_texture_atlas",
     "purpy",
     "purpy_sdl",
+    "purpy_wgpu",
+    "purpy_winit",
 ]
