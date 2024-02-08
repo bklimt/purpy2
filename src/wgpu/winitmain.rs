@@ -34,7 +34,7 @@ struct GameState<'window> {
     inputs: InputManager,
     font: Font,
     frame: u64,
-    start_time: Instant,
+    // start_time: Instant,
     speed_test: bool,
 }
 
@@ -56,8 +56,8 @@ impl<'window> GameState<'window> {
         }
         let sounds = sounds.unwrap();
 
-        let file_manager =
-            FileManager::new().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
+        // let file_manager =
+        //    FileManager::new().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
 
         let mut images = ImageManager::new(renderer)?;
         let inputs = InputManager::new(&args)?;
@@ -68,9 +68,9 @@ impl<'window> GameState<'window> {
             Path::new("assets/textures.png"),
             Path::new("assets/textures_index.txt"),
         )?;
-        let font = images.load_font(&file_manager)?;
+        let font = images.load_font(&files)?;
         let frame = 0;
-        let start_time = Instant::now();
+        // let start_time = Instant::now();
         let speed_test = args.speed_test;
 
         Ok(Self {
@@ -81,14 +81,14 @@ impl<'window> GameState<'window> {
             inputs,
             font,
             frame,
-            start_time,
+            // start_time,
             speed_test,
         })
     }
 
     fn run_one_frame(&mut self) -> Result<bool> {
         if self.frame == 0 {
-            self.start_time = Instant::now();
+            // self.start_time = Instant::now();
         }
 
         let inputs = self.inputs.update(self.frame);
@@ -98,9 +98,9 @@ impl<'window> GameState<'window> {
         {
             let finish_time = Instant::now();
             if self.speed_test {
-                let elapsed = finish_time - self.start_time;
-                let fps = self.frame as f64 / elapsed.as_secs_f64();
-                println!("{} fps: {} frames in {:?}", fps, self.frame, elapsed);
+                // let elapsed = finish_time - self.start_time;
+                // let fps = self.frame as f64 / elapsed.as_secs_f64();
+                // println!("{} fps: {} frames in {:?}", fps, self.frame, elapsed);
             }
             return Ok(false);
         }
@@ -147,11 +147,14 @@ pub async fn run(args: Args) -> Result<()> {
     let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
+    let desired_width = RENDER_WIDTH * 2;
+    let desired_height = RENDER_HEIGHT * 2;
+
     #[cfg(target_arch = "wasm32")]
     {
         // Winit prevents sizing with CSS, so we have to set
         // the size manually when on web.
-        let _ = window.request_inner_size(PhysicalSize::new(450, 400));
+        let _ = window.request_inner_size(PhysicalSize::new(desired_width, desired_height));
         // window.set_min_inner_size(Some(PhysicalSize::new(450, 400)));
         // window.set_max_inner_size(Some(PhysicalSize::new(450, 400)));
 
@@ -168,8 +171,8 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     let PhysicalSize { width, height } = window.inner_size();
-    let width = if width == 0 { 450 } else { width };
-    let height = if height == 0 { 400 } else { height };
+    let width = if width == 0 { desired_width } else { width };
+    let height = if height == 0 { desired_height } else { height };
     let texture_atlas_path = Path::new("assets/textures.png");
     let renderer = WgpuRenderer::new(&window, &file_manager, width, height, texture_atlas_path)
         .await

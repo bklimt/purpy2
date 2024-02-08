@@ -1,6 +1,6 @@
 use std::mem;
 use std::path::Path;
-use std::time::Instant;
+// use std::time::Instant;
 
 use anyhow::{anyhow, Result};
 use bytemuck::Zeroable;
@@ -84,8 +84,7 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
     postprocess_pipeline: Pipeline,
     postprocess_vertex_buffer: wgpu::Buffer,
     fragment_uniform: PostprocessFragmentUniform,
-
-    start_time: Instant,
+    // start_time: Instant,
 }
 
 impl<'window, T> WgpuRenderer<'window, T>
@@ -230,7 +229,7 @@ where
         )
         .map_err(|e| anyhow!("unable to create postprocess pipeline: {}", e))?;
 
-        let start_time = Instant::now();
+        // let start_time = Instant::now();
 
         let fragment_uniform = PostprocessFragmentUniform {
             texture_size: [RENDER_WIDTH as f32, RENDER_HEIGHT as f32],
@@ -266,7 +265,7 @@ where
             texture_atlas_height,
             player_framebuffer,
             hud_framebuffer,
-            start_time,
+            // start_time,
             window,
         })
     }
@@ -436,8 +435,9 @@ where
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let now = Instant::now();
-        let time_s = (now - self.start_time).as_secs_f32();
+        // let now = Instant::now();
+        // let time_s = (now - self.start_time).as_secs_f32();
+        let time_s = 60.0 / (context.frame as f32).min(1.0);
         self.fragment_uniform.time_s = time_s;
 
         let one_pixel = Pixels::new(1);
