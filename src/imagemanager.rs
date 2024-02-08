@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use log::info;
 
+use crate::filemanager::FileManager;
 use crate::font::Font;
 use crate::geometry::{Pixels, Rect};
 use crate::renderer::Renderer;
@@ -50,8 +50,8 @@ where
         })
     }
 
-    pub fn load_font(&mut self) -> Result<Font> {
-        Font::new(Path::new("assets/8bitfont.tsx"), self)
+    pub fn load_font(&mut self, files: &FileManager) -> Result<Font> {
+        Font::new(Path::new("assets/8bitfont.tsx"), files, self)
     }
 
     pub fn renderer(&self) -> &T {
@@ -62,13 +62,19 @@ where
         &mut self.renderer
     }
 
-    pub fn load_texture_atlas(&mut self, image_path: &Path, index_path: &Path) -> Result<()> {
+    pub fn load_texture_atlas(
+        &mut self,
+        files: &FileManager,
+        image_path: &Path,
+        index_path: &Path,
+    ) -> Result<()> {
         let base_path = index_path.parent().unwrap();
         let base_sprite = self.load_sprite(image_path)?;
 
-        let file = File::open(index_path)
-            .with_context(|| format!("unable to open texture atlas index {:?}", index_path))?;
-        let mut r = BufReader::new(file);
+        let index_bytes = files
+            .read(index_path)
+            .map_err(|e| anyhow!("unable to open texture atlas index {:?}: {}", index_path, e))?;
+        let mut r = BufReader::new(&index_bytes[..]);
         loop {
             let mut line = String::new();
             let n = r.read_line(&mut line).unwrap();

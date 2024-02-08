@@ -9,6 +9,7 @@ use sdl2::video::Window;
 
 use crate::args::Args;
 use crate::constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::filemanager::FileManager;
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
 use crate::rendercontext::RenderContext;
@@ -20,6 +21,8 @@ pub fn sdl_main(args: Args) -> Result<()> {
     let sdl_context = sdl2::init().expect("failed to init SDL");
     let video_subsystem = sdl_context.video().expect("failed to get video context");
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
+
+    let file_manager = FileManager::new().expect("failed to create file manager");
 
     // We create a window.
     let title = "purpy2";
@@ -44,15 +47,16 @@ pub fn sdl_main(args: Args) -> Result<()> {
 
     let mut image_manager = ImageManager::new(renderer)?;
     let mut input_manager = InputManager::new(&args)?;
-    let mut stage_manager = StageManager::new(&image_manager)?;
+    let mut stage_manager = StageManager::new(&file_manager, &image_manager)?;
     let mut sound_manager = SoundManager::with_sdl(&audio_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     image_manager.load_texture_atlas(
+        &file_manager,
         Path::new("assets/textures.png"),
         Path::new("assets/textures_index.txt"),
     )?;
-    let font = image_manager.load_font()?;
+    let font = image_manager.load_font(&file_manager)?;
 
     let mut frame = 0;
     let speed_test_start_time = Instant::now();
@@ -76,7 +80,12 @@ pub fn sdl_main(args: Args) -> Result<()> {
 
         let input_snapshot = input_manager.update(frame);
 
-        if !stage_manager.update(&input_snapshot, &mut image_manager, &mut sound_manager)? {
+        if !stage_manager.update(
+            &input_snapshot,
+            &file_manager,
+            &mut image_manager,
+            &mut sound_manager,
+        )? {
             break 'running;
         }
 

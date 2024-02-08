@@ -3,6 +3,7 @@ use std::{mem, path::Path};
 use anyhow::Result;
 
 use crate::{
+    filemanager::FileManager,
     font::Font,
     imagemanager::ImageLoader,
     inputmanager::InputSnapshot,
@@ -33,9 +34,9 @@ pub struct StageManager {
 }
 
 impl StageManager {
-    pub fn new(_images: &dyn ImageLoader) -> Result<StageManager> {
+    pub fn new(files: &FileManager, _images: &dyn ImageLoader) -> Result<StageManager> {
         let path = Path::new("assets/levels");
-        let level_select = LevelSelect::new(&path)?;
+        let level_select = LevelSelect::new(&path, files)?;
         Ok(StageManager {
             current: Box::new(level_select),
             stack: Vec::new(),
@@ -45,6 +46,7 @@ impl StageManager {
     pub fn update(
         &mut self,
         inputs: &InputSnapshot,
+        files: &FileManager,
         images: &mut dyn ImageLoader,
         sounds: &mut SoundManager,
     ) -> Result<bool> {
@@ -60,18 +62,18 @@ impl StageManager {
                 }
             }
             SceneResult::PushLevel { path } => {
-                let level = Level::new(&path, images)?;
+                let level = Level::new(&path, files, images)?;
                 let level = Box::new(level);
                 let previous = mem::replace(&mut self.current, level);
                 self.stack.push(previous);
                 true
             }
             SceneResult::SwitchToLevel { path } => {
-                self.current = Box::new(Level::new(&path, images)?);
+                self.current = Box::new(Level::new(&path, files, images)?);
                 true
             }
             SceneResult::PushLevelSelect { path } => {
-                let level_select = LevelSelect::new(&path)?;
+                let level_select = LevelSelect::new(&path, files)?;
                 let level_select = Box::new(level_select);
                 let previous = mem::replace(&mut self.current, level_select);
                 self.stack.push(previous);

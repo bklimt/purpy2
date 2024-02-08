@@ -13,6 +13,7 @@ use winit::window::{Window, WindowBuilder};
 
 use crate::args::Args;
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
+use crate::filemanager::FileManager;
 use crate::font::Font;
 use crate::imagemanager::ImageManager;
 use crate::inputmanager::InputManager;
@@ -27,6 +28,7 @@ impl WindowHandle for Window {}
 
 struct GameState<'window> {
     stage_manager: StageManager,
+    files: FileManager,
     images: ImageManager<WgpuRenderer<'window, Window>>,
     sounds: SoundManager,
     inputs: InputManager,
@@ -37,7 +39,11 @@ struct GameState<'window> {
 }
 
 impl<'window> GameState<'window> {
-    fn new(args: Args, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
+    fn new(
+        args: Args,
+        renderer: WgpuRenderer<'window, Window>,
+        files: FileManager,
+    ) -> Result<Self> {
         let mut sounds = None;
         cfg_if::cfg_if! {
             if #[cfg(target_arch = "wasm32")] {
@@ -50,21 +56,26 @@ impl<'window> GameState<'window> {
         }
         let sounds = sounds.unwrap();
 
+        let file_manager =
+            FileManager::new().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
+
         let mut images = ImageManager::new(renderer)?;
         let inputs = InputManager::new(&args)?;
-        let stage_manager = StageManager::new(&images)?;
+        let stage_manager = StageManager::new(&files, &images)?;
 
         images.load_texture_atlas(
+            &files,
             Path::new("assets/textures.png"),
             Path::new("assets/textures_index.txt"),
         )?;
-        let font = images.load_font()?;
+        let font = images.load_font(&file_manager)?;
         let frame = 0;
         let start_time = Instant::now();
         let speed_test = args.speed_test;
 
         Ok(Self {
             stage_manager,
+            files,
             images,
             sounds,
             inputs,
@@ -83,7 +94,7 @@ impl<'window> GameState<'window> {
         let inputs = self.inputs.update(self.frame);
         if !self
             .stage_manager
-            .update(&inputs, &mut self.images, &mut self.sounds)?
+            .update(&inputs, &self.files, &mut self.images, &mut self.sounds)?
         {
             let finish_time = Instant::now();
             if self.speed_test {
@@ -130,6 +141,9 @@ pub async fn wasm_main() {
 }
 
 pub async fn run(args: Args) -> Result<()> {
+    let file_manager =
+        FileManager::new().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
+
     let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
@@ -153,10 +167,10 @@ pub async fn run(args: Args) -> Result<()> {
 
     let PhysicalSize { width, height } = window.inner_size();
     let texture_atlas_path = Path::new("assets/textures.png");
-    let renderer = WgpuRenderer::new(&window, width, height, texture_atlas_path)
+    let renderer = WgpuRenderer::new(&window, &file_manager, width, height, texture_atlas_path)
         .await
         .map_err(|e| anyhow!("unable to create renderer: {}", e))?;
-    let mut game = GameState::new(args, renderer)
+    let mut game = GameState::new(args, renderer, file_manager)
         .map_err(|e| anyhow!("unable to initialize game: {:?}", e))?;
 
     event_loop.set_control_flow(ControlFlow::Poll);

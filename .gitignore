@@ -1,5 +1,6 @@
 /assets
 /pkg
 /target
+assets.tar.gz
 SDL2.dll
 SDL2_image.dll

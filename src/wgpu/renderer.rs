@@ -10,6 +10,7 @@ use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use wgpu::util::DeviceExt;
 
 use crate::constants::{MAX_LIGHTS, RENDER_HEIGHT, RENDER_WIDTH};
+use crate::filemanager::FileManager;
 use crate::geometry::{Pixels, Rect};
 use crate::rendercontext::{RenderContext, RenderLayer, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
@@ -94,6 +95,7 @@ where
     // Creating some of the wgpu types requires async code
     pub async fn new(
         window: &'window T,
+        files: &FileManager,
         width: u32,
         height: u32,
         texture_atlas_path: &Path,
@@ -135,7 +137,7 @@ where
             .unwrap();
 
         info!("Reading texture atlas from {:?}", texture_atlas_path);
-        let texture_atlas = Texture::from_file(&device, &queue, texture_atlas_path)
+        let texture_atlas = Texture::from_file(&device, &queue, files, texture_atlas_path)
             .map_err(|e| anyhow!("unable to read texture_atlas: {}", e))?;
         let texture_atlas_width = texture_atlas.width;
         let texture_atlas_height = texture_atlas.height;

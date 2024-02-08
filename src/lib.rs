@@ -1,6 +1,7 @@
 mod args;
 mod constants;
 mod door;
+mod filemanager;
 mod font;
 mod geometry;
 mod imagemanager;

@@ -16,6 +16,7 @@ use crate::constants::{
     WALL_SLIDE_SPEED, WALL_SLIDE_TIME, WALL_STICK_TIME,
 };
 use crate::door::Door;
+use crate::filemanager::FileManager;
 use crate::font::Font;
 use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
@@ -124,7 +125,11 @@ fn inc_player_y(player: &mut Player, offset: Subpixels) {
 }
 
 impl Level {
-    pub fn new(map_path: &Path, images: &mut dyn ImageLoader) -> Result<Level> {
+    pub fn new(
+        map_path: &Path,
+        files: &FileManager,
+        images: &mut dyn ImageLoader,
+    ) -> Result<Level> {
         let wall_stick_counter = WALL_STICK_TIME;
         let wall_stick_facing_right = false;
         let wall_slide_counter = WALL_SLIDE_TIME;
@@ -143,8 +148,8 @@ impl Level {
             .to_string();
         let toast_text = name.clone();
         let previous_map_offset = None;
-        let map = Rc::new(TileMap::from_file(map_path, images)?);
-        let mut player = Player::new(images)?;
+        let map = Rc::new(TileMap::from_file(map_path, files, images)?);
+        let mut player = Player::new(files, images)?;
         player.position.x = PLAYER_DEFAULT_X;
         player.position.y = PLAYER_DEFAULT_Y;
 

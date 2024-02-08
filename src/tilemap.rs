@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
 use std::num::ParseIntError;
 use std::ops::{Index, IndexMut};
+use std::path::Path;
 use std::str::FromStr;
-use std::{fs, path::Path};
 
 use crate::constants::MAX_GRAVITY;
+use crate::filemanager::FileManager;
 use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
 use crate::properties::{PropertiesXml, PropertyMap};
@@ -496,15 +497,25 @@ pub struct TileMap {
 }
 
 impl TileMap {
-    pub fn from_file(path: &Path, images: &mut dyn ImageLoader) -> Result<TileMap> {
+    pub fn from_file(
+        path: &Path,
+        files: &FileManager,
+        images: &mut dyn ImageLoader,
+    ) -> Result<TileMap> {
         info!("loading tilemap from {:?}", path);
-        let text =
-            fs::read_to_string(path).map_err(|e| anyhow!("unable to open {:?}: {}", path, e))?;
+        let text = files
+            .read_to_string(path)
+            .map_err(|e| anyhow!("unable to open {:?}: {}", path, e))?;
         let xml = quick_xml::de::from_str::<TileMapXml>(&text)?;
-        Self::from_xml(xml, path, images)
+        Self::from_xml(xml, path, files, images)
     }
 
-    fn from_xml(xml: TileMapXml, path: &Path, images: &mut dyn ImageLoader) -> Result<TileMap> {
+    fn from_xml(
+        xml: TileMapXml,
+        path: &Path,
+        files: &FileManager,
+        images: &mut dyn ImageLoader,
+    ) -> Result<TileMap> {
         let width = xml.width;
         let height = xml.height;
         let tilewidth = Pixels::new(xml.tilewidth);
@@ -522,7 +533,7 @@ impl TileMap {
                     .parent()
                     .context("cannot load root as map")?
                     .join(tileset.source.clone());
-                let tileset = TileSet::from_file(&tileset_path, firstgid, images)?;
+                let tileset = TileSet::from_file(&tileset_path, firstgid, files, images)?;
                 tilesets.add(tileset);
             }
         }

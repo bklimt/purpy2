@@ -2,6 +2,7 @@ use anyhow::Result;
 use num_traits::Zero;
 use std::path::Path;
 
+use crate::filemanager::FileManager;
 use crate::geometry::{Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
 use crate::rendercontext::{RenderContext, RenderLayer};
@@ -15,11 +16,11 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn new(path: &Path, images: &mut dyn ImageLoader) -> Result<Font> {
+    pub fn new(path: &Path, files: &FileManager, images: &mut dyn ImageLoader) -> Result<Font> {
         // It doesn't actually matter what the global id is, since there is no map.
         let firstgid: TileIndex = 0.into();
         Ok(Font {
-            tileset: TileSet::from_file(path, firstgid, images)?,
+            tileset: TileSet::from_file(path, firstgid, files, images)?,
             char_width: Subpixels::from_pixels(8),
             char_height: Subpixels::from_pixels(8),
         })
