@@ -2,7 +2,7 @@
 use wasm_bindgen::prelude::*;
 
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Result};
 use log::error;
@@ -192,24 +192,30 @@ pub async fn run(args: Args) -> Result<()> {
                     let PhysicalSize { width, height } = new_size;
                     game.images.renderer_mut().resize(*width, *height);
                 }
-                WindowEvent::RedrawRequested => match game.run_one_frame() {
-                    Ok(running) => {
-                        if !running {
+                WindowEvent::RedrawRequested => {
+                    match game.run_one_frame() {
+                        Ok(running) => {
+                            if !running {
+                                elwt.exit();
+                            }
+                        }
+                        Err(e) => {
+                            error!("error stepping game: {:?}", e);
                             elwt.exit();
                         }
-                    }
-                    Err(e) => {
-                        error!("error stepping game: {:?}", e);
-                        elwt.exit();
-                    }
-                },
+                    };
+                    elwt.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(
+                        (1000.0 / 60.0) as u64,
+                    )))
+                }
                 WindowEvent::CloseRequested => {
                     elwt.exit();
                 }
                 _ => {}
             }
         }
-        Event::AboutToWait => match game.run_one_frame() {
+        Event::AboutToWait => game.images.renderer().window().request_redraw(),
+        /*match game.run_one_frame() {
             Ok(running) => {
                 if !running {
                     elwt.exit();
@@ -219,7 +225,7 @@ pub async fn run(args: Args) -> Result<()> {
                 error!("error stepping game: {:?}", e);
                 elwt.exit();
             }
-        },
+        },*/
         _ => {}
     })?;
 

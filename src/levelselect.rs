@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use log::debug;
 
+use crate::filemanager::DirEntry;
+use crate::filemanager::DirEntryType;
 use crate::filemanager::FileManager;
 use crate::font::Font;
 use crate::inputmanager::InputSnapshot;
@@ -15,7 +17,7 @@ use crate::soundmanager::SoundManager;
 
 pub struct LevelSelect {
     directory: PathBuf,
-    files: Vec<(PathBuf, String)>,
+    files: Vec<DirEntry>,
     current: i32,
     start: i32,
 }
@@ -28,13 +30,14 @@ impl LevelSelect {
             .read_dir(&directory)
             .context(format!("unable to read {:?}", directory))?;
         for file in file_list {
-            let path = file.full_path;
-            let name = file.name;
-            debug!("Found directory entry {:?} named {}", path, &name);
-            files.push((path, name));
+            debug!(
+                "Found directory entry {:?} named {}",
+                &file.full_path, &file.name
+            );
+            files.push(file);
         }
 
-        files.sort();
+        files.sort_by_key(|entry| entry.name.clone());
 
         let directory = directory.to_owned();
         Ok(LevelSelect {
@@ -58,8 +61,9 @@ impl Scene for LevelSelect {
             self.current = (self.current + 1) % self.files.len() as i32;
         }
         if inputs.ok {
-            let new_path = self.files[self.current as usize].0.clone();
-            if new_path.is_dir() {
+            let entry = &self.files[self.current as usize];
+            let new_path = entry.full_path.clone();
+            if matches!(entry.file_type, DirEntryType::Directory) {
                 SceneResult::PushLevelSelect { path: new_path }
             } else {
                 SceneResult::PushLevel { path: new_path }
@@ -102,7 +106,7 @@ impl Scene for LevelSelect {
                 context,
                 layer,
                 (x, y).into(),
-                &format!("{}{}", cursor, &self.files[i as usize].1),
+                &format!("{}{}", cursor, &self.files[i as usize].name),
             );
             y += font_height + line_spacing;
         }
