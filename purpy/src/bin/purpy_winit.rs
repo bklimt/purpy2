@@ -1,6 +1,6 @@
 use clap::Parser;
-use purpy2::winit_main;
-use purpy2::Args;
+use purpy::winit_main;
+use purpy::Args;
 
 fn main() {
     env_logger::init();
