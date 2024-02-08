@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use anyhow::{bail, Result};
 use clap::Parser;
-use log::error;
+use log::{error, info};
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -147,6 +147,7 @@ pub async fn run(args: Args) -> Result<()> {
             match event {
                 WindowEvent::Resized(new_size) => {
                     let PhysicalSize { width, height } = new_size;
+                    info!("window resized to {width}, {height}");
                     game.images.renderer_mut().resize(*width, *height);
                 }
                 WindowEvent::RedrawRequested => match game.run_one_frame() {

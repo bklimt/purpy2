@@ -25,7 +25,6 @@ mod tilemap;
 mod tileset;
 mod utils;
 mod warp;
-mod wgpu;
 
 pub use constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
 
@@ -42,5 +41,11 @@ mod sdl;
 #[cfg(feature = "sdl2")]
 pub use sdl::sdlrenderer::SdlRenderer;
 
+#[cfg(feature = "wgpu")]
+mod wgpu;
+
+#[cfg(feature = "wgpu")]
 pub use wgpu::renderer::WgpuRenderer;
-pub use wgpu::renderer::WindowHandle;
+
+//#[cfg(feature = "wgpu")]
+//pub use wgpu::renderer::WindowHandle;

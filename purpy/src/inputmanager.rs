@@ -43,6 +43,7 @@ impl KeyboardKey {
         })
     }
 
+    #[cfg(feature = "winit")]
     fn from_keycode(key: winit::keyboard::KeyCode) -> Option<Self> {
         use winit::keyboard::KeyCode;
         Some(match key {
@@ -778,6 +779,7 @@ impl InputManager {
         }
     }
 
+    #[cfg(feature = "winit")]
     pub fn handle_winit_event(&mut self, event: &winit::event::WindowEvent) {
         use winit::event::{ElementState, KeyEvent, WindowEvent};
         use winit::keyboard::PhysicalKey;

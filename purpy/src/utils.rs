@@ -76,6 +76,7 @@ impl From<Color> for sdl2::pixels::Color {
     }
 }
 
+#[cfg(feature = "wgpu")]
 impl From<Color> for wgpu::Color {
     fn from(value: Color) -> Self {
         wgpu::Color {

@@ -62,6 +62,7 @@ where
 #[cfg(feature = "sdl2")]
 impl WindowHandle for sdl2::video::Window {}
 
+#[cfg(feature = "winit")]
 impl WindowHandle for winit::window::Window {}
 
 pub struct WgpuRenderer<'window, T: WindowHandle> {
