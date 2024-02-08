@@ -2,6 +2,7 @@
 
 struct RenderVertexUniform {
     logical_size: vec2<f32>,
+    unused: vec2<f32>,
 };
 @group(0) @binding(0)
 var<uniform> render_vertex_uniform: RenderVertexUniform;

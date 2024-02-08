@@ -142,7 +142,7 @@ pub async fn wasm_main() {
 
 pub async fn run(args: Args) -> Result<()> {
     let file_manager =
-        FileManager::new().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
+        FileManager::builtin().map_err(|e| anyhow!("unable to create file manager: {}", e))?;
 
     let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new().build(&event_loop).unwrap();
@@ -151,7 +151,9 @@ pub async fn run(args: Args) -> Result<()> {
     {
         // Winit prevents sizing with CSS, so we have to set
         // the size manually when on web.
-        window.request_inner_size(PhysicalSize::new(450, 400));
+        let _ = window.request_inner_size(PhysicalSize::new(450, 400));
+        // window.set_min_inner_size(Some(PhysicalSize::new(450, 400)));
+        // window.set_max_inner_size(Some(PhysicalSize::new(450, 400)));
 
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()
@@ -166,6 +168,8 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     let PhysicalSize { width, height } = window.inner_size();
+    let width = if width == 0 { 450 } else { width };
+    let height = if height == 0 { 400 } else { height };
     let texture_atlas_path = Path::new("assets/textures.png");
     let renderer = WgpuRenderer::new(&window, &file_manager, width, height, texture_atlas_path)
         .await
