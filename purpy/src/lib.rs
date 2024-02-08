@@ -1,5 +1,6 @@
 mod constants;
 mod door;
+mod filemanager;
 mod font;
 mod geometry;
 mod imagemanager;
@@ -28,6 +29,7 @@ mod warp;
 
 pub use constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
 
+pub use filemanager::FileManager;
 pub use font::Font;
 pub use imagemanager::ImageManager;
 pub use inputmanager::{InputManager, RecordOption};

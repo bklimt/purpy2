@@ -1,10 +1,10 @@
 use std::collections::HashSet;
-use std::fs;
 use std::ops::RangeInclusive;
 use std::path::Path;
 
 use anyhow::{anyhow, bail, Context, Result};
 
+use crate::filemanager::FileManager;
 use crate::geometry::{Pixels, Rect, Subpixels};
 use crate::rendercontext::{RenderContext, RenderLayer};
 
@@ -219,8 +219,8 @@ pub struct AnimationStateMachine {
 }
 
 impl AnimationStateMachine {
-    pub fn from_file(path: &Path) -> Result<AnimationStateMachine> {
-        let s = fs::read_to_string(path).map_err(|e| {
+    pub fn from_file(path: &Path, files: &FileManager) -> Result<AnimationStateMachine> {
+        let s = files.read_to_string(path).map_err(|e| {
             anyhow!(
                 "unable to load animation state machine at {:?}: {}",
                 path,

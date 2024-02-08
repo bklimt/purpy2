@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "create_texture_atlas",
+    "package_assets",
     "purpy",
     "purpy_sdl",
     "purpy_wgpu",

@@ -10,8 +10,9 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
 use purpy::{
-    Font, ImageManager, InputManager, RecordOption, RenderContext, SoundManager, StageManager,
-    WgpuRenderer, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
+    FileManager, Font, ImageManager, InputManager, RecordOption, RenderContext, SoundManager,
+    StageManager, WgpuRenderer, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT,
+    WINDOW_WIDTH,
 };
 
 #[derive(Parser, Debug)]
@@ -48,6 +49,7 @@ impl Args {
 
 struct GameState<'window> {
     stage_manager: StageManager,
+    file_manager: FileManager,
     images: ImageManager<WgpuRenderer<'window, Window>>,
     sounds: SoundManager,
     inputs: InputManager,
@@ -58,23 +60,29 @@ struct GameState<'window> {
 }
 
 impl<'window> GameState<'window> {
-    fn new(args: Args, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
+    fn new(
+        args: Args,
+        file_manager: FileManager,
+        renderer: WgpuRenderer<'window, Window>,
+    ) -> Result<Self> {
         let mut images = ImageManager::new(renderer)?;
-        let inputs = InputManager::with_options(args.record_option()?)?;
+        let inputs = InputManager::with_options(args.record_option()?, &file_manager)?;
         let stage_manager = StageManager::new(&images)?;
         let sounds = SoundManager::noop_manager();
 
         images.load_texture_atlas(
             Path::new("assets/textures.png"),
             Path::new("assets/textures_index.txt"),
+            &file_manager,
         )?;
-        let font = images.load_font()?;
+        let font = images.load_font(&file_manager)?;
         let frame = 0;
         let start_time = Instant::now();
         let speed_test = args.speed_test;
 
         Ok(Self {
             stage_manager,
+            file_manager,
             images,
             sounds,
             inputs,
@@ -91,10 +99,12 @@ impl<'window> GameState<'window> {
         }
 
         let inputs = self.inputs.update(self.frame);
-        if !self
-            .stage_manager
-            .update(&inputs, &mut self.images, &mut self.sounds)?
-        {
+        if !self.stage_manager.update(
+            &inputs,
+            &self.file_manager,
+            &mut self.images,
+            &mut self.sounds,
+        )? {
             let finish_time = Instant::now();
             if self.speed_test {
                 let elapsed = finish_time - self.start_time;
@@ -122,6 +132,8 @@ impl<'window> GameState<'window> {
 pub async fn run(args: Args) -> Result<()> {
     let event_loop = EventLoop::new()?;
 
+    let file_manager = FileManager::from_fs()?;
+
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     let _ = window.request_inner_size(PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
     let PhysicalSize { width, height } = window.inner_size();
@@ -130,7 +142,7 @@ pub async fn run(args: Args) -> Result<()> {
 
     let texture_atlas_path = Path::new("assets/textures.png");
     let renderer = WgpuRenderer::new(&window, width, height, texture_atlas_path).await?;
-    let mut game = match GameState::new(args, renderer) {
+    let mut game = match GameState::new(args, file_manager, renderer) {
         Ok(game) => game,
         Err(e) => {
             bail!("unable to initialize game: {:?}", e);

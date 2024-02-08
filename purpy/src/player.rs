@@ -5,6 +5,7 @@ use num_traits::Zero;
 
 use crate::{
     constants::{IDLE_TIME, PLAYER_FRAMES_PER_FRAME},
+    filemanager::FileManager,
     geometry::{Pixels, Point, Rect, Subpixels},
     imagemanager::ImageLoader,
     rendercontext::{RenderContext, RenderLayer},
@@ -39,14 +40,16 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(images: &mut dyn ImageLoader) -> Result<Player> {
+    pub fn new(files: &FileManager, images: &mut dyn ImageLoader) -> Result<Player> {
         let sprite = images.load_spritesheet(
             Path::new("assets/sprites/skelly2.png"),
             Pixels::new(24),
             Pixels::new(24),
         )?;
-        let animation_state_machine =
-            AnimationStateMachine::from_file(Path::new("assets/sprites/skelly2_states.txt"))?;
+        let animation_state_machine = AnimationStateMachine::from_file(
+            Path::new("assets/sprites/skelly2_states.txt"),
+            files,
+        )?;
 
         Ok(Player {
             position: Point::zero(),

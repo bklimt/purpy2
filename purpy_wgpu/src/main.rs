@@ -6,14 +6,14 @@ use clap::Parser;
 use sdl2::event::Event;
 
 use purpy::{
-    ImageManager, InputManager, RecordOption, RenderContext, SoundManager, StageManager,
-    WgpuRenderer, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
+    FileManager, ImageManager, InputManager, RecordOption, RenderContext, SoundManager,
+    StageManager, WgpuRenderer, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT,
+    WINDOW_WIDTH,
 };
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    // TODO: Use this or lose this.
     #[arg(long)]
     pub fullscreen: bool,
 
@@ -25,6 +25,9 @@ struct Args {
 
     #[arg(long)]
     pub speed_test: bool,
+
+    #[arg(long)]
+    pub assets: Option<String>,
 }
 
 impl Args {
@@ -47,7 +50,11 @@ fn run(args: Args) -> Result<()> {
     let video_subsystem = sdl_context.video().expect("failed to get video context");
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
-    // We create a window.
+    let file_manager = match &args.assets {
+        Some(path) => FileManager::from_archive_file(&Path::new(&path)),
+        None => FileManager::from_fs(),
+    }?;
+
     let title = "purpy2";
     let mut window = video_subsystem.window(title, WINDOW_WIDTH, WINDOW_HEIGHT);
     if args.fullscreen {
@@ -62,7 +69,7 @@ fn run(args: Args) -> Result<()> {
 
     let mut image_manager: ImageManager<WgpuRenderer<'_, sdl2::video::Window>> =
         ImageManager::new(renderer)?;
-    let mut input_manager = InputManager::with_options(args.record_option()?)?;
+    let mut input_manager = InputManager::with_options(args.record_option()?, &file_manager)?;
     let mut stage_manager = StageManager::new(&image_manager)?;
     let mut sound_manager = SoundManager::with_sdl(&audio_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -70,8 +77,9 @@ fn run(args: Args) -> Result<()> {
     image_manager.load_texture_atlas(
         Path::new("assets/textures.png"),
         Path::new("assets/textures_index.txt"),
+        &file_manager,
     )?;
-    let font = image_manager.load_font()?;
+    let font = image_manager.load_font(&file_manager)?;
 
     let mut frame = 0;
     let speed_test_start_time: Instant = Instant::now();
@@ -93,7 +101,12 @@ fn run(args: Args) -> Result<()> {
 
         let input_snapshot = input_manager.update(frame);
 
-        if !stage_manager.update(&input_snapshot, &mut image_manager, &mut sound_manager)? {
+        if !stage_manager.update(
+            &input_snapshot,
+            &file_manager,
+            &mut image_manager,
+            &mut sound_manager,
+        )? {
             break 'running;
         }
 

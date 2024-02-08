@@ -6,6 +6,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use gilrs::Gilrs;
 use log::{debug, error, info};
 
+use crate::filemanager::FileManager;
 use crate::smallintmap::SmallIntMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -584,11 +585,12 @@ impl InputRecorder {
         Ok(())
     }
 
-    fn load(&mut self, path: &Path) -> Result<()> {
+    fn load(&mut self, path: &Path, files: &FileManager) -> Result<()> {
         self.previous = 0;
         self.queue.clear();
 
-        let text = fs::read_to_string(path)
+        let text = files
+            .read_to_string(path)
             .map_err(|e| anyhow!("unable to load input snapshot record at {:?}: {}", path, e))?;
 
         for line in text.lines() {
@@ -629,11 +631,11 @@ pub struct InputManager {
 }
 
 impl InputManager {
-    pub fn with_options(record_option: RecordOption) -> Result<InputManager> {
+    pub fn with_options(record_option: RecordOption, files: &FileManager) -> Result<InputManager> {
         let mut recorder = InputRecorder::new();
 
         if let RecordOption::Playback(path) = &record_option {
-            recorder.load(Path::new(path))?;
+            recorder.load(Path::new(path), files)?;
         }
 
         let mut binary_hooks = SmallIntMap::new();

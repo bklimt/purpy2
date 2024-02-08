@@ -9,8 +9,9 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use purpy::{
-    ImageManager, InputManager, RecordOption, RenderContext, SdlRenderer, SoundManager,
-    StageManager, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
+    FileManager, ImageManager, InputManager, RecordOption, RenderContext, SdlRenderer,
+    SoundManager, StageManager, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT,
+    WINDOW_WIDTH,
 };
 
 #[derive(Parser, Debug)]
@@ -49,6 +50,8 @@ fn sdl_main(args: Args) -> Result<()> {
     let video_subsystem = sdl_context.video().expect("failed to get video context");
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
+    let file_manager = FileManager::from_fs()?;
+
     // We create a window.
     let title = "purpy2";
     let mut window = video_subsystem.window(title, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -71,7 +74,7 @@ fn sdl_main(args: Args) -> Result<()> {
     canvas.present();
 
     let mut image_manager = ImageManager::new(renderer)?;
-    let mut input_manager = InputManager::with_options(args.record_option()?)?;
+    let mut input_manager = InputManager::with_options(args.record_option()?, &file_manager)?;
     let mut stage_manager = StageManager::new(&image_manager)?;
     let mut sound_manager = SoundManager::with_sdl(&audio_subsystem)?;
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -79,8 +82,9 @@ fn sdl_main(args: Args) -> Result<()> {
     image_manager.load_texture_atlas(
         Path::new("assets/textures.png"),
         Path::new("assets/textures_index.txt"),
+        &file_manager,
     )?;
-    let font = image_manager.load_font()?;
+    let font = image_manager.load_font(&file_manager)?;
 
     let mut frame = 0;
     let speed_test_start_time = Instant::now();
@@ -101,7 +105,12 @@ fn sdl_main(args: Args) -> Result<()> {
 
         let input_snapshot = input_manager.update(frame);
 
-        if !stage_manager.update(&input_snapshot, &mut image_manager, &mut sound_manager)? {
+        if !stage_manager.update(
+            &input_snapshot,
+            &file_manager,
+            &mut image_manager,
+            &mut sound_manager,
+        )? {
             break 'running;
         }
 
