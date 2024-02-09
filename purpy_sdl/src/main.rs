@@ -99,9 +99,8 @@ fn sdl_main(args: Args) -> Result<()> {
 
         for event in event_pump.poll_iter() {
             input_manager.handle_sdl_event(&event);
-            match event {
-                Event::Quit { .. } => break 'running,
-                _ => {}
+            if let Event::Quit { .. } = event {
+                break 'running;
             }
         }
 

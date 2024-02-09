@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::ops::Sub;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -51,7 +52,7 @@ impl FromStr for Color {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = if s.starts_with("#") { &s[1..] } else { s };
+        let s = s.strip_prefix('#').unwrap_or(s);
         if s.len() == 6 {
             let r = u8::from_str_radix(&s[0..2], 16)?;
             let g = u8::from_str_radix(&s[2..4], 16)?;
@@ -104,13 +105,7 @@ pub fn cmp_in_direction(a: Subpixels, b: Subpixels, direction: Direction) -> Ord
         Direction::Up | Direction::Left => b - a,
         _ => a - b,
     };
-    if sign < Subpixels::zero() {
-        Ordering::Less
-    } else if sign > Subpixels::zero() {
-        Ordering::Greater
-    } else {
-        Ordering::Equal
-    }
+    sign.cmp(&Subpixels::zero())
 }
 
 /*
@@ -123,13 +118,11 @@ pub fn try_move_to_bounds(
     target: Rect<Subpixels>,
     direction: Direction,
 ) -> Subpixels {
-    if actor.bottom() <= target.top() {
-        Subpixels::zero()
-    } else if actor.top() >= target.bottom() {
-        Subpixels::zero()
-    } else if actor.right() <= target.left() {
-        Subpixels::zero()
-    } else if actor.left() >= target.right() {
+    if actor.bottom() <= target.top()
+        || actor.top() >= target.bottom()
+        || actor.right() <= target.left()
+        || actor.left() >= target.right()
+    {
         Subpixels::zero()
     } else {
         match direction {
@@ -143,7 +136,7 @@ pub fn try_move_to_bounds(
 
 pub fn normalize_path(path: &Path) -> Result<PathBuf> {
     let mut output = PathBuf::new();
-    for part in path.into_iter() {
+    for part in path.iter() {
         if part == ".." {
             if !output.pop() {
                 output.push(part);

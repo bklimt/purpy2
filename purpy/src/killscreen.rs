@@ -12,7 +12,7 @@ pub struct KillScreen {
     next: PathBuf,
 }
 
-impl<'a> KillScreen {
+impl KillScreen {
     pub fn new(previous: Box<dyn Scene>, next: PathBuf) -> KillScreen {
         KillScreen { previous, next }
     }
@@ -39,11 +39,7 @@ impl Scene for KillScreen {
         font.draw_string(context, RenderLayer::Hud, text_pos.into(), text);
     }
 
-    fn update<'b, 'c>(
-        &mut self,
-        inputs: &'b InputSnapshot,
-        _sounds: &'c mut SoundManager,
-    ) -> SceneResult {
+    fn update(&mut self, inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
         if inputs.ok {
             SceneResult::SwitchToLevel {
                 path: self.next.clone(),

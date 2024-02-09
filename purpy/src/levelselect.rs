@@ -27,7 +27,7 @@ impl LevelSelect {
         debug!("Scanning directory {:?}", directory);
         let mut files = Vec::new();
         let file_list = file_manager
-            .read_dir(&directory)
+            .read_dir(directory)
             .context(format!("unable to read {:?}", directory))?;
         for file in file_list {
             debug!("Found directory entry {:?}", &file.full_path);

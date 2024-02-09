@@ -33,24 +33,23 @@ impl SwitchState {
     }
 
     fn is_on(&self, s: &str) -> bool {
-        return self.on.contains(s);
+        self.on.contains(s)
     }
 
     pub fn apply_command(&mut self, s: &str) {
-        if s.starts_with("~") {
-            self.toggle(&s[1..]);
-        } else if s.starts_with("!") {
-            self.turn_off(&s[1..]);
+        if let Some(toggled) = s.strip_prefix('~') {
+            self.toggle(toggled);
+        } else if let Some(negated) = s.strip_prefix('!') {
+            self.turn_off(negated);
         } else {
             self.turn_on(s);
         }
     }
 
     pub fn is_condition_true(&self, s: &str) -> bool {
-        if s.starts_with("!") {
-            return !self.is_on(&s[1..]);
-        } else {
-            return self.is_on(s);
+        match s.strip_prefix('!') {
+            Some(negated) => !self.is_on(negated),
+            None => self.is_on(s),
         }
     }
 }

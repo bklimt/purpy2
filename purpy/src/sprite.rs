@@ -206,7 +206,7 @@ impl AnimationStateMachineRule {
                 return false;
             }
         }
-        return true;
+        true
     }
 
     fn apply(&self, current_frame: u32) -> u32 {
@@ -236,7 +236,7 @@ impl AnimationStateMachine {
         let mut in_transitions = false;
         for line in text.lines() {
             let line = line.trim();
-            if line.len() == 0 {
+            if line.is_empty() {
                 continue;
             }
             if line.starts_with('#') {

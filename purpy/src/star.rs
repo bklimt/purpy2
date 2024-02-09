@@ -19,7 +19,7 @@ fn star_rand() -> i32 {
 }
 
 impl Star {
-    pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Star> {
+    pub fn new(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Star> {
         let gid = obj.gid.context("star must have gid")?;
         let tile_gid = gid as TileIndex;
         let area = obj.position.into();

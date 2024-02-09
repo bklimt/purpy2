@@ -49,7 +49,7 @@ impl<'a> SdlRenderer<'a> {
                     let sprite_internal = self
                         .sprites
                         .get(sprite.id)
-                        .expect(format!("invalid sprite: {:?}", sprite).as_str());
+                        .unwrap_or_else(|| panic!("invalid sprite: {:?}", sprite));
 
                     let source = Rect {
                         x: sprite.area.x + source.x,
