@@ -36,7 +36,7 @@ pub struct StageManager {
 impl StageManager {
     pub fn new(file_manager: &FileManager, _images: &dyn ImageLoader) -> Result<StageManager> {
         let path = Path::new("assets/levels");
-        let level_select = LevelSelect::new(&path, &file_manager)?;
+        let level_select = LevelSelect::new(path, file_manager)?;
         Ok(StageManager {
             current: Box::new(level_select),
             stack: Vec::new(),

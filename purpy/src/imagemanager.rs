@@ -80,14 +80,14 @@ where
             let n = r.read_line(&mut line).unwrap();
             let line = line.trim();
 
-            if line == "" {
+            if line.is_empty() {
                 if n == 0 {
                     break;
                 }
                 continue;
             }
 
-            let parts: Vec<&str> = line.split(",").collect();
+            let parts: Vec<&str> = line.split(',').collect();
             if parts.len() != 5 {
                 bail!("invalid texture atlas index entry: {}", line);
             }

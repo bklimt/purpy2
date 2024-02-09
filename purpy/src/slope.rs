@@ -31,13 +31,11 @@ impl Slope {
         let left_y = self.left_y;
         let right_y = self.right_y;
 
-        if actor.bottom() <= target.top() {
-            return Subpixels::zero();
-        } else if actor.top() >= target.bottom() {
-            return Subpixels::zero();
-        } else if actor.right() <= target.left() {
-            return Subpixels::zero();
-        } else if actor.left() >= target.right() {
+        if actor.bottom() <= target.top()
+            || actor.top() >= target.bottom()
+            || actor.right() <= target.left()
+            || actor.left() >= target.right()
+        {
             return Subpixels::zero();
         }
 
@@ -59,7 +57,7 @@ impl Slope {
             let target_w_f = (target.w / one_subpixel) as f32;
             let slope = d_y_f / target_w_f;
             if false {
-                println!("");
+                println!();
                 println!("direction = {:?}", direction);
                 println!("center_x = {:?}", actor_center_x);
                 println!("x_offset = {:?}", x_offset / 16);

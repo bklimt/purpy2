@@ -1,3 +1,6 @@
+// Most of the platform subtypes have a "new" that returns a Platform.
+#![allow(clippy::new_ret_no_self)]
+
 use std::mem;
 use std::path::Path;
 use std::rc::Rc;
@@ -146,7 +149,7 @@ pub struct MovingPlatform {
 }
 
 impl MovingPlatform {
-    pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
+    pub fn new(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
         let (dist_mult, sx, sy) = match obj.properties.direction {
             Direction::Up => (tilemap.tileheight, 0, -1),
             Direction::Down => (tilemap.tileheight, 0, 1),
@@ -176,16 +179,12 @@ impl MovingPlatform {
             condition,
             overflow,
         };
-        Ok(Platform::new(
-            obj,
-            tilemap,
-            PlatformType::MovingPlatform(moving_platform),
-        )?)
+        Platform::new(obj, tilemap, PlatformType::MovingPlatform(moving_platform))
     }
 
     fn update(&mut self, base: &mut Platform, switches: &mut SwitchState, _sounds: &SoundManager) {
         if let Some(condition) = self.condition.as_deref() {
-            if !switches.is_condition_true(&condition) {
+            if !switches.is_condition_true(condition) {
                 self.moving_forward = false;
                 if base.position.top_left() == self.start {
                     base.delta = Point::zero();
@@ -292,14 +291,14 @@ pub struct Bagel {
 }
 
 impl Bagel {
-    pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
+    pub fn new(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
         let original_y = obj.position.y.as_subpixels();
         let bagel = Bagel {
             original_y,
             falling: false,
             remaining: BAGEL_WAIT_TIME,
         };
-        Ok(Platform::new(obj, tilemap, PlatformType::Bagel(bagel))?)
+        Platform::new(obj, tilemap, PlatformType::Bagel(bagel))
     }
 
     fn draw(
@@ -337,17 +336,15 @@ impl Bagel {
                 base.delta.y = base.delta.y.max(BAGEL_MAX_GRAVITY);
                 base.position.y += base.delta.y;
             }
-        } else {
-            if base.occupied {
-                self.remaining -= 1;
-                if self.remaining == 0 {
-                    self.falling = true;
-                    self.remaining = BAGEL_FALL_TIME;
-                    base.delta.y = Subpixels::zero();
-                }
-            } else {
-                self.remaining = BAGEL_WAIT_TIME;
+        } else if base.occupied {
+            self.remaining -= 1;
+            if self.remaining == 0 {
+                self.falling = true;
+                self.remaining = BAGEL_FALL_TIME;
+                base.delta.y = Subpixels::zero();
             }
+        } else {
+            self.remaining = BAGEL_WAIT_TIME;
         }
     }
 }
@@ -355,7 +352,7 @@ impl Bagel {
 pub struct Conveyor(());
 
 impl Conveyor {
-    pub fn new<'b>(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
+    pub fn new(obj: &MapObject, tilemap: Rc<TileMap>) -> Result<Platform> {
         // This is hand-tuned.
         let speed = (obj
             .properties
@@ -401,7 +398,7 @@ impl Spring {
             stall_counter: SPRING_STALL_FRAMES,
             launch: false,
         };
-        Ok(Platform::new(obj, tileset, PlatformType::Spring(spring))?)
+        Platform::new(obj, tileset, PlatformType::Spring(spring))
     }
 
     fn frame(&self) -> i32 {
@@ -435,35 +432,34 @@ impl Spring {
         base.delta = Point::zero();
         self.launch = false;
         if !base.occupied {
+            // You're not on it, so it resets.
             self.stall_counter = SPRING_STALL_FRAMES;
             self.up = false;
             if self.pos > Subpixels::zero() {
                 self.pos -= SPRING_SPEED;
                 base.delta.y = SPRING_SPEED * -1;
             }
-        } else {
-            if self.up {
-                self.stall_counter = SPRING_STALL_FRAMES;
-                if self.pos > Subpixels::zero() {
-                    self.pos -= SPRING_SPEED;
-                    base.delta.y = SPRING_SPEED * -1;
-                } else {
-                    self.launch = true;
-                }
+        } else if self.up {
+            // It's currently bouncing up.
+            self.stall_counter = SPRING_STALL_FRAMES;
+            if self.pos > Subpixels::zero() {
+                self.pos -= SPRING_SPEED;
+                base.delta.y = SPRING_SPEED * -1;
             } else {
-                if self.pos < (Pixels::new(SPRING_STEPS).as_subpixels()) - SPRING_SPEED {
-                    self.stall_counter = SPRING_STALL_FRAMES;
-                    self.pos += SPRING_SPEED;
-                    base.delta.y = SPRING_SPEED;
-                } else {
-                    if self.stall_counter > 0 {
-                        self.stall_counter -= 1;
-                    } else {
-                        self.stall_counter = SPRING_STALL_FRAMES;
-                        self.up = true;
-                    }
-                }
+                self.launch = true;
             }
+        } else if self.pos < (Pixels::new(SPRING_STEPS).as_subpixels()) - SPRING_SPEED {
+            // It's still moving down.
+            self.stall_counter = SPRING_STALL_FRAMES;
+            self.pos += SPRING_SPEED;
+            base.delta.y = SPRING_SPEED;
+        } else if self.stall_counter > 0 {
+            // It's reached the bottom, but hasn't been there long enough.
+            self.stall_counter -= 1;
+        } else {
+            // It's been at the bottom long enough, it's time to move up.
+            self.stall_counter = SPRING_STALL_FRAMES;
+            self.up = true;
         }
     }
 
@@ -515,7 +511,7 @@ fn get_button_image_path(color: &str) -> String {
     format!("assets/sprites/buttons/{color}.png")
 }
 
-impl<'a> Button {
+impl Button {
     pub fn new(
         obj: &MapObject,
         tileset: Rc<TileMap>,
@@ -601,10 +597,8 @@ impl<'a> Button {
             if self.level < BUTTON_MAX_LEVEL {
                 self.level += 1;
             }
-        } else {
-            if self.level > 0 {
-                self.level -= 1;
-            }
+        } else if self.level > 0 {
+            self.level -= 1;
         }
 
         base.position.y =

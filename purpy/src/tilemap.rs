@@ -167,7 +167,7 @@ impl ImageLayer {
         let path = path
             .parent()
             .context("xml file is root")?
-            .join(&xml.image.source);
+            .join(xml.image.source);
         let surface = images.load_sprite(&path)?;
         Ok(ImageLayer { surface })
     }
@@ -190,18 +190,18 @@ impl TileLayer {
         let height = xml.height;
 
         let props: Option<PropertyMap> = xml.properties.map(|x| x.try_into()).transpose()?;
-        let props = props.unwrap_or_else(|| PropertyMap::new());
+        let props = props.unwrap_or_default();
         let player = props.get_bool("player")?.unwrap_or(false);
 
         let mut data = Vec::new();
         for line in xml.data.data.lines() {
             let line = line.trim();
-            if line.len() == 0 {
+            if line.is_empty() {
                 continue;
             }
             let mut row = Vec::new();
-            for part in line.split(",") {
-                if part.len() == 0 {
+            for part in line.split(',') {
+                if part.is_empty() {
                     continue;
                 }
                 row.push(part.parse().context(format!("parsing {:?}", part))?);
@@ -363,10 +363,10 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
             star: properties.get_bool("star")?.unwrap_or(false),
             spawn: properties.get_bool("spawn")?.unwrap_or(false),
             solid: properties.get_bool("solid")?.unwrap_or(false),
-            preferred_x: properties.get_int("preferred_x")?.map(|x| Pixels::new(x)),
-            preferred_y: properties.get_int("preferred_y")?.map(|y| Pixels::new(y)),
+            preferred_x: properties.get_int("preferred_x")?.map(Pixels::new),
+            preferred_y: properties.get_int("preferred_y")?.map(Pixels::new),
             distance: properties.get_int("distance")?.unwrap_or(0),
-            speed: properties.get_int("speed")?.map(|d| Pixels::new(d)),
+            speed: properties.get_int("speed")?.map(Pixels::new),
             condition: properties.get_string("condition")?.map(str::to_string),
             overflow: properties
                 .get_string("overflow")?
@@ -412,7 +412,7 @@ impl MapObject {
             .properties
             .map(|x| x.try_into())
             .transpose()?
-            .unwrap_or_else(|| PropertyMap::new());
+            .unwrap_or_default();
         let gid = xml.gid.map(|index| (index as usize).into());
 
         if let Some(gid) = gid {
@@ -478,7 +478,7 @@ impl TryFrom<PropertyMap> for TileMapProperties {
     fn try_from(properties: PropertyMap) -> Result<Self> {
         Ok(TileMapProperties {
             dark: properties.get_bool("is_dark")?.unwrap_or(false),
-            gravity: properties.get_int("gravity")?.map(|n| Subpixels::new(n)),
+            gravity: properties.get_int("gravity")?.map(Subpixels::new),
         })
     }
 }
@@ -537,7 +537,7 @@ impl TileMap {
                 tilesets.add(tileset);
             }
         }
-        if tilesets.tilesets.len() == 0 {
+        if tilesets.tilesets.is_empty() {
             bail!("at least one tileset must be present");
         }
 
@@ -647,10 +647,10 @@ impl TileMap {
         let row_count = (dest_h / tileheight_f).ceil() as i32 + 1;
         let col_count = (dest_w / tilewidth_f).ceil() as i32 + 1;
 
-        let start_row = (-1 * (offset_y / tileheight)).max(0);
+        let start_row = (-(offset_y / tileheight)).max(0);
         let end_row = (start_row + row_count).min(self.height);
 
-        let start_col = (-1 * (offset_x / tilewidth)).max(0);
+        let start_col = (-(offset_x / tilewidth)).max(0);
         let end_col = (start_col + col_count).min(self.width);
 
         for row in start_row..end_row {
@@ -763,7 +763,7 @@ impl TileMap {
         offset: Point<Subpixels>,
         switches: &SwitchState,
     ) {
-        context.fill_rect(dest.clone(), render_layer, self.backgroundcolor);
+        context.fill_rect(dest, render_layer, self.backgroundcolor);
         for layer in self.layers.iter() {
             self.draw_layer(layer, context, render_layer, dest, offset, switches);
             if let Layer::Tile(TileLayer { player: true, .. }) = layer {

@@ -1,4 +1,4 @@
-use std::ops;
+use std::{cmp::Ordering, ops};
 
 use num_traits::Zero;
 
@@ -117,12 +117,10 @@ impl Subpixels {
 
     #[inline]
     pub fn sign(self) -> i32 {
-        if self.0 < 0 {
-            -1
-        } else if self.0 > 0 {
-            1
-        } else {
-            0
+        match self.0.cmp(&0) {
+            Ordering::Less => -1,
+            Ordering::Greater => 1,
+            Ordering::Equal => 0,
         }
     }
 
@@ -367,17 +365,10 @@ where
     }
 
     pub fn intersects(&self, other: Rect<T>) -> bool {
-        if self.right() < other.left() {
-            false
-        } else if self.left() > other.right() {
-            false
-        } else if self.bottom() < other.top() {
-            false
-        } else if self.top() > other.bottom() {
-            false
-        } else {
-            true
-        }
+        self.right() >= other.left()
+            && self.left() <= other.right()
+            && self.bottom() >= other.top()
+            && self.top() <= other.bottom()
     }
 }
 
@@ -434,18 +425,18 @@ impl From<Rect<Pixels>> for Rect<Subpixels> {
 }
 
 #[cfg(feature = "sdl2")]
-impl Into<sdl2::rect::Rect> for Rect<Pixels> {
+impl From<Rect<Pixels>> for sdl2::rect::Rect {
     #[inline]
-    fn into(self) -> sdl2::rect::Rect {
-        sdl2::rect::Rect::new(self.x.0, self.y.0, self.w.0 as u32, self.h.0 as u32)
+    fn from(value: Rect<Pixels>) -> Self {
+        sdl2::rect::Rect::new(value.x.0, value.y.0, value.w.0 as u32, value.h.0 as u32)
     }
 }
 
 #[cfg(feature = "sdl2")]
-impl Into<Option<sdl2::rect::Rect>> for Rect<Pixels> {
+impl From<Rect<Pixels>> for Option<sdl2::rect::Rect> {
     #[inline]
-    fn into(self) -> Option<sdl2::rect::Rect> {
-        Some(self.into())
+    fn from(value: Rect<Pixels>) -> Self {
+        Some(value.into())
     }
 }
 

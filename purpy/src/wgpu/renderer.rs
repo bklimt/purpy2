@@ -154,10 +154,8 @@ where
         let surface_format = surface_caps
             .formats
             .iter()
-            .copied()
-            .filter(|f| !f.is_srgb())
-            .next()
-            .unwrap_or(surface_caps.formats[0]);
+            .find(|f| !f.is_srgb())
+            .unwrap_or(&surface_caps.formats[0]);
         info!("using texture format: {:?}", surface_format);
 
         let present_mode = if vsync {
@@ -168,7 +166,7 @@ where
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
+            format: *surface_format,
             width: window_width,
             height: window_height,
             present_mode,
@@ -186,7 +184,7 @@ where
         player_vertices.resize_with(MAX_VERTICES, Vertex::zeroed);
         let player_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&mut player_vertices),
+            contents: bytemuck::cast_slice(&player_vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -194,7 +192,7 @@ where
         hud_vertices.resize_with(MAX_VERTICES, Vertex::zeroed);
         let hud_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&mut hud_vertices),
+            contents: bytemuck::cast_slice(&hud_vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -273,7 +271,7 @@ where
     }
 
     pub fn window(&self) -> &T {
-        &self.window
+        self.window
     }
 
     pub fn resize(&mut self, new_width: u32, new_height: u32) {
@@ -467,7 +465,7 @@ where
         self.postprocess_pipeline.render(
             &mut encoder,
             &output_view,
-            clear_color.into(),
+            clear_color,
             self.postprocess_vertex_buffer.slice(..),
             6,
         );

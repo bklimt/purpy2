@@ -64,9 +64,9 @@ impl KeyboardKey {
     }
 }
 
-impl Into<usize> for KeyboardKey {
-    fn into(self) -> usize {
-        self as usize
+impl From<KeyboardKey> for usize {
+    fn from(value: KeyboardKey) -> Self {
+        value as usize
     }
 }
 
@@ -206,10 +206,7 @@ where
     T: TransientBinaryInput,
 {
     fn from(inner: T) -> CachedBinaryInput<T> {
-        CachedBinaryInput {
-            inner: inner,
-            on: false,
-        }
+        CachedBinaryInput { inner, on: false }
     }
 }
 
@@ -238,7 +235,7 @@ where
 {
     fn from(inner: T) -> TriggerInput<T> {
         TriggerInput {
-            inner: inner,
+            inner,
             already_pressed: false,
             on: false,
         }
@@ -370,9 +367,9 @@ enum BinaryInput {
     MenuUp,
 }
 
-impl Into<usize> for BinaryInput {
-    fn into(self) -> usize {
-        self as usize
+impl From<BinaryInput> for usize {
+    fn from(value: BinaryInput) -> Self {
+        value as usize
     }
 }
 
@@ -595,11 +592,11 @@ impl InputRecorder {
 
         for line in text.lines() {
             let line = line.trim();
-            if line.len() == 0 {
+            if line.is_empty() {
                 continue;
             }
 
-            let comma = line.find(",").context("missing comma")?;
+            let comma = line.find(',').context("missing comma")?;
             let (frame, snapshot) = line.split_at(comma);
             let snapshot = &snapshot[1..];
 
@@ -821,7 +818,7 @@ impl InputManager {
 impl Drop for InputManager {
     fn drop(&mut self) {
         if let RecordOption::Record(record) = &self.record_option {
-            match self.recorder.save(&record) {
+            match self.recorder.save(record) {
                 Ok(_) => info!("wrote input snapshot to {:?}", record),
                 Err(e) => error!("unable to write input snapshot to {:?}: {}", record, e),
             }

@@ -53,7 +53,7 @@ fn run(args: Args) -> Result<()> {
     let audio_subsystem = sdl_context.audio().expect("failed to get audio context");
 
     let file_manager = match &args.assets {
-        Some(path) => FileManager::from_archive_file(&Path::new(&path)),
+        Some(path) => FileManager::from_archive_file(Path::new(path)),
         None => FileManager::from_fs(),
     }?;
 

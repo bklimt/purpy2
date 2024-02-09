@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_else_if)]
+
 use std::cmp::Ordering;
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -240,12 +242,16 @@ impl Level {
 
     fn update_player_trajectory_x(&mut self, inputs: &InputSnapshot) {
         if matches!(self.player.state, PlayerState::Crouching) {
-            if self.player.delta.x > Subpixels::zero() {
-                self.player.delta.x =
-                    (self.player.delta.x - SLIDE_SPEED_DECELERATION).max(Subpixels::zero());
-            } else if self.player.delta.x < Subpixels::zero() {
-                self.player.delta.x =
-                    (self.player.delta.x + SLIDE_SPEED_DECELERATION).min(Subpixels::zero());
+            match self.player.delta.x.cmp(&Subpixels::zero()) {
+                Ordering::Greater => {
+                    self.player.delta.x =
+                        (self.player.delta.x - SLIDE_SPEED_DECELERATION).max(Subpixels::zero());
+                }
+                Ordering::Less => {
+                    self.player.delta.x =
+                        (self.player.delta.x + SLIDE_SPEED_DECELERATION).min(Subpixels::zero());
+                }
+                Ordering::Equal => {}
             }
             return;
         }
@@ -259,35 +265,39 @@ impl Level {
         }
 
         // Change the velocity toward the target velocity.
-        if self.player.delta.x > Subpixels::zero() {
-            // We're facing right.
-            if target_dx > self.player.delta.x {
-                self.player.delta.x += WALK_SPEED_ACCELERATION;
-                self.player.delta.x = self.player.delta.x.min(target_dx);
+        match self.player.delta.x.cmp(&Subpixels::zero()) {
+            Ordering::Greater => {
+                // We're facing right.
+                if target_dx > self.player.delta.x {
+                    self.player.delta.x += WALK_SPEED_ACCELERATION;
+                    self.player.delta.x = self.player.delta.x.min(target_dx);
+                }
+                if target_dx < self.player.delta.x {
+                    self.player.delta.x -= WALK_SPEED_DECELERATION;
+                    self.player.delta.x = self.player.delta.x.max(target_dx);
+                }
             }
-            if target_dx < self.player.delta.x {
-                self.player.delta.x -= WALK_SPEED_DECELERATION;
-                self.player.delta.x = self.player.delta.x.max(target_dx);
+            Ordering::Less => {
+                // We're facing left.
+                if target_dx > self.player.delta.x {
+                    self.player.delta.x += WALK_SPEED_DECELERATION;
+                    self.player.delta.x = self.player.delta.x.min(target_dx);
+                }
+                if target_dx < self.player.delta.x {
+                    self.player.delta.x -= WALK_SPEED_ACCELERATION;
+                    self.player.delta.x = self.player.delta.x.max(target_dx);
+                }
             }
-        } else if self.player.delta.x < Subpixels::zero() {
-            // We're facing left.
-            if target_dx > self.player.delta.x {
-                self.player.delta.x += WALK_SPEED_DECELERATION;
-                self.player.delta.x = self.player.delta.x.min(target_dx);
-            }
-            if target_dx < self.player.delta.x {
-                self.player.delta.x -= WALK_SPEED_ACCELERATION;
-                self.player.delta.x = self.player.delta.x.max(target_dx);
-            }
-        } else {
-            // We're stopped.
-            if target_dx > self.player.delta.x {
-                self.player.delta.x += WALK_SPEED_ACCELERATION;
-                self.player.delta.x = self.player.delta.x.min(target_dx);
-            }
-            if target_dx < self.player.delta.x {
-                self.player.delta.x -= WALK_SPEED_ACCELERATION;
-                self.player.delta.x = self.player.delta.x.max(target_dx);
+            Ordering::Equal => {
+                // We're stopped.
+                if target_dx > self.player.delta.x {
+                    self.player.delta.x += WALK_SPEED_ACCELERATION;
+                    self.player.delta.x = self.player.delta.x.min(target_dx);
+                }
+                if target_dx < self.player.delta.x {
+                    self.player.delta.x -= WALK_SPEED_ACCELERATION;
+                    self.player.delta.x = self.player.delta.x.max(target_dx);
+                }
             }
         }
     }
@@ -645,10 +655,8 @@ impl Level {
     fn update_player_state(&mut self, movement: PlayerMovementResult) {
         if movement.on_ground {
             self.coyote_counter = COYOTE_TIME;
-        } else {
-            if self.coyote_counter > 0 {
-                self.coyote_counter -= 1;
-            }
+        } else if self.coyote_counter > 0 {
+            self.coyote_counter -= 1;
         }
 
         if self.jump_grace_counter > 0 {
@@ -813,7 +821,7 @@ impl Scene for Level {
             _ => self.update_player_movement(inputs, sounds),
         };
 
-        let start_state: PlayerState = self.player.state.clone();
+        let start_state: PlayerState = self.player.state;
         self.update_player_state(movement);
         self.player
             .update_sprite()
@@ -847,7 +855,7 @@ impl Scene for Level {
             }
         }
 
-        let old_stars = mem::replace(&mut self.stars, Vec::new());
+        let old_stars = mem::take(&mut self.stars);
         for star in old_stars.into_iter() {
             if star.intersects(player_rect) {
                 sounds.play(Sound::Star);
@@ -934,19 +942,19 @@ impl Scene for Level {
         // Don't let the viewport move too much in between frames.
         if let Some(prev) = self.previous_map_offset.as_ref() {
             if (map_offset.x - prev.x).abs() > VIEWPORT_PAN_SPEED {
-                if prev.x < map_offset.x {
-                    map_offset = (prev.x + VIEWPORT_PAN_SPEED, map_offset.y).into();
-                } else if prev.x > map_offset.x {
-                    map_offset = (prev.x - VIEWPORT_PAN_SPEED, map_offset.y).into();
-                }
+                map_offset.x = match prev.x.cmp(&map_offset.x) {
+                    Ordering::Less => prev.x + VIEWPORT_PAN_SPEED,
+                    Ordering::Greater => prev.x - VIEWPORT_PAN_SPEED,
+                    Ordering::Equal => map_offset.x,
+                };
                 player_draw.x = player.x + map_offset.x;
             }
             if (map_offset.y - prev.y).abs() > VIEWPORT_PAN_SPEED {
-                if prev.y < map_offset.y {
-                    map_offset = (map_offset.x, prev.y + VIEWPORT_PAN_SPEED).into()
-                } else if prev.y > map_offset.y {
-                    map_offset = (map_offset.x, prev.y - VIEWPORT_PAN_SPEED).into();
-                }
+                map_offset.y = match prev.y.cmp(&map_offset.y) {
+                    Ordering::Less => prev.y + VIEWPORT_PAN_SPEED,
+                    Ordering::Greater => prev.y - VIEWPORT_PAN_SPEED,
+                    Ordering::Equal => map_offset.y,
+                };
                 player_draw.y = player.y + map_offset.y;
             }
         }

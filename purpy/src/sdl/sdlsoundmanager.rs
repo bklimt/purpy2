@@ -1,3 +1,4 @@
+use std::mem;
 use std::ops::DerefMut;
 use std::path::Path;
 
@@ -38,7 +39,7 @@ impl AudioCallback for SoundCallback {
             *sample = 127;
         }
 
-        let playing = std::mem::replace(&mut self.playing, Vec::new());
+        let playing = mem::take(&mut self.playing);
         for (sound, offset) in playing.into_iter() {
             let clip = &self.clips[sound as usize];
 
@@ -107,7 +108,7 @@ impl SdlSoundManager {
     }
 
     fn load_sounds(device: &mut AudioDevice<SoundCallback>) -> Result<()> {
-        let spec = device.spec().clone();
+        let spec = *device.spec();
         let mut lock = device.lock();
         let callback = lock.deref_mut();
         callback.load_wav(Sound::Click, "click", &spec)?;

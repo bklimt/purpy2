@@ -1,3 +1,4 @@
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 use std::path::Path;
@@ -94,11 +95,12 @@ pub async fn run() -> Result<()> {
 
     let event_loop = EventLoop::new()?;
 
-    let file_manager = FileManager::from_archive_bytes(&ASSETS_ARCHIVE_BYTES[..])?;
+    let file_manager = FileManager::from_archive_bytes(ASSETS_ARCHIVE_BYTES)?;
 
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     let _ = window.request_inner_size(PhysicalSize::new(CANVAS_WIDTH, CANVAS_HEIGHT));
 
+    #[cfg(target_arch = "wasm32")]
     {
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()

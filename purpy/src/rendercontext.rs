@@ -26,6 +26,7 @@ pub struct SpriteBatch {
 }
 
 impl SpriteBatch {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> SpriteBatch {
         SpriteBatch {
             clear_color: Color {
@@ -47,7 +48,7 @@ impl SpriteBatch {
     ) {
         let dst = dst.as_pixels();
         self.entries.push(SpriteBatchEntry::Sprite {
-            sprite: sprite.clone(),
+            sprite,
             source: src,
             destination: dst,
             reversed,

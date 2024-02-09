@@ -76,6 +76,12 @@ impl PropertyMap {
     }
 }
 
+impl Default for PropertyMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TryFrom<PropertyXml> for PropertyValue {
     type Error = anyhow::Error;
 

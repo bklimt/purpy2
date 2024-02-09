@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{cmp::Ordering, path::Path};
 
 use anyhow::Result;
 use num_traits::Zero;
@@ -67,12 +67,10 @@ impl Player {
     }
 
     pub fn update_sprite(&mut self) -> Result<()> {
-        self.facing_right = if self.delta.x < Subpixels::zero() {
-            false
-        } else if self.delta.x > Subpixels::zero() {
-            true
-        } else {
-            self.facing_right
+        self.facing_right = match self.delta.x.cmp(&Subpixels::zero()) {
+            Ordering::Less => false,
+            Ordering::Greater => true,
+            Ordering::Equal => self.facing_right,
         };
 
         let state = if self.is_dead {

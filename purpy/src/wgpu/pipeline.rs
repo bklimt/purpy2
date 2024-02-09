@@ -46,6 +46,7 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         label: &str,
         device: &wgpu::Device,
@@ -75,7 +76,7 @@ impl Pipeline {
 
         let vertex_uniform_bind_group = create_uniform(
             format!("{} Vertex", label).as_str(),
-            &device,
+            device,
             default_uniform,
             &vertex_uniform_bind_group_layout,
         );
@@ -97,7 +98,7 @@ impl Pipeline {
 
         let fragment_uniform_bind_group = create_uniform(
             format!("{} Fragment Uniform Bind Group", label).as_str(),
-            &device,
+            device,
             default_uniform,
             &fragment_uniform_bind_group_layout,
         );
@@ -145,15 +146,15 @@ impl Pipeline {
             label: Some(format!("[{}] Render Pipeline", label).as_str()),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: shader,
                 entry_point: vertex_shader_entry_point,
                 buffers: &[vertex_buffer_layout],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: shader,
                 entry_point: fragment_shader_entry_point,
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: format,
+                    format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -261,8 +262,7 @@ impl Pipeline {
         T: Pod,
     {
         queue.write_buffer(
-            &self
-                .fragment_uniform_buffer
+            self.fragment_uniform_buffer
                 .as_ref()
                 .expect("fragment uniform must be set before update"),
             0,
@@ -281,7 +281,7 @@ impl Pipeline {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &destination,
+                view: destination,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(clear_color.into()),
