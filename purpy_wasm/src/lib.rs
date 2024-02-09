@@ -56,16 +56,14 @@ impl<'window> GameState<'window> {
         })
     }
 
-    fn run_one_frame(&mut self) -> Result<bool> {
+    fn run_one_frame(&mut self) -> Result<()> {
         let inputs = self.inputs.update(self.frame);
-        if !self.stage_manager.update(
+        let _ = self.stage_manager.update(
             &inputs,
             &self.file_manager,
             &mut self.images,
             &mut self.sounds,
-        )? {
-            return Ok(false);
-        }
+        )?;
 
         let width = RENDER_WIDTH;
         let height = RENDER_HEIGHT;
@@ -78,7 +76,7 @@ impl<'window> GameState<'window> {
         }
 
         self.frame += 1;
-        Ok(true)
+        Ok(())
     }
 }
 
@@ -106,7 +104,7 @@ pub async fn run() -> Result<()> {
         web_sys::window()
             .and_then(|win| win.document())
             .and_then(|doc| {
-                let dst = doc.get_element_by_id("wasm-example")?;
+                let dst = doc.get_element_by_id("purpy-canvas")?;
                 let canvas = web_sys::Element::from(window.canvas().unwrap());
                 dst.append_child(&canvas).ok()?;
                 Some(())
@@ -147,19 +145,13 @@ pub async fn run() -> Result<()> {
                 WindowEvent::Resized(new_size) => {
                     let PhysicalSize { width, height } = new_size;
                     info!("window resized to {width}, {height}");
-                    //game.images.renderer_mut().resize(*width, *height);
                 }
-                WindowEvent::RedrawRequested => match game.run_one_frame() {
-                    Ok(running) => {
-                        if !running {
-                            elwt.exit();
-                        }
-                    }
-                    Err(e) => {
+                WindowEvent::RedrawRequested => {
+                    if let Err(e) = game.run_one_frame() {
                         error!("{:?}", e);
                         elwt.exit();
                     }
-                },
+                }
                 WindowEvent::CloseRequested => {
                     elwt.exit();
                 }
