@@ -66,7 +66,7 @@ impl<'window> GameState<'window> {
     ) -> Result<Self> {
         let mut images = ImageManager::new(renderer)?;
         let inputs = InputManager::with_options(args.record_option()?, &file_manager)?;
-        let stage_manager = StageManager::new(&images)?;
+        let stage_manager = StageManager::new(&file_manager, &images)?;
         let sounds = SoundManager::noop_manager();
 
         images.load_texture_atlas(
@@ -141,7 +141,15 @@ pub async fn run(args: Args) -> Result<()> {
 
     let texture_atlas_path = Path::new("assets/textures.png");
     let vsync = !args.speed_test;
-    let renderer = WgpuRenderer::new(&window, width, height, vsync, texture_atlas_path).await?;
+    let renderer = WgpuRenderer::new(
+        &window,
+        width,
+        height,
+        vsync,
+        texture_atlas_path,
+        &file_manager,
+    )
+    .await?;
     let mut game = match GameState::new(args, file_manager, renderer) {
         Ok(game) => game,
         Err(e) => {

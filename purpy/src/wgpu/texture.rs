@@ -6,6 +6,7 @@ use log::info;
 use rand::random;
 
 use crate::constants::{RENDER_HEIGHT, RENDER_WIDTH};
+use crate::filemanager::FileManager;
 
 pub struct Texture {
     pub texture: wgpu::Texture,
@@ -16,8 +17,15 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn from_file(device: &wgpu::Device, queue: &wgpu::Queue, path: &Path) -> Result<Self> {
-        let img = image::open(path)?;
+    pub fn from_file(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        path: &Path,
+        files: &FileManager,
+    ) -> Result<Self> {
+        let bytes = files.read(path)?;
+        let img = image::load_from_memory(&bytes)
+            .map_err(|e| anyhow!("unable to load image from {}", e))?;
         Self::from_image(device, queue, &img, Some("texture atlas"))
     }
 

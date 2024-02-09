@@ -8,7 +8,8 @@ use num_traits::Zero;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use wgpu::util::DeviceExt;
 
-use crate::constants::{MAX_LIGHTS, RENDER_HEIGHT, RENDER_WIDTH};
+use crate::constants::{FRAME_RATE, MAX_LIGHTS, RENDER_HEIGHT, RENDER_WIDTH};
+use crate::filemanager::FileManager;
 use crate::geometry::{Pixels, Rect};
 use crate::rendercontext::{RenderContext, RenderLayer, SpriteBatch, SpriteBatchEntry};
 use crate::renderer::Renderer;
@@ -19,7 +20,6 @@ use crate::wgpu::shader::RenderVertexUniform;
 use crate::wgpu::shader::Vertex;
 use crate::wgpu::shader::{self, PostprocessVertex};
 use crate::wgpu::texture::Texture;
-use crate::FRAME_RATE;
 
 use super::shader::PostprocessFragmentUniform;
 
@@ -102,6 +102,7 @@ where
         window_height: u32,
         vsync: bool,
         texture_atlas_path: &Path,
+        file_manager: &FileManager,
     ) -> Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -140,7 +141,7 @@ where
             .unwrap();
 
         info!("Reading texture atlas from {:?}", texture_atlas_path);
-        let texture_atlas = Texture::from_file(&device, &queue, texture_atlas_path)?;
+        let texture_atlas = Texture::from_file(&device, &queue, texture_atlas_path, file_manager)?;
         let texture_atlas_width = texture_atlas.width;
         let texture_atlas_height = texture_atlas.height;
 
