@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::ops::Sub;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 

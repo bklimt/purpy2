@@ -44,7 +44,7 @@ fn process(args: &Args) -> Result<()> {
         let manifest = fs::read_to_string(manifest_path)?;
         for line in manifest.lines() {
             let line = line.trim();
-            if line.len() == 0 {
+            if line.is_empty() {
                 continue;
             }
 

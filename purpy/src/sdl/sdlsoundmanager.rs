@@ -108,7 +108,7 @@ impl SdlSoundManager {
     }
 
     fn load_sounds(device: &mut AudioDevice<SoundCallback>) -> Result<()> {
-        let spec = device.spec().clone();
+        let spec = *device.spec();
         let mut lock = device.lock();
         let callback = lock.deref_mut();
         callback.load_wav(Sound::Click, "click", &spec)?;

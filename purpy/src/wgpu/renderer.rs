@@ -271,7 +271,7 @@ where
     }
 
     pub fn window(&self) -> &T {
-        &self.window
+        self.window
     }
 
     pub fn resize(&mut self, new_width: u32, new_height: u32) {
@@ -465,7 +465,7 @@ where
         self.postprocess_pipeline.render(
             &mut encoder,
             &output_view,
-            clear_color.into(),
+            clear_color,
             self.postprocess_vertex_buffer.slice(..),
             6,
         );

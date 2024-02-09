@@ -152,7 +152,7 @@ fn process(args: &Args) -> Result<()> {
     let mut images = Vec::new();
     for line in lines {
         let line = line.trim();
-        if line.len() == 0 {
+        if line.is_empty() {
             continue;
         }
 
@@ -169,7 +169,7 @@ fn process(args: &Args) -> Result<()> {
         images.push(img);
     }
 
-    if images.len() == 0 {
+    if images.is_empty() {
         bail!("no images found");
     }
 
