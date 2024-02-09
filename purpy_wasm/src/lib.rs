@@ -7,7 +7,7 @@ use anyhow::{bail, Result};
 use log::{error, info};
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
 
 use purpy::{
@@ -134,7 +134,6 @@ pub async fn run() -> Result<()> {
         }
     };
 
-    event_loop.set_control_flow(ControlFlow::Poll);
     event_loop.run(move |event, elwt| match event {
         Event::WindowEvent {
             ref event,
