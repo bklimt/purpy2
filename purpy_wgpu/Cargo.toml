@@ -1,0 +1,15 @@
+[package]
+name = "purpy_wgpu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+purpy = { path="../purpy", default-features=false, features=["wgpu"] }
+
+anyhow = "1.0"
+clap = {version="4.4.12", features=["derive"]}
+env_logger = "0.10.2"
+log = "0.4.20"
+pollster = "0.3"
+winit = {version="0.29.10", features=["rwh_05"]}
+sdl2 = {version="0.36.0", features=["image", "raw-window-handle"]}
