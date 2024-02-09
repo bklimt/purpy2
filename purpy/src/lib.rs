@@ -27,7 +27,7 @@ mod tileset;
 mod utils;
 mod warp;
 
-pub use constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
+pub use constants::{FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH};
 
 pub use filemanager::FileManager;
 pub use font::Font;

@@ -7,9 +7,11 @@ use sdl2::event::{Event, WindowEvent};
 
 use purpy::{
     FileManager, ImageManager, InputManager, RecordOption, RenderContext, SoundManager,
-    StageManager, WgpuRenderer, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT,
-    WINDOW_WIDTH,
+    StageManager, WgpuRenderer, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH,
 };
+
+pub const WINDOW_WIDTH: u32 = 1600;
+pub const WINDOW_HEIGHT: u32 = 900;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

@@ -10,9 +10,11 @@ use sdl2::video::Window;
 
 use purpy::{
     FileManager, ImageManager, InputManager, RecordOption, RenderContext, SdlRenderer,
-    SoundManager, StageManager, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT,
-    WINDOW_WIDTH,
+    SoundManager, StageManager, FRAME_RATE, RENDER_HEIGHT, RENDER_WIDTH,
 };
+
+pub const WINDOW_WIDTH: u32 = 1600;
+pub const WINDOW_HEIGHT: u32 = 900;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

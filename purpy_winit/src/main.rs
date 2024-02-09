@@ -11,8 +11,11 @@ use winit::window::{Window, WindowBuilder};
 
 use purpy::{
     FileManager, Font, ImageManager, InputManager, RecordOption, RenderContext, SoundManager,
-    StageManager, WgpuRenderer, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
+    StageManager, WgpuRenderer, RENDER_HEIGHT, RENDER_WIDTH,
 };
+
+pub const WINDOW_WIDTH: u32 = 1600;
+pub const WINDOW_HEIGHT: u32 = 900;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
