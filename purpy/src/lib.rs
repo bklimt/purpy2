@@ -48,6 +48,3 @@ mod wgpu;
 
 #[cfg(feature = "wgpu")]
 pub use wgpu::renderer::WgpuRenderer;
-
-//#[cfg(feature = "wgpu")]
-//pub use wgpu::renderer::WindowHandle;

@@ -1,12 +1,13 @@
+use wasm_bindgen::prelude::*;
+
 use std::path::Path;
-use std::time::Instant;
 
 use anyhow::{bail, Result};
-use clap::Parser;
 use log::{error, info};
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
+use winit::platform::web::WindowExtWebSys;
 use winit::window::{Window, WindowBuilder};
 
 use purpy::{
@@ -14,37 +15,7 @@ use purpy::{
     StageManager, WgpuRenderer, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
 };
 
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-pub struct Args {
-    // TODO: Use this or lose this.
-    #[arg(long)]
-    pub fullscreen: bool,
-
-    #[arg(long)]
-    pub record: Option<String>,
-
-    #[arg(long)]
-    pub playback: Option<String>,
-
-    #[arg(long)]
-    pub speed_test: bool,
-}
-
-impl Args {
-    pub fn record_option(&self) -> Result<RecordOption> {
-        if self.record.is_some() && self.playback.is_some() {
-            bail!("either --record or --playback or neither, but not both")
-        }
-        Ok(if let Some(record) = &self.record {
-            RecordOption::Record(Path::new(&record).to_owned())
-        } else if let Some(playback) = &self.playback {
-            RecordOption::Playback(Path::new(&playback).to_owned())
-        } else {
-            RecordOption::None
-        })
-    }
-}
+const ASSETS_ARCHIVE_BYTES: &[u8] = include_bytes!("../../assets.tar.gz");
 
 struct GameState<'window> {
     stage_manager: StageManager,
@@ -54,18 +25,12 @@ struct GameState<'window> {
     inputs: InputManager,
     font: Font,
     frame: u64,
-    start_time: Instant,
-    speed_test: bool,
 }
 
 impl<'window> GameState<'window> {
-    fn new(
-        args: Args,
-        file_manager: FileManager,
-        renderer: WgpuRenderer<'window, Window>,
-    ) -> Result<Self> {
+    fn new(file_manager: FileManager, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
         let mut images = ImageManager::new(renderer)?;
-        let inputs = InputManager::with_options(args.record_option()?, &file_manager)?;
+        let inputs = InputManager::with_options(RecordOption::None, &file_manager)?;
         let stage_manager = StageManager::new(&file_manager, &images)?;
         let sounds = SoundManager::noop_manager();
 
@@ -76,8 +41,6 @@ impl<'window> GameState<'window> {
         )?;
         let font = images.load_font(&file_manager)?;
         let frame = 0;
-        let start_time = Instant::now();
-        let speed_test = args.speed_test;
 
         Ok(Self {
             stage_manager,
@@ -87,16 +50,10 @@ impl<'window> GameState<'window> {
             inputs,
             font,
             frame,
-            start_time,
-            speed_test,
         })
     }
 
     fn run_one_frame(&mut self) -> Result<bool> {
-        if self.frame == 0 {
-            self.start_time = Instant::now();
-        }
-
         let inputs = self.inputs.update(self.frame);
         if !self.stage_manager.update(
             &inputs,
@@ -104,12 +61,6 @@ impl<'window> GameState<'window> {
             &mut self.images,
             &mut self.sounds,
         )? {
-            let finish_time = Instant::now();
-            if self.speed_test {
-                let elapsed = finish_time - self.start_time;
-                let fps = self.frame as f64 / elapsed.as_secs_f64();
-                println!("{} fps: {} frames in {:?}", fps, self.frame, elapsed);
-            }
             return Ok(false);
         }
 
@@ -128,19 +79,44 @@ impl<'window> GameState<'window> {
     }
 }
 
-pub async fn run(args: Args) -> Result<()> {
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+pub async fn run_or_die() {
+    if let Err(err) = run().await {
+        panic!("error: {}", err);
+    }
+}
+
+pub async fn run() -> Result<()> {
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    console_log::init_with_level(log::Level::Info).expect("Couldn't initialize logger");
+
     let event_loop = EventLoop::new()?;
 
-    let file_manager = FileManager::from_fs()?;
+    let file_manager = FileManager::from_archive_bytes(&ASSETS_ARCHIVE_BYTES[..])?;
 
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let _ = window.request_inner_size(PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
+    let _ = window.request_inner_size(PhysicalSize::new(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2));
+
+    web_sys::window()
+        .and_then(|win| win.document())
+        .and_then(|doc| {
+            let dst = doc.get_element_by_id("wasm-example")?;
+            let canvas = web_sys::Element::from(window.canvas().unwrap());
+            dst.append_child(&canvas).ok()?;
+            Some(())
+        })
+        .expect("Couldn't append canvas to document body.");
+
     let PhysicalSize { width, height } = window.inner_size();
-    let width = if width == 0 { WINDOW_WIDTH } else { width };
-    let height = if height == 0 { WINDOW_HEIGHT } else { height };
+    let width = if width == 0 { WINDOW_WIDTH / 2 } else { width };
+    let height = if height == 0 {
+        WINDOW_HEIGHT / 2
+    } else {
+        height
+    };
 
     let texture_atlas_path = Path::new("assets/textures.png");
-    let vsync = !args.speed_test;
+    let vsync = true;
     let renderer = WgpuRenderer::new(
         &window,
         width,
@@ -150,7 +126,7 @@ pub async fn run(args: Args) -> Result<()> {
         &file_manager,
     )
     .await?;
-    let mut game = match GameState::new(args, file_manager, renderer) {
+    let mut game = match GameState::new(file_manager, renderer) {
         Ok(game) => game,
         Err(e) => {
             bail!("unable to initialize game: {:?}", e);
@@ -168,7 +144,7 @@ pub async fn run(args: Args) -> Result<()> {
                 WindowEvent::Resized(new_size) => {
                     let PhysicalSize { width, height } = new_size;
                     info!("window resized to {width}, {height}");
-                    game.images.renderer_mut().resize(*width, *height);
+                    //game.images.renderer_mut().resize(*width, *height);
                 }
                 WindowEvent::RedrawRequested => match game.run_one_frame() {
                     Ok(running) => {
@@ -192,14 +168,4 @@ pub async fn run(args: Args) -> Result<()> {
     })?;
 
     Ok(())
-}
-
-fn main() {
-    env_logger::init();
-    let args = Args::parse();
-
-    match pollster::block_on(run(args)) {
-        Ok(_) => {}
-        Err(e) => panic!("{}", e),
-    }
 }

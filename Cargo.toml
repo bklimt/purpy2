@@ -6,6 +6,7 @@ members = [
     "package_assets",
     "purpy",
     "purpy_sdl",
+    "purpy_wasm",
     "purpy_wgpu",
     "purpy_winit",
 ]

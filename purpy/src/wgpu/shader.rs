@@ -4,12 +4,14 @@ use crate::constants::MAX_LIGHTS;
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RenderVertexUniform {
     logical_size: [f32; 2],
+    unused: [f32; 2],
 }
 
 impl RenderVertexUniform {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
             logical_size: [width as f32, height as f32],
+            unused: [0.0, 0.0],
         }
     }
 }
