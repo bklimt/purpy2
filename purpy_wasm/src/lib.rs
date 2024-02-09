@@ -7,13 +7,15 @@ use log::{error, info};
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::platform::web::WindowExtWebSys;
 use winit::window::{Window, WindowBuilder};
 
 use purpy::{
     FileManager, Font, ImageManager, InputManager, RecordOption, RenderContext, SoundManager,
-    StageManager, WgpuRenderer, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
+    StageManager, WgpuRenderer, RENDER_HEIGHT, RENDER_WIDTH,
 };
+
+pub const CANVAS_WIDTH: u32 = 800;
+pub const CANVAS_HEIGHT: u32 = 450;
 
 const ASSETS_ARCHIVE_BYTES: &[u8] = include_bytes!("../../assets.tar.gz");
 
@@ -95,25 +97,24 @@ pub async fn run() -> Result<()> {
     let file_manager = FileManager::from_archive_bytes(&ASSETS_ARCHIVE_BYTES[..])?;
 
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let _ = window.request_inner_size(PhysicalSize::new(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2));
+    let _ = window.request_inner_size(PhysicalSize::new(CANVAS_WIDTH, CANVAS_HEIGHT));
 
-    web_sys::window()
-        .and_then(|win| win.document())
-        .and_then(|doc| {
-            let dst = doc.get_element_by_id("wasm-example")?;
-            let canvas = web_sys::Element::from(window.canvas().unwrap());
-            dst.append_child(&canvas).ok()?;
-            Some(())
-        })
-        .expect("Couldn't append canvas to document body.");
+    {
+        use winit::platform::web::WindowExtWebSys;
+        web_sys::window()
+            .and_then(|win| win.document())
+            .and_then(|doc| {
+                let dst = doc.get_element_by_id("wasm-example")?;
+                let canvas = web_sys::Element::from(window.canvas().unwrap());
+                dst.append_child(&canvas).ok()?;
+                Some(())
+            })
+            .expect("Couldn't append canvas to document body.");
+    }
 
     let PhysicalSize { width, height } = window.inner_size();
-    let width = if width == 0 { WINDOW_WIDTH / 2 } else { width };
-    let height = if height == 0 {
-        WINDOW_HEIGHT / 2
-    } else {
-        height
-    };
+    let width = if width == 0 { CANVAS_WIDTH } else { width };
+    let height = if height == 0 { CANVAS_HEIGHT } else { height };
 
     let texture_atlas_path = Path::new("assets/textures.png");
     let vsync = true;
