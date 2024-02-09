@@ -100,6 +100,7 @@ where
         window: &'window T,
         window_width: u32,
         window_height: u32,
+        vsync: bool,
         texture_atlas_path: &Path,
     ) -> Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -152,12 +153,18 @@ where
             .unwrap_or(surface_caps.formats[0]);
         info!("using texture format: {:?}", surface_format);
 
+        let present_mode = if vsync {
+            wgpu::PresentMode::AutoVsync
+        } else {
+            wgpu::PresentMode::AutoNoVsync
+        };
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width: window_width,
             height: window_height,
-            present_mode: wgpu::PresentMode::AutoNoVsync, //surface_caps.present_modes[0],
+            present_mode,
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
         };

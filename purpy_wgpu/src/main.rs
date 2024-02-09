@@ -64,7 +64,7 @@ fn run(args: Args) -> Result<()> {
     let (width, height) = window.size();
 
     let texture_atlas_path = Path::new("assets/textures.png");
-    let future = WgpuRenderer::new(&window, width, height, texture_atlas_path);
+    let future = WgpuRenderer::new(&window, width, height, false, texture_atlas_path);
     let renderer = pollster::block_on(future)?;
 
     let mut image_manager: ImageManager<WgpuRenderer<'_, sdl2::video::Window>> =

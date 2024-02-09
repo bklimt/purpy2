@@ -141,7 +141,8 @@ pub async fn run(args: Args) -> Result<()> {
     let height = if height == 0 { WINDOW_HEIGHT } else { height };
 
     let texture_atlas_path = Path::new("assets/textures.png");
-    let renderer = WgpuRenderer::new(&window, width, height, texture_atlas_path).await?;
+    let vsync = !args.speed_test;
+    let renderer = WgpuRenderer::new(&window, width, height, vsync, texture_atlas_path).await?;
     let mut game = match GameState::new(args, file_manager, renderer) {
         Ok(game) => game,
         Err(e) => {
