@@ -1,6 +1,5 @@
 use std::mem;
 use std::path::Path;
-use std::time::Instant;
 
 use anyhow::Result;
 use bytemuck::Zeroable;
@@ -20,6 +19,7 @@ use crate::wgpu::shader::RenderVertexUniform;
 use crate::wgpu::shader::Vertex;
 use crate::wgpu::shader::{self, PostprocessVertex};
 use crate::wgpu::texture::Texture;
+use crate::FRAME_RATE;
 
 use super::shader::PostprocessFragmentUniform;
 
@@ -89,8 +89,6 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
     postprocess_pipeline: Pipeline,
     postprocess_vertex_buffer: wgpu::Buffer,
     fragment_uniform: PostprocessFragmentUniform,
-
-    start_time: Instant,
 }
 
 impl<'window, T> WgpuRenderer<'window, T>
@@ -222,8 +220,6 @@ where
             config.format,
         )?;
 
-        let start_time = Instant::now();
-
         let fragment_uniform = PostprocessFragmentUniform {
             texture_size: [RENDER_WIDTH as f32, RENDER_HEIGHT as f32],
             render_size: [window_width as f32, window_height as f32],
@@ -258,7 +254,6 @@ where
             texture_atlas_height,
             player_framebuffer,
             hud_framebuffer,
-            start_time,
             window,
         })
     }
@@ -428,8 +423,7 @@ where
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let now = Instant::now();
-        let time_s = (now - self.start_time).as_secs_f32();
+        let time_s = (context.frame as f32) / (FRAME_RATE as f32);
         self.fragment_uniform.time_s = time_s;
 
         let one_pixel = Pixels::new(1);
