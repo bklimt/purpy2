@@ -1,0 +1,14 @@
+{
+  "name": "purpy_wasm",
+  "version": "0.1.0",
+  "files": [
+    "purpy_wasm_bg.wasm",
+    "purpy_wasm.js",
+    "purpy_wasm.d.ts"
+  ],
+  "module": "purpy_wasm.js",
+  "types": "purpy_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
