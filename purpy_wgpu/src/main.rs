@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Result};
 use clap::Parser;
-use sdl2::event::Event;
+use sdl2::event::{Event, WindowEvent};
 
 use purpy::{
     FileManager, ImageManager, InputManager, RecordOption, RenderContext, SoundManager,
@@ -95,6 +95,15 @@ fn run(args: Args) -> Result<()> {
             input_manager.handle_sdl_event(&event);
             match event {
                 Event::Quit { .. } => break 'running,
+                Event::Window {
+                    win_event: WindowEvent::SizeChanged(new_width, new_height),
+                    window_id,
+                    ..
+                } if window_id == window.id() => {
+                    image_manager
+                        .renderer_mut()
+                        .resize(new_width as u32, new_height as u32);
+                }
                 _ => {}
             }
         }

@@ -71,8 +71,8 @@ pub struct WgpuRenderer<'window, T: WindowHandle> {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    width: u32,
-    height: u32,
+    window_width: u32,
+    window_height: u32,
 
     render_pipeline: Pipeline,
 
@@ -100,8 +100,8 @@ where
     // Creating some of the wgpu types requires async code
     pub async fn new(
         window: &'window T,
-        width: u32,
-        height: u32,
+        window_width: u32,
+        window_height: u32,
         texture_atlas_path: &Path,
     ) -> Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -157,8 +157,8 @@ where
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width,
-            height,
+            width: window_width,
+            height: window_height,
             present_mode: wgpu::PresentMode::AutoNoVsync, //surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
@@ -226,7 +226,7 @@ where
 
         let fragment_uniform = PostprocessFragmentUniform {
             texture_size: [RENDER_WIDTH as f32, RENDER_HEIGHT as f32],
-            render_size: [width as f32, height as f32],
+            render_size: [window_width as f32, window_height as f32],
             time_s: 0.0,
             is_dark: 0,
             spotlight_count: 0,
@@ -244,8 +244,8 @@ where
             device,
             queue,
             config,
-            width,
-            height,
+            window_width,
+            window_height,
             render_pipeline,
             postprocess_pipeline,
             player_vertices,
@@ -269,8 +269,8 @@ where
 
     pub fn resize(&mut self, new_width: u32, new_height: u32) {
         if new_width > 0 && new_height > 0 {
-            self.width = new_width;
-            self.height = new_height;
+            self.window_width = new_width;
+            self.window_height = new_height;
             self.config.width = new_width;
             self.config.height = new_height;
             self.surface.configure(&self.device, &self.config);
@@ -444,6 +444,8 @@ where
             self.fragment_uniform.spotlight[i].radius =
                 (light.radius.as_pixels() / one_pixel) as f32;
         }
+
+        self.fragment_uniform.render_size = [self.window_width as f32, self.window_height as f32];
 
         self.postprocess_pipeline
             .update_fragment_uniform(&self.queue, self.fragment_uniform);
