@@ -3,10 +3,10 @@ use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context, Error, Result};
-use log::{info, warn};
+use log::info;
 use serde::Deserialize;
 
-use crate::filemanager::{DirEntryType, FileManager};
+use crate::filemanager::FileManager;
 use crate::geometry::{Pixels, Rect};
 use crate::imagemanager::ImageLoader;
 use crate::properties::{PropertiesXml, PropertyMap};
@@ -97,6 +97,7 @@ pub struct TileSetXml {
 
 pub struct TileProperties {
     pub solid: bool,
+    pub animation: Option<String>,
     // switches
     pub switch: Option<String>,
     pub condition: Option<String>,
@@ -124,6 +125,7 @@ impl TryFrom<PropertyMap> for TileProperties {
     fn try_from(value: PropertyMap) -> Result<Self, Self::Error> {
         Ok(TileProperties {
             solid: value.get_bool("solid")?.unwrap_or(true),
+            animation: value.get_string("animation")?.map(str::to_string),
             alternate: value
                 .get_int("alternate")?
                 .map(|x| LocalTileIndex(x as usize)),
@@ -143,17 +145,13 @@ impl TryFrom<PropertyMap> for TileProperties {
     }
 }
 
-pub struct TileSetProperties {
-    pub animation_path: Option<String>,
-}
+pub struct TileSetProperties {}
 
 impl TryFrom<PropertyMap> for TileSetProperties {
     type Error = Error;
 
-    fn try_from(value: PropertyMap) -> Result<Self, Self::Error> {
-        Ok(TileSetProperties {
-            animation_path: value.get_string("animations")?.map(str::to_string),
-        })
+    fn try_from(_value: PropertyMap) -> Result<Self, Self::Error> {
+        Ok(TileSetProperties {})
     }
 }
 
@@ -183,14 +181,13 @@ impl TileSet {
             .read_to_string(path)
             .map_err(|e| anyhow!("unable to open {:?}: {}", path, e))?;
         let xml = quick_xml::de::from_str::<TileSetXml>(&text)?;
-        Self::from_xml(xml, path, firstgid, files, images)
+        Self::from_xml(xml, path, firstgid, images)
     }
 
     fn from_xml(
         xml: TileSetXml,
         path: &Path,
         firstgid: TileIndex,
-        files: &FileManager,
         images: &mut dyn ImageLoader,
     ) -> Result<TileSet> {
         let name = xml.name;
@@ -201,6 +198,7 @@ impl TileSet {
 
         let mut sprite: Option<Sprite> = None;
         let mut properties = PropertyMap::new();
+        let mut animations = SmallIntMap::new();
         let mut slopes = SmallIntMap::new();
         let mut tile_properties = SmallIntMap::new();
 
@@ -223,6 +221,22 @@ impl TileSet {
                     if props.slope {
                         slopes.insert(id, Slope::new(&props)?);
                     }
+                    if let Some(animation_path) = &props.animation {
+                        let animation_path = path
+                            .parent()
+                            .context("tileset path is root")?
+                            .join(animation_path);
+                        info!(
+                            "loading animation for tile {:?} from {:?}",
+                            id, animation_path
+                        );
+                        let animation = images.load_animation(
+                            &animation_path,
+                            Pixels::new(8),
+                            Pixels::new(8),
+                        )?;
+                        animations.insert(id, animation);
+                    }
                     tile_properties.insert(id, props);
                 }
                 _ => {}
@@ -233,15 +247,6 @@ impl TileSet {
 
         let sprite = sprite.context("missing image")?;
         let properties: TileSetProperties = properties.try_into()?;
-
-        let mut animations = SmallIntMap::new();
-        if let Some(animations_path) = properties.animation_path.as_ref() {
-            let animations_path = path
-                .parent()
-                .context("tileset path is root")?
-                .join(animations_path);
-            load_tile_animations(&animations_path, files, images, &mut animations)?;
-        }
 
         Ok(TileSet {
             _name: name,
@@ -308,33 +313,4 @@ impl TileSet {
     pub fn get_tile_properties(&self, tile_id: LocalTileIndex) -> Option<&TileProperties> {
         self.tile_properties.get(tile_id)
     }
-}
-
-// Loads a directory of animations to replace tiles.
-fn load_tile_animations(
-    path: &Path,
-    files: &FileManager,
-    images: &mut dyn ImageLoader,
-    animations: &mut SmallIntMap<LocalTileIndex, Animation>,
-) -> Result<()> {
-    info!("loading tile animations from {:?}", path);
-    let animation_files = files.read_dir(path)?;
-    for file in animation_files {
-        if !matches!(file.file_type, DirEntryType::File) {
-            warn!("skipping non-file {:?}", file.full_path);
-            continue;
-        }
-        if !file.name.ends_with(".png") {
-            warn!("skipping non-png {:?}", file.full_path);
-            continue;
-        }
-        let tile_id = file.name[..file.name.len() - 4].parse::<LocalTileIndex>()?;
-        info!(
-            "loading animation for tile {:?} from {:?}",
-            tile_id, file.full_path
-        );
-        let animation = images.load_animation(&file.full_path, Pixels::new(8), Pixels::new(8))?;
-        animations.insert(tile_id, animation);
-    }
-    Ok(())
 }
