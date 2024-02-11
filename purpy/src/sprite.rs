@@ -81,7 +81,11 @@ pub struct Animation {
 impl Animation {
     pub fn new(sprite: Sprite, sprite_width: Pixels, sprite_height: Pixels) -> Result<Animation> {
         if sprite.area.h != sprite_height {
-            bail!("animations can only have one row");
+            bail!(
+                "animations can only have one row. specified: {}, actual: {}",
+                sprite_height,
+                sprite.area.h
+            );
         }
         let w = sprite.area.w;
         let spritesheet = SpriteSheet::new(sprite, sprite_width, sprite_height)?;

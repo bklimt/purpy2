@@ -164,18 +164,20 @@ struct InputState {
     mouse_buttons_down: SmallIntMap<MouseButton, bool>,
 
     mouse_position: Point<Pixels>,
+    adjust_mouse_position: bool,
     window_width: i32,
     window_height: i32,
 }
 
 impl InputState {
-    fn new(window_width: i32, window_height: i32) -> InputState {
+    fn new(window_width: i32, window_height: i32, adjust_mouse_position: bool) -> InputState {
         InputState {
             keys_down: SmallIntMap::new(),
             joystick_buttons_down: SmallIntMap::new(),
             joy_axes: SmallIntMap::new(),
             mouse_buttons_down: SmallIntMap::new(),
             mouse_position: Point::zero(),
+            adjust_mouse_position,
             window_width,
             window_height,
         }
@@ -226,16 +228,20 @@ impl InputState {
         self.window_height = height;
     }
 
-    fn set_mouse_position(&mut self, pos_x: i32, pos_y: i32) {
+    fn set_mouse_position(&mut self, x: i32, y: i32) {
+        self.mouse_position = if self.adjust_mouse_position {
+            self.get_adjusted_mouse_position(x, y)
+        } else {
+            Point::new(Pixels::new(x), Pixels::new(y))
+        };
+    }
+
+    fn get_adjusted_mouse_position(&mut self, pos_x: i32, pos_y: i32) -> Point<Pixels> {
         let x = (pos_x as f32) / (self.window_width as f32);
         let y = (pos_y as f32) / (self.window_height as f32);
         let x = x * (RENDER_WIDTH as f32);
         let y = y * (RENDER_HEIGHT as f32);
-        self.mouse_position = Point::new(Pixels::new(x as i32), Pixels::new(y as i32))
-    }
-
-    fn get_mouse_position(&self) -> Point<Pixels> {
-        self.mouse_position
+        Point::new(Pixels::new(x as i32), Pixels::new(y as i32))
     }
 }
 
@@ -722,6 +728,7 @@ impl InputManager {
     pub fn with_options(
         window_width: i32,
         window_height: i32,
+        adjust_mouse_position: bool,
         record_option: RecordOption,
         files: &FileManager,
     ) -> Result<InputManager> {
@@ -753,7 +760,7 @@ impl InputManager {
         }
 
         Ok(InputManager {
-            state: InputState::new(window_width, window_height),
+            state: InputState::new(window_width, window_height, adjust_mouse_position),
             previous_snapshot: None,
             binary_hooks,
             all_binary_hooks,
@@ -864,6 +871,7 @@ impl InputManager {
                 win_event: WindowEvent::SizeChanged(new_width, new_height),
                 ..
             } => {
+                info!("new window size: {new_width}x{new_height}");
                 self.state.set_window_size(*new_width, *new_height);
             }
             Event::KeyDown {
@@ -887,6 +895,20 @@ impl InputManager {
                 ..
             } => {
                 self.state.set_mouse_position(*x, *y);
+                self.state.set_mouse_button_down(MouseButton::Left);
+            }
+            Event::MouseButtonUp {
+                mouse_btn: sdl2::mouse::MouseButton::Left,
+                x,
+                y,
+                ..
+            } => {
+                self.state.set_mouse_position(*x, *y);
+                self.state.set_mouse_button_up(MouseButton::Left);
+            }
+            Event::MouseMotion { x, y, .. } => {
+                info!("mouse moved to {x}, {y}");
+                self.state.set_mouse_position(*x, *y);
             }
             _ => {}
         }
@@ -894,10 +916,16 @@ impl InputManager {
 
     #[cfg(feature = "winit")]
     pub fn handle_winit_event(&mut self, event: &winit::event::WindowEvent) {
+        use winit::dpi::{PhysicalPosition, PhysicalSize};
         use winit::event::{ElementState, KeyEvent, WindowEvent};
         use winit::keyboard::PhysicalKey;
 
         match event {
+            WindowEvent::Resized(new_size) => {
+                let PhysicalSize { width, height } = new_size;
+                info!("window resized to {width}, {height}");
+                self.state.set_window_size(*width as i32, *height as i32);
+            }
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
@@ -924,6 +952,23 @@ impl InputManager {
                     self.state.set_key_up(key);
                 }
             }
+            WindowEvent::CursorMoved {
+                position: PhysicalPosition { x, y },
+                ..
+            } => {
+                let x = *x as i32;
+                let y = *y as i32;
+                // info!("mouse moved to {x}, {y}");
+                self.state.set_mouse_position(x, y);
+            }
+            WindowEvent::MouseInput {
+                state,
+                button: winit::event::MouseButton::Left,
+                ..
+            } => match state {
+                ElementState::Pressed => self.state.set_mouse_button_down(MouseButton::Left),
+                ElementState::Released => self.state.set_mouse_button_up(MouseButton::Left),
+            },
             _ => {}
         }
     }

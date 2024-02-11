@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, ops};
+use std::{cmp::Ordering, fmt::Display, ops};
 
 use num_traits::Zero;
 
@@ -38,6 +38,12 @@ impl Zero for Pixels {
     #[inline]
     fn set_zero(&mut self) {
         self.0 = 0;
+    }
+}
+
+impl Display for Pixels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}px", self.0)
     }
 }
 
@@ -144,6 +150,12 @@ impl Zero for Subpixels {
     #[inline]
     fn set_zero(&mut self) {
         self.0 = 0;
+    }
+}
+
+impl Display for Subpixels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}spx", self.0)
     }
 }
 

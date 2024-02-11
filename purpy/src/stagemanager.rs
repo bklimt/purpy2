@@ -35,11 +35,11 @@ pub struct StageManager {
 }
 
 impl StageManager {
-    pub fn new(file_manager: &FileManager, _images: &dyn ImageLoader) -> Result<StageManager> {
-        let path = Path::new("assets/levels");
-        let level_select = LevelSelect::new(path, file_manager)?;
+    pub fn new(file_manager: &FileManager, images: &mut dyn ImageLoader) -> Result<StageManager> {
+        let path = Path::new("assets/menus/start.tmx");
+        let menu = Menu::new(path, file_manager, images)?;
         Ok(StageManager {
-            current: Box::new(level_select),
+            current: Box::new(menu),
             stack: Vec::new(),
         })
     }
