@@ -907,7 +907,7 @@ impl InputManager {
                 self.state.set_mouse_button_up(MouseButton::Left);
             }
             Event::MouseMotion { x, y, .. } => {
-                info!("mouse moved to {x}, {y}");
+                // info!("mouse moved to {x}, {y}");
                 self.state.set_mouse_position(*x, *y);
             }
             _ => {}
