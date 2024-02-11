@@ -348,6 +348,9 @@ pub struct MapObjectProperties {
     pub dy: Pixels,
     // Warp zones
     pub warp: Option<String>,
+    // UI elements
+    pub uibutton: Option<String>,
+    pub label: String,
     _raw: PropertyMap,
 }
 
@@ -389,6 +392,8 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
             dy: Pixels::new(properties.get_int("dy")?.unwrap_or(0)),
             facing_left: properties.get_bool("facing_left")?.unwrap_or(false),
             warp: properties.get_string("warp")?.map(str::to_string),
+            uibutton: properties.get_string("uibutton")?.map(str::to_string),
+            label: properties.get_string("label")?.unwrap_or("").to_string(),
             _raw: properties,
         })
     }

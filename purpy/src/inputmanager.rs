@@ -5,9 +5,12 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use gilrs::Gilrs;
 use log::{debug, error, info};
+use num_traits::Zero;
 
 use crate::filemanager::FileManager;
+use crate::geometry::{Pixels, Point};
 use crate::smallintmap::SmallIntMap;
+use crate::{RENDER_HEIGHT, RENDER_WIDTH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum KeyboardKey {
@@ -143,18 +146,38 @@ impl TryInto<JoystickAxis> for u8 {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+enum MouseButton {
+    Left = 0,
+}
+
+impl From<MouseButton> for usize {
+    fn from(value: MouseButton) -> Self {
+        value as usize
+    }
+}
+
 struct InputState {
     keys_down: SmallIntMap<KeyboardKey, bool>,
     joystick_buttons_down: SmallIntMap<JoystickButton, bool>,
     joy_axes: SmallIntMap<JoystickAxis, f32>,
+    mouse_buttons_down: SmallIntMap<MouseButton, bool>,
+
+    mouse_position: Point<Pixels>,
+    window_width: i32,
+    window_height: i32,
 }
 
 impl InputState {
-    fn new() -> InputState {
+    fn new(window_width: i32, window_height: i32) -> InputState {
         InputState {
             keys_down: SmallIntMap::new(),
             joystick_buttons_down: SmallIntMap::new(),
             joy_axes: SmallIntMap::new(),
+            mouse_buttons_down: SmallIntMap::new(),
+            mouse_position: Point::zero(),
+            window_width,
+            window_height,
         }
     }
 
@@ -184,6 +207,35 @@ impl InputState {
 
     fn set_joy_axis(&mut self, axis: JoystickAxis, value: f32) {
         self.joy_axes.insert(axis, value);
+    }
+
+    fn set_mouse_button_down(&mut self, button: MouseButton) {
+        self.mouse_buttons_down.insert(button, true);
+    }
+
+    fn set_mouse_button_up(&mut self, button: MouseButton) {
+        self.mouse_buttons_down.insert(button, false);
+    }
+
+    fn is_mouse_button_down(&self, button: MouseButton) -> bool {
+        *self.mouse_buttons_down.get(button).unwrap_or(&false)
+    }
+
+    fn set_window_size(&mut self, width: i32, height: i32) {
+        self.window_width = width;
+        self.window_height = height;
+    }
+
+    fn set_mouse_position(&mut self, pos_x: i32, pos_y: i32) {
+        let x = (pos_x as f32) / (self.window_width as f32);
+        let y = (pos_y as f32) / (self.window_height as f32);
+        let x = x * (RENDER_WIDTH as f32);
+        let y = y * (RENDER_HEIGHT as f32);
+        self.mouse_position = Point::new(Pixels::new(x as i32), Pixels::new(y as i32))
+    }
+
+    fn get_mouse_position(&self) -> Point<Pixels> {
+        self.mouse_position
     }
 }
 
@@ -335,6 +387,22 @@ impl TransientBinaryInput for JoystickThresholdInput {
     }
 }
 
+struct MouseButtonInput {
+    button: MouseButton,
+}
+
+impl MouseButtonInput {
+    fn new(button: MouseButton) -> Self {
+        MouseButtonInput { button }
+    }
+}
+
+impl TransientBinaryInput for MouseButtonInput {
+    fn is_on(&self, state: &InputState) -> bool {
+        state.is_mouse_button_down(self.button)
+    }
+}
+
 struct AnyOfInput(Vec<Box<dyn StatefulBinaryInput>>);
 
 impl StatefulBinaryInput for AnyOfInput {
@@ -356,7 +424,8 @@ impl StatefulBinaryInput for AnyOfInput {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum BinaryInput {
-    Ok = 0,
+    OkTrigger = 0,
+    OkDown,
     Cancel,
     PlayerLeft,
     PlayerRight,
@@ -365,6 +434,7 @@ enum BinaryInput {
     PlayerJumpDown,
     MenuDown,
     MenuUp,
+    MouseButtonLeft,
 }
 
 impl From<BinaryInput> for usize {
@@ -375,7 +445,8 @@ impl From<BinaryInput> for usize {
 
 fn all_binary_inputs() -> Vec<BinaryInput> {
     vec![
-        BinaryInput::Ok,
+        BinaryInput::OkTrigger,
+        BinaryInput::OkDown,
         BinaryInput::Cancel,
         BinaryInput::PlayerLeft,
         BinaryInput::PlayerRight,
@@ -384,6 +455,7 @@ fn all_binary_inputs() -> Vec<BinaryInput> {
         BinaryInput::PlayerJumpDown,
         BinaryInput::MenuDown,
         BinaryInput::MenuUp,
+        BinaryInput::MouseButtonLeft,
     ]
 }
 
@@ -423,11 +495,19 @@ fn joystick_trigger(
     )))
 }
 
+fn mouse_button_input(button: MouseButton) -> Box<CachedBinaryInput<MouseButtonInput>> {
+    Box::new(CachedBinaryInput::from(MouseButtonInput::new(button)))
+}
+
 fn create_input(input: BinaryInput) -> AnyOfInput {
     AnyOfInput(match input {
-        BinaryInput::Ok => vec![
+        BinaryInput::OkTrigger => vec![
             key_trigger(KeyboardKey::Enter),
             joystick_button_trigger(JoystickButton::South),
+        ],
+        BinaryInput::OkDown => vec![
+            key_input(KeyboardKey::Enter),
+            joystick_button_input(JoystickButton::South),
         ],
         BinaryInput::Cancel => vec![
             key_trigger(KeyboardKey::Escape),
@@ -475,20 +555,26 @@ fn create_input(input: BinaryInput) -> AnyOfInput {
             joystick_button_trigger(JoystickButton::Up),
             joystick_trigger(JoystickAxis::Vertical, Some(-0.5), None),
         ],
+        BinaryInput::MouseButtonLeft => vec![mouse_button_input(MouseButton::Left)],
     })
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct InputSnapshot {
-    pub ok: bool,
-    pub cancel: bool,
-    pub player_left: bool,
-    pub player_right: bool,
-    pub player_crouch: bool,
-    pub player_jump_trigger: bool,
+    pub ok_clicked: bool,
+    pub ok_down: bool,
+    pub cancel_clicked: bool,
+    pub player_left_down: bool,
+    pub player_right_down: bool,
+    pub player_crouch_down: bool,
+    pub player_jump_clicked: bool,
     pub player_jump_down: bool,
-    pub menu_down: bool,
-    pub menu_up: bool,
+    pub menu_down_clicked: bool,
+    pub menu_up_clicked: bool,
+
+    pub mouse_button_left_down: bool,
+
+    pub mouse_position: Point<Pixels>,
 }
 
 #[inline]
@@ -508,29 +594,34 @@ fn bin_to_bool(encoded: u64, n: u8) -> bool {
 impl InputSnapshot {
     fn encode(&self) -> u64 {
         let mut result = 0;
-        result |= bool_to_bin(self.ok, 0);
-        result |= bool_to_bin(self.cancel, 1);
-        result |= bool_to_bin(self.player_left, 2);
-        result |= bool_to_bin(self.player_right, 3);
-        result |= bool_to_bin(self.player_crouch, 4);
-        result |= bool_to_bin(self.player_jump_trigger, 5);
+        result |= bool_to_bin(self.ok_clicked, 0);
+        result |= bool_to_bin(self.cancel_clicked, 1);
+        result |= bool_to_bin(self.player_left_down, 2);
+        result |= bool_to_bin(self.player_right_down, 3);
+        result |= bool_to_bin(self.player_crouch_down, 4);
+        result |= bool_to_bin(self.player_jump_clicked, 5);
         result |= bool_to_bin(self.player_jump_down, 6);
-        result |= bool_to_bin(self.menu_down, 7);
-        result |= bool_to_bin(self.menu_up, 8);
+        result |= bool_to_bin(self.menu_down_clicked, 7);
+        result |= bool_to_bin(self.menu_up_clicked, 8);
         result
     }
 
+    // TODO: Update this.
     fn decode(n: u64) -> InputSnapshot {
         InputSnapshot {
-            ok: bin_to_bool(n, 0),
-            cancel: bin_to_bool(n, 1),
-            player_left: bin_to_bool(n, 2),
-            player_right: bin_to_bool(n, 3),
-            player_crouch: bin_to_bool(n, 4),
-            player_jump_trigger: bin_to_bool(n, 5),
+            ok_clicked: bin_to_bool(n, 0),
+            ok_down: false,
+            cancel_clicked: bin_to_bool(n, 1),
+            player_left_down: bin_to_bool(n, 2),
+            player_right_down: bin_to_bool(n, 3),
+            player_crouch_down: bin_to_bool(n, 4),
+            player_jump_clicked: bin_to_bool(n, 5),
             player_jump_down: bin_to_bool(n, 6),
-            menu_down: bin_to_bool(n, 7),
-            menu_up: bin_to_bool(n, 8),
+            menu_down_clicked: bin_to_bool(n, 7),
+            menu_up_clicked: bin_to_bool(n, 8),
+
+            mouse_button_left_down: false,
+            mouse_position: Point::zero(),
         }
     }
 }
@@ -628,7 +719,12 @@ pub struct InputManager {
 }
 
 impl InputManager {
-    pub fn with_options(record_option: RecordOption, files: &FileManager) -> Result<InputManager> {
+    pub fn with_options(
+        window_width: i32,
+        window_height: i32,
+        record_option: RecordOption,
+        files: &FileManager,
+    ) -> Result<InputManager> {
         let mut recorder = InputRecorder::new();
 
         if let RecordOption::Playback(path) = &record_option {
@@ -657,7 +753,7 @@ impl InputManager {
         }
 
         Ok(InputManager {
-            state: InputState::new(),
+            state: InputState::new(window_width, window_height),
             previous_snapshot: None,
             binary_hooks,
             all_binary_hooks,
@@ -686,15 +782,18 @@ impl InputManager {
         }
 
         let snapshot = InputSnapshot {
-            ok: self.is_on(BinaryInput::Ok),
-            cancel: self.is_on(BinaryInput::Cancel),
-            player_left: self.is_on(BinaryInput::PlayerLeft),
-            player_right: self.is_on(BinaryInput::PlayerRight),
-            player_crouch: self.is_on(BinaryInput::PlayerCrouch),
-            player_jump_trigger: self.is_on(BinaryInput::PlayerJumpTrigger),
+            ok_clicked: self.is_on(BinaryInput::OkTrigger),
+            ok_down: self.is_on(BinaryInput::OkDown),
+            cancel_clicked: self.is_on(BinaryInput::Cancel),
+            player_left_down: self.is_on(BinaryInput::PlayerLeft),
+            player_right_down: self.is_on(BinaryInput::PlayerRight),
+            player_crouch_down: self.is_on(BinaryInput::PlayerCrouch),
+            player_jump_clicked: self.is_on(BinaryInput::PlayerJumpTrigger),
             player_jump_down: self.is_on(BinaryInput::PlayerJumpDown),
-            menu_down: self.is_on(BinaryInput::MenuDown),
-            menu_up: self.is_on(BinaryInput::MenuUp),
+            menu_down_clicked: self.is_on(BinaryInput::MenuDown),
+            menu_up_clicked: self.is_on(BinaryInput::MenuUp),
+            mouse_button_left_down: self.is_on(BinaryInput::MouseButtonLeft),
+            mouse_position: self.state.mouse_position,
         };
         if Some(snapshot) != self.previous_snapshot {
             debug!("{:?}", snapshot);
@@ -758,8 +857,15 @@ impl InputManager {
     #[cfg(feature = "sdl2")]
     pub fn handle_sdl_event(&mut self, event: &sdl2::event::Event) {
         use sdl2::event::Event;
+        use sdl2::event::WindowEvent;
 
         match event {
+            Event::Window {
+                win_event: WindowEvent::SizeChanged(new_width, new_height),
+                ..
+            } => {
+                self.state.set_window_size(*new_width, *new_height);
+            }
             Event::KeyDown {
                 keycode: Some(key), ..
             } => {
@@ -773,6 +879,14 @@ impl InputManager {
                 if let Some(key) = KeyboardKey::from_sdl_key(*key) {
                     self.state.set_key_up(key);
                 }
+            }
+            Event::MouseButtonDown {
+                mouse_btn: sdl2::mouse::MouseButton::Left,
+                x,
+                y,
+                ..
+            } => {
+                self.state.set_mouse_position(*x, *y);
             }
             _ => {}
         }

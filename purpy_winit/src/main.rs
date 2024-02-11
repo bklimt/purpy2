@@ -68,7 +68,12 @@ impl<'window> GameState<'window> {
         renderer: WgpuRenderer<'window, Window>,
     ) -> Result<Self> {
         let mut images = ImageManager::new(renderer)?;
-        let inputs = InputManager::with_options(args.record_option()?, &file_manager)?;
+        let inputs = InputManager::with_options(
+            WINDOW_WIDTH as i32,
+            WINDOW_HEIGHT as i32,
+            args.record_option()?,
+            &file_manager,
+        )?;
         let stage_manager = StageManager::new(&file_manager, &images)?;
         let sounds = SoundManager::noop_manager();
 

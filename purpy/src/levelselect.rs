@@ -48,16 +48,16 @@ impl LevelSelect {
 
 impl Scene for LevelSelect {
     fn update(&mut self, inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
-        if inputs.cancel {
+        if inputs.cancel_clicked {
             return SceneResult::Pop;
         }
-        if inputs.menu_up {
+        if inputs.menu_up_clicked {
             self.current = ((self.current - 1) + self.files.len() as i32) % self.files.len() as i32;
         }
-        if inputs.menu_down {
+        if inputs.menu_down_clicked {
             self.current = (self.current + 1) % self.files.len() as i32;
         }
-        if inputs.ok {
+        if inputs.ok_clicked {
             let entry = &self.files[self.current as usize];
             let new_path = entry.full_path.clone();
             if matches!(entry.file_type, DirEntryType::Directory) {

@@ -40,11 +40,11 @@ impl Scene for KillScreen {
     }
 
     fn update(&mut self, inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
-        if inputs.ok {
+        if inputs.ok_clicked {
             SceneResult::SwitchToLevel {
                 path: self.next.clone(),
             }
-        } else if inputs.cancel {
+        } else if inputs.cancel_clicked {
             SceneResult::Pop
         } else {
             SceneResult::Continue

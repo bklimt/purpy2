@@ -8,6 +8,7 @@ use crate::soundmanager::SoundManager;
 pub enum SceneResult {
     Continue,
     Pop,
+    PushMenu { path: PathBuf },
     PushLevelSelect { path: PathBuf },
     PushLevel { path: PathBuf },
     SwitchToKillScreen { path: PathBuf },

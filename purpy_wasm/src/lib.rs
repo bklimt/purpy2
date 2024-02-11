@@ -33,7 +33,12 @@ struct GameState<'window> {
 impl<'window> GameState<'window> {
     fn new(file_manager: FileManager, renderer: WgpuRenderer<'window, Window>) -> Result<Self> {
         let mut images = ImageManager::new(renderer)?;
-        let inputs = InputManager::with_options(RecordOption::None, &file_manager)?;
+        let inputs = InputManager::with_options(
+            CANVAS_WIDTH as i32,
+            CANVAS_HEIGHT as i32,
+            RecordOption::None,
+            &file_manager,
+        )?;
         let stage_manager = StageManager::new(&file_manager, &images)?;
         let sounds = SoundManager::noop_manager();
 

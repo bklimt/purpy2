@@ -10,6 +10,7 @@ use crate::{
     killscreen::KillScreen,
     level::Level,
     levelselect::LevelSelect,
+    menu::Menu,
     rendercontext::RenderContext,
     scene::{Scene, SceneResult},
     soundmanager::SoundManager,
@@ -70,6 +71,13 @@ impl StageManager {
             }
             SceneResult::SwitchToLevel { path } => {
                 self.current = Box::new(Level::new(&path, files, images)?);
+                true
+            }
+            SceneResult::PushMenu { path } => {
+                let menu = Menu::new(&path, files, images)?;
+                let menu = Box::new(menu);
+                let previous = mem::replace(&mut self.current, menu);
+                self.stack.push(previous);
                 true
             }
             SceneResult::PushLevelSelect { path } => {

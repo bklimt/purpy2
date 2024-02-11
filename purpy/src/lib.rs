@@ -1,4 +1,5 @@
 mod constants;
+mod cursor;
 mod door;
 mod filemanager;
 mod font;
@@ -8,6 +9,7 @@ mod inputmanager;
 mod killscreen;
 mod level;
 mod levelselect;
+mod menu;
 mod platform;
 mod player;
 mod properties;
@@ -24,6 +26,7 @@ mod star;
 mod switchstate;
 mod tilemap;
 mod tileset;
+mod uibutton;
 mod utils;
 mod warp;
 
