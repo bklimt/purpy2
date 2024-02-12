@@ -82,10 +82,8 @@ impl UiButton {
             if inputs.ok_down {
                 self.state
             } else {
-                if mouse_inside {
-                    info!("uibutton clicked");
-                    clicked = true;
-                }
+                info!("uibutton clicked");
+                clicked = true;
                 UiButtonState::Normal
             }
         } else if selected && inputs.ok_down {
