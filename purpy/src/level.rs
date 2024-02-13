@@ -961,6 +961,8 @@ impl Scene for Level {
             debug!("Level state: {:?}", self.player);
         }
 
+        self.update_camera(context.logical_area_in_subpixels());
+
         SceneResult::Continue
     }
 
