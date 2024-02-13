@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use log::error;
@@ -19,6 +19,8 @@ use crate::uibutton::UiButton;
 use crate::utils::Color;
 
 pub struct Menu {
+    background: Option<Box<dyn Scene>>,
+    next: Option<PathBuf>,
     cursor: Cursor,
     tilemap: TileMap,
     buttons: Vec<UiButton>,
@@ -27,7 +29,31 @@ pub struct Menu {
 }
 
 impl Menu {
-    pub fn new(path: &Path, files: &FileManager, images: &mut dyn ImageLoader) -> Result<Self> {
+    pub fn new_menu(
+        path: &Path,
+        files: &FileManager,
+        images: &mut dyn ImageLoader,
+    ) -> Result<Self> {
+        Self::new(path, None, None, files, images)
+    }
+
+    pub fn new_death_screen(
+        level: Box<dyn Scene>,
+        level_path: PathBuf,
+        files: &FileManager,
+        images: &mut dyn ImageLoader,
+    ) -> Result<Self> {
+        let path = Path::new("assets/menus/dead.tmx");
+        Self::new(path, Some(level), Some(level_path), files, images)
+    }
+
+    fn new(
+        path: &Path,
+        background: Option<Box<dyn Scene>>,
+        next: Option<PathBuf>,
+        files: &FileManager,
+        images: &mut dyn ImageLoader,
+    ) -> Result<Self> {
         let cursor = Cursor::new(images)?;
         let tilemap = TileMap::from_file(path, files, images)?;
         let mut buttons = Vec::new();
@@ -35,7 +61,7 @@ impl Menu {
         let switches = SwitchState::new();
 
         for obj in &tilemap.objects {
-            if let Some(_) = &obj.properties.uibutton {
+            if obj.properties.uibutton.is_some() {
                 buttons.push(UiButton::new(
                     obj,
                     tilemap.tilewidth,
@@ -46,6 +72,8 @@ impl Menu {
         }
 
         Ok(Self {
+            background,
+            next,
             cursor,
             tilemap,
             buttons,
@@ -85,6 +113,14 @@ impl Scene for Menu {
                     return SceneResult::PushMenu {
                         path: Path::new(path).to_owned(),
                     };
+                } else if action == "pop" {
+                    return SceneResult::Pop;
+                } else if action == "next" {
+                    if let Some(next) = &self.next {
+                        return SceneResult::SwitchToLevel { path: next.clone() };
+                    } else {
+                        error!("menu button triggered next, but no next set");
+                    }
                 } else {
                     error!("invalid button action: {action}");
                 }
@@ -104,6 +140,10 @@ impl Scene for Menu {
                 a: 0xff,
             },
         );
+
+        if let Some(background) = self.background.as_mut() {
+            background.draw(context, font);
+        }
 
         self.tilemap.draw_background(
             context,

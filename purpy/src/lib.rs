@@ -6,7 +6,6 @@ mod font;
 mod geometry;
 mod imagemanager;
 mod inputmanager;
-mod killscreen;
 mod level;
 mod levelselect;
 mod menu;

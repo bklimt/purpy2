@@ -7,7 +7,6 @@ use crate::{
     font::Font,
     imagemanager::ImageLoader,
     inputmanager::InputSnapshot,
-    killscreen::KillScreen,
     level::Level,
     levelselect::LevelSelect,
     menu::Menu,
@@ -37,7 +36,7 @@ pub struct StageManager {
 impl StageManager {
     pub fn new(file_manager: &FileManager, images: &mut dyn ImageLoader) -> Result<StageManager> {
         let path = Path::new("assets/menus/start.tmx");
-        let menu = Menu::new(path, file_manager, images)?;
+        let menu = Menu::new_menu(path, file_manager, images)?;
         Ok(StageManager {
             current: Box::new(menu),
             stack: Vec::new(),
@@ -74,7 +73,7 @@ impl StageManager {
                 true
             }
             SceneResult::PushMenu { path } => {
-                let menu = Menu::new(&path, files, images)?;
+                let menu = Menu::new_menu(&path, files, images)?;
                 let menu = Box::new(menu);
                 let previous = mem::replace(&mut self.current, menu);
                 self.stack.push(previous);
@@ -90,7 +89,8 @@ impl StageManager {
             SceneResult::SwitchToKillScreen { path } => {
                 let mut previous: Box<dyn Scene> = Box::new(SceneTombstone(()));
                 mem::swap(&mut self.current, &mut previous);
-                let kill_screen = KillScreen::new(previous, path);
+                //let kill_screen = KillScreen::new(previous, path);
+                let kill_screen = Menu::new_death_screen(previous, path, files, images)?;
                 let kill_screen = Box::new(kill_screen);
                 self.current = kill_screen;
                 true
