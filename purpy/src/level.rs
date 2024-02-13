@@ -97,7 +97,7 @@ pub struct Level {
     jump_grace_counter: i32,
     spring_counter: i32,
 
-    previous_map_offset: Option<Point<Subpixels>>,
+    map_offset: Point<Subpixels>,
     toast_text: String,
     toast_position: Subpixels,
     toast_counter: i32,
@@ -149,7 +149,7 @@ impl Level {
             .context("invalid filename")?
             .to_string();
         let toast_text = name.clone();
-        let previous_map_offset = None;
+        let map_offset = Point::zero();
         let map = Rc::new(TileMap::from_file(map_path, files, images)?);
         let mut player = Player::new(files, images)?;
         player.position.x = PLAYER_DEFAULT_X;
@@ -216,7 +216,7 @@ impl Level {
             coyote_counter,
             jump_grace_counter,
             spring_counter,
-            previous_map_offset,
+            map_offset,
             toast_text,
             toast_position,
             toast_counter,
@@ -796,10 +796,70 @@ impl Level {
             }
         }
     }
+
+    fn update_camera(&mut self, logical_area: Rect<Subpixels>) {
+        let dest = logical_area;
+        let prev = self.map_offset;
+
+        // Make sure the player is on the screen, and then center them if possible.
+        let player_rect = self.player.get_target_bounds_rect(None);
+        let (preferred_x, preferred_y) = self.map.get_preferred_view(player_rect);
+        let player = self.player.position;
+        let mut player_draw = Point::new(dest.w / 2, dest.h / 2);
+        // Don't waste space on the sides of the screen beyond the map.
+        if player_draw.x > player.x {
+            player_draw.x = player.x;
+        }
+        // The map is drawn 4 pixels from the top of the screen.
+        if player_draw.y > player.y + Pixels::new(4).as_subpixels() {
+            player_draw.y = player.y + Pixels::new(4).as_subpixels();
+        }
+        let right_limit = dest.w - self.map.tilewidth.as_subpixels() * self.map.width;
+        if player_draw.x < player.x + right_limit {
+            player_draw.x = player.x + right_limit;
+        }
+        let bottom_limit = dest.h - self.map.tileheight.as_subpixels() * self.map.height;
+        if player_draw.y < player.y + bottom_limit {
+            player_draw.y = player.y + bottom_limit;
+        }
+        self.map_offset = player_draw - player;
+
+        if let Some(preferred_x) = preferred_x {
+            self.map_offset = (preferred_x * -1, self.map_offset.y).into();
+            player_draw.x = player.x + self.map_offset.x;
+        }
+        if let Some(preferred_y) = preferred_y {
+            self.map_offset = (self.map_offset.x, preferred_y * -1).into();
+            player_draw.y = player.y + self.map_offset.y;
+        }
+
+        // Don't let the viewport move too much in between frames.
+        if (self.map_offset.x - prev.x).abs() > VIEWPORT_PAN_SPEED {
+            self.map_offset.x = match prev.x.cmp(&self.map_offset.x) {
+                Ordering::Less => prev.x + VIEWPORT_PAN_SPEED,
+                Ordering::Greater => prev.x - VIEWPORT_PAN_SPEED,
+                Ordering::Equal => self.map_offset.x,
+            };
+            player_draw.x = player.x + self.map_offset.x;
+        }
+        if (self.map_offset.y - prev.y).abs() > VIEWPORT_PAN_SPEED {
+            self.map_offset.y = match prev.y.cmp(&self.map_offset.y) {
+                Ordering::Less => prev.y + VIEWPORT_PAN_SPEED,
+                Ordering::Greater => prev.y - VIEWPORT_PAN_SPEED,
+                Ordering::Equal => self.map_offset.y,
+            };
+            player_draw.y = player.y + self.map_offset.y;
+        }
+    }
 }
 
 impl Scene for Level {
-    fn update(&mut self, inputs: &InputSnapshot, sounds: &mut SoundManager) -> SceneResult {
+    fn update(
+        &mut self,
+        context: &RenderContext,
+        inputs: &InputSnapshot,
+        sounds: &mut SoundManager,
+    ) -> SceneResult {
         if inputs.cancel {
             return SceneResult::Pop;
         }
@@ -904,88 +964,36 @@ impl Scene for Level {
         SceneResult::Continue
     }
 
-    fn draw(&mut self, context: &mut RenderContext, font: &Font) {
+    fn draw(&self, context: &mut RenderContext, font: &Font) {
         let dest = context.logical_area_in_subpixels();
-
-        // Make sure the player is on the screen, and then center them if possible.
-        let player_rect = self.player.get_target_bounds_rect(None);
-        let (preferred_x, preferred_y) = self.map.get_preferred_view(player_rect);
-        let player = self.player.position;
-        let mut player_draw = Point::new(dest.w / 2, dest.h / 2);
-        // Don't waste space on the sides of the screen beyond the map.
-        if player_draw.x > player.x {
-            player_draw.x = player.x;
-        }
-        // The map is drawn 4 pixels from the top of the screen.
-        if player_draw.y > player.y + Pixels::new(4).as_subpixels() {
-            player_draw.y = player.y + Pixels::new(4).as_subpixels();
-        }
-        let right_limit = dest.w - self.map.tilewidth.as_subpixels() * self.map.width;
-        if player_draw.x < player.x + right_limit {
-            player_draw.x = player.x + right_limit;
-        }
-        let bottom_limit = dest.h - self.map.tileheight.as_subpixels() * self.map.height;
-        if player_draw.y < player.y + bottom_limit {
-            player_draw.y = player.y + bottom_limit;
-        }
-        let mut map_offset = player_draw - player;
-
-        if let Some(preferred_x) = preferred_x {
-            map_offset = (preferred_x * -1, map_offset.y).into();
-            player_draw.x = player.x + map_offset.x;
-        }
-        if let Some(preferred_y) = preferred_y {
-            map_offset = (map_offset.x, preferred_y * -1).into();
-            player_draw.y = player.y + map_offset.y;
-        }
-
-        // Don't let the viewport move too much in between frames.
-        if let Some(prev) = self.previous_map_offset.as_ref() {
-            if (map_offset.x - prev.x).abs() > VIEWPORT_PAN_SPEED {
-                map_offset.x = match prev.x.cmp(&map_offset.x) {
-                    Ordering::Less => prev.x + VIEWPORT_PAN_SPEED,
-                    Ordering::Greater => prev.x - VIEWPORT_PAN_SPEED,
-                    Ordering::Equal => map_offset.x,
-                };
-                player_draw.x = player.x + map_offset.x;
-            }
-            if (map_offset.y - prev.y).abs() > VIEWPORT_PAN_SPEED {
-                map_offset.y = match prev.y.cmp(&map_offset.y) {
-                    Ordering::Less => prev.y + VIEWPORT_PAN_SPEED,
-                    Ordering::Greater => prev.y - VIEWPORT_PAN_SPEED,
-                    Ordering::Equal => map_offset.y,
-                };
-                player_draw.y = player.y + map_offset.y;
-            }
-        }
-        self.previous_map_offset = Some(map_offset);
+        let player_draw = self.player.position + self.map_offset;
 
         // Do the actual drawing.
         self.map.draw_background(
             context,
             RenderLayer::Player,
             dest,
-            map_offset,
+            self.map_offset,
             &self.switches,
         );
         for door in self.doors.iter() {
-            door.draw_background(context, RenderLayer::Player, map_offset, font);
+            door.draw_background(context, RenderLayer::Player, self.map_offset, font);
         }
         for platform in self.platforms.iter() {
-            platform.draw(context, RenderLayer::Player, map_offset);
+            platform.draw(context, RenderLayer::Player, self.map_offset);
         }
         for star in self.stars.iter() {
-            star.draw(context, RenderLayer::Player, map_offset);
+            star.draw(context, RenderLayer::Player, self.map_offset);
         }
         self.player.draw(context, RenderLayer::Player, player_draw);
         for door in self.doors.iter() {
-            door.draw_foreground(context, RenderLayer::Player, map_offset);
+            door.draw_foreground(context, RenderLayer::Player, self.map_offset);
         }
         self.map.draw_foreground(
             context,
             RenderLayer::Player,
             dest,
-            map_offset,
+            self.map_offset,
             &self.switches,
         );
 

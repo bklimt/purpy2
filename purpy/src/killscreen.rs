@@ -19,7 +19,7 @@ impl KillScreen {
 }
 
 impl Scene for KillScreen {
-    fn draw(&mut self, context: &mut RenderContext, font: &Font) {
+    fn draw(&self, context: &mut RenderContext, font: &Font) {
         let dest = context.logical_area_in_subpixels();
         self.previous.draw(context, font);
 
@@ -39,7 +39,12 @@ impl Scene for KillScreen {
         font.draw_string(context, RenderLayer::Hud, text_pos.into(), text);
     }
 
-    fn update(&mut self, inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
+    fn update(
+        &mut self,
+        _context: &RenderContext,
+        inputs: &InputSnapshot,
+        _sounds: &mut SoundManager,
+    ) -> SceneResult {
         if inputs.ok {
             SceneResult::SwitchToLevel {
                 path: self.next.clone(),

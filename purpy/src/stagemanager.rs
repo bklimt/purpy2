@@ -19,11 +19,16 @@ use crate::{
 struct SceneTombstone(());
 
 impl Scene for SceneTombstone {
-    fn draw(&mut self, _context: &mut RenderContext, _font: &Font) {
+    fn draw(&self, _context: &mut RenderContext, _font: &Font) {
         unimplemented!()
     }
 
-    fn update(&mut self, _inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
+    fn update(
+        &mut self,
+        _context: &RenderContext,
+        _inputs: &InputSnapshot,
+        _sounds: &mut SoundManager,
+    ) -> SceneResult {
         unimplemented!()
     }
 }
@@ -45,12 +50,13 @@ impl StageManager {
 
     pub fn update(
         &mut self,
+        context: &RenderContext,
         inputs: &InputSnapshot,
         files: &FileManager,
         images: &mut dyn ImageLoader,
         sounds: &mut SoundManager,
     ) -> Result<bool> {
-        let result = self.current.update(inputs, sounds);
+        let result = self.current.update(context, inputs, sounds);
         Ok(match result {
             SceneResult::Continue => true,
             SceneResult::Pop => {

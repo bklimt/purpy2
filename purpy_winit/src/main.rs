@@ -100,8 +100,13 @@ impl<'window> GameState<'window> {
             self.start_time = Instant::now();
         }
 
+        let width = RENDER_WIDTH;
+        let height = RENDER_HEIGHT;
+        let mut context = RenderContext::new(width, height, self.frame)?;
+
         let inputs = self.inputs.update(self.frame);
         if !self.stage_manager.update(
+            &context,
             &inputs,
             &self.file_manager,
             &mut self.images,
@@ -116,9 +121,6 @@ impl<'window> GameState<'window> {
             return Ok(false);
         }
 
-        let width = RENDER_WIDTH;
-        let height = RENDER_HEIGHT;
-        let mut context = RenderContext::new(width, height, self.frame)?;
         self.stage_manager.draw(&mut context, &self.font);
 
         match self.images.renderer_mut().render(&context) {
