@@ -19,7 +19,7 @@ use crate::{
 struct SceneTombstone(());
 
 impl Scene for SceneTombstone {
-    fn draw(&self, _context: &mut RenderContext, _font: &Font) {
+    fn draw(&self, _context: &mut RenderContext, _font: &Font, _previous: Option<&dyn Scene>) {
         unimplemented!()
     }
 
@@ -67,6 +67,15 @@ impl StageManager {
                     false
                 }
             }
+            SceneResult::PopTwo => {
+                self.stack.pop();
+                if let Some(next) = self.stack.pop() {
+                    self.current = next;
+                    true
+                } else {
+                    false
+                }
+            }
             SceneResult::PushLevel { path } => {
                 let level = Level::new(&path, files, images)?;
                 let level = Box::new(level);
@@ -75,6 +84,11 @@ impl StageManager {
                 true
             }
             SceneResult::SwitchToLevel { path } => {
+                self.current = Box::new(Level::new(&path, files, images)?);
+                true
+            }
+            SceneResult::ReloadLevel { path } => {
+                self.stack.pop();
                 self.current = Box::new(Level::new(&path, files, images)?);
                 true
             }
@@ -92,19 +106,25 @@ impl StageManager {
                 self.stack.push(previous);
                 true
             }
-            SceneResult::SwitchToKillScreen { path } => {
-                let mut previous: Box<dyn Scene> = Box::new(SceneTombstone(()));
-                mem::swap(&mut self.current, &mut previous);
-                //let kill_screen = KillScreen::new(previous, path);
-                let kill_screen = Menu::new_death_screen(previous, path, files, images)?;
+            SceneResult::PushKillScreen { path } => {
+                let kill_screen = Menu::new_death_screen(path, files, images)?;
                 let kill_screen = Box::new(kill_screen);
-                self.current = kill_screen;
+                let previous = mem::replace(&mut self.current, kill_screen);
+                self.stack.push(previous);
+                true
+            }
+            SceneResult::PushPause { path } => {
+                let pause_screen = Menu::new_pause_screen(path, files, images)?;
+                let pause_screen = Box::new(pause_screen);
+                let previous = mem::replace(&mut self.current, pause_screen);
+                self.stack.push(previous);
                 true
             }
         })
     }
 
     pub fn draw(&mut self, context: &mut RenderContext, font: &Font) {
-        self.current.draw(context, font)
+        self.current
+            .draw(context, font, self.stack.last().map(Box::as_ref));
     }
 }

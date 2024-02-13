@@ -19,8 +19,7 @@ use crate::uibutton::UiButton;
 use crate::utils::Color;
 
 pub struct Menu {
-    background: Option<Box<dyn Scene>>,
-    next: Option<PathBuf>,
+    reload_path: Option<PathBuf>,
     cursor: Cursor,
     tilemap: TileMap,
     buttons: Vec<UiButton>,
@@ -34,23 +33,30 @@ impl Menu {
         files: &FileManager,
         images: &mut dyn ImageLoader,
     ) -> Result<Self> {
-        Self::new(path, None, None, files, images)
+        Self::new(path, None, files, images)
     }
 
     pub fn new_death_screen(
-        level: Box<dyn Scene>,
         level_path: PathBuf,
         files: &FileManager,
         images: &mut dyn ImageLoader,
     ) -> Result<Self> {
         let path = Path::new("assets/menus/dead.tmx");
-        Self::new(path, Some(level), Some(level_path), files, images)
+        Self::new(path, Some(level_path), files, images)
+    }
+
+    pub fn new_pause_screen(
+        level_path: PathBuf,
+        files: &FileManager,
+        images: &mut dyn ImageLoader,
+    ) -> Result<Self> {
+        let path = Path::new("assets/menus/pause.tmx");
+        Self::new(path, Some(level_path), files, images)
     }
 
     fn new(
         path: &Path,
-        background: Option<Box<dyn Scene>>,
-        next: Option<PathBuf>,
+        reload_path: Option<PathBuf>,
         files: &FileManager,
         images: &mut dyn ImageLoader,
     ) -> Result<Self> {
@@ -72,8 +78,7 @@ impl Menu {
         }
 
         Ok(Self {
-            background,
-            next,
+            reload_path,
             cursor,
             tilemap,
             buttons,
@@ -86,7 +91,7 @@ impl Menu {
 impl Scene for Menu {
     fn update(
         &mut self,
-        context: &RenderContext,
+        _context: &RenderContext,
         inputs: &InputSnapshot,
         sounds: &mut SoundManager,
     ) -> SceneResult {
@@ -120,11 +125,15 @@ impl Scene for Menu {
                     };
                 } else if action == "pop" {
                     return SceneResult::Pop;
-                } else if action == "next" {
-                    if let Some(next) = &self.next {
-                        return SceneResult::SwitchToLevel { path: next.clone() };
+                } else if action == "pop2" {
+                    return SceneResult::PopTwo;
+                } else if action == "reload" {
+                    if let Some(reload_path) = &self.reload_path {
+                        return SceneResult::ReloadLevel {
+                            path: reload_path.clone(),
+                        };
                     } else {
-                        error!("menu button triggered next, but no next set");
+                        error!("menu button triggered reload, but no reload_path set");
                     }
                 } else {
                     error!("invalid button action: {action}");
@@ -135,7 +144,7 @@ impl Scene for Menu {
         SceneResult::Continue
     }
 
-    fn draw(&self, context: &mut RenderContext, font: &Font) {
+    fn draw(&self, context: &mut RenderContext, font: &Font, previous: Option<&dyn Scene>) {
         context.player_batch.fill_rect(
             context.logical_area_in_subpixels(),
             Color {
@@ -146,8 +155,8 @@ impl Scene for Menu {
             },
         );
 
-        if let Some(background) = &self.background {
-            background.draw(context, font);
+        if let Some(background) = previous {
+            background.draw(context, font, None);
         }
 
         self.tilemap.draw_background(

@@ -8,10 +8,13 @@ use crate::soundmanager::SoundManager;
 pub enum SceneResult {
     Continue,
     Pop,
+    PopTwo,
     PushMenu { path: PathBuf },
     PushLevelSelect { path: PathBuf },
     PushLevel { path: PathBuf },
-    SwitchToKillScreen { path: PathBuf },
+    ReloadLevel { path: PathBuf },
+    PushKillScreen { path: PathBuf },
+    PushPause { path: PathBuf },
     SwitchToLevel { path: PathBuf },
 }
 
@@ -23,5 +26,5 @@ pub trait Scene {
         sounds: &mut SoundManager,
     ) -> SceneResult;
 
-    fn draw(&self, context: &mut RenderContext, font: &Font);
+    fn draw(&self, context: &mut RenderContext, font: &Font, previous: Option<&dyn Scene>);
 }

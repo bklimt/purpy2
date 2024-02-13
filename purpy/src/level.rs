@@ -23,7 +23,6 @@ use crate::font::Font;
 use crate::geometry::{Pixels, Point, Rect, Subpixels};
 use crate::imagemanager::ImageLoader;
 use crate::inputmanager::InputSnapshot;
-use crate::menu::Menu;
 use crate::platform::{Bagel, Button, Conveyor, MovingPlatform, Platform, PlatformType, Spring};
 use crate::player::{Player, PlayerState};
 use crate::rendercontext::{RenderContext, RenderLayer};
@@ -90,9 +89,6 @@ pub struct Level {
     map: Rc<TileMap>,
     player: Player,
 
-    pause_menu: Menu,
-    paused: bool,
-
     wall_stick_counter: i32,
     wall_stick_facing_right: bool,
     wall_slide_counter: i32,
@@ -136,9 +132,6 @@ impl Level {
         files: &FileManager,
         images: &mut dyn ImageLoader,
     ) -> Result<Level> {
-        let pause_menu = Menu::new_menu(Path::new("assets/menus/pause.tmx"), files, images)?;
-        let paused = false;
-
         let wall_stick_counter = WALL_STICK_TIME;
         let wall_stick_facing_right = false;
         let wall_slide_counter = WALL_SLIDE_TIME;
@@ -217,8 +210,6 @@ impl Level {
             map_path,
             map,
             player,
-            pause_menu,
-            paused,
             wall_stick_counter,
             wall_stick_facing_right,
             wall_slide_counter,
@@ -869,13 +860,10 @@ impl Scene for Level {
         inputs: &InputSnapshot,
         sounds: &mut SoundManager,
     ) -> SceneResult {
-        if self.paused {
-            return self.pause_menu.update(context, inputs, sounds);
-        }
-
         if inputs.cancel_clicked {
-            self.paused = true;
-            return SceneResult::Continue;
+            return SceneResult::PushPause {
+                path: self.map_path.clone(),
+            };
         }
 
         for platform in self.platforms.iter_mut() {
@@ -955,7 +943,7 @@ impl Scene for Level {
         }
 
         if self.player.is_dead {
-            return SceneResult::SwitchToKillScreen {
+            return SceneResult::PushKillScreen {
                 path: self.map_path.clone(),
             };
         }
@@ -980,7 +968,7 @@ impl Scene for Level {
         SceneResult::Continue
     }
 
-    fn draw(&self, context: &mut RenderContext, font: &Font) {
+    fn draw(&self, context: &mut RenderContext, font: &Font, _previous: Option<&dyn Scene>) {
         let dest = context.logical_area_in_subpixels();
         let player_draw = self.player.position + self.map_offset;
 
@@ -1045,9 +1033,5 @@ impl Scene for Level {
 
         let spotlight_radius = Subpixels::from_pixels(120);
         context.add_light(spotlight_pos, spotlight_radius);
-
-        if self.paused {
-            self.pause_menu.draw(context, font);
-        }
     }
 }

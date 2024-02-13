@@ -49,7 +49,7 @@ impl LevelSelect {
 impl Scene for LevelSelect {
     fn update(
         &mut self,
-        context: &RenderContext,
+        _context: &RenderContext,
         inputs: &InputSnapshot,
         _sounds: &mut SoundManager,
     ) -> SceneResult {
@@ -84,7 +84,7 @@ impl Scene for LevelSelect {
         }
     }
 
-    fn draw(&self, context: &mut RenderContext, font: &Font) {
+    fn draw(&self, context: &mut RenderContext, font: &Font, _previous: Option<&dyn Scene>) {
         let layer = RenderLayer::Hud;
         let font_height = font.char_height;
         let line_spacing = font_height / 2;
