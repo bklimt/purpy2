@@ -128,6 +128,7 @@ fn run(args: Args) -> Result<()> {
         let input_snapshot = input_manager.update(frame);
 
         if !stage_manager.update(
+            &context,
             &input_snapshot,
             &file_manager,
             &mut image_manager,

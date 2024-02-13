@@ -47,7 +47,12 @@ impl LevelSelect {
 }
 
 impl Scene for LevelSelect {
-    fn update(&mut self, inputs: &InputSnapshot, _sounds: &mut SoundManager) -> SceneResult {
+    fn update(
+        &mut self,
+        context: &RenderContext,
+        inputs: &InputSnapshot,
+        _sounds: &mut SoundManager,
+    ) -> SceneResult {
         if inputs.cancel_clicked {
             return SceneResult::Pop;
         }
@@ -66,11 +71,20 @@ impl Scene for LevelSelect {
                 SceneResult::PushLevel { path: new_path }
             }
         } else {
+            if self.current < self.start {
+                // You scrolled up past what was visible.
+                self.start = self.current;
+            }
+            if self.current >= self.start + 10 {
+                // You scrolled off the bottom.
+                self.start = self.current - 10;
+            }
+
             SceneResult::Continue
         }
     }
 
-    fn draw(&mut self, context: &mut RenderContext, font: &Font) {
+    fn draw(&self, context: &mut RenderContext, font: &Font) {
         let layer = RenderLayer::Hud;
         let font_height = font.char_height;
         let line_spacing = font_height / 2;
@@ -81,14 +95,6 @@ impl Scene for LevelSelect {
         font.draw_string(context, layer, (x, y).into(), &dir_str);
         y += font_height + line_spacing;
 
-        if self.current < self.start {
-            // You scrolled up past what was visible.
-            self.start = self.current;
-        }
-        if self.current >= self.start + 10 {
-            // You scrolled off the bottom.
-            self.start = self.current - 10;
-        }
         if self.start != 0 {
             font.draw_string(context, layer, (x, y).into(), " ...")
         }

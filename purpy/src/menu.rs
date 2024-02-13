@@ -84,7 +84,12 @@ impl Menu {
 }
 
 impl Scene for Menu {
-    fn update(&mut self, inputs: &InputSnapshot, sounds: &mut SoundManager) -> SceneResult {
+    fn update(
+        &mut self,
+        context: &RenderContext,
+        inputs: &InputSnapshot,
+        sounds: &mut SoundManager,
+    ) -> SceneResult {
         if inputs.cancel_clicked {
             return SceneResult::Pop;
         }
@@ -130,7 +135,7 @@ impl Scene for Menu {
         SceneResult::Continue
     }
 
-    fn draw(&mut self, context: &mut RenderContext, font: &Font) {
+    fn draw(&self, context: &mut RenderContext, font: &Font) {
         context.player_batch.fill_rect(
             context.logical_area_in_subpixels(),
             Color {
@@ -141,7 +146,7 @@ impl Scene for Menu {
             },
         );
 
-        if let Some(background) = self.background.as_mut() {
+        if let Some(background) = &self.background {
             background.draw(context, font);
         }
 

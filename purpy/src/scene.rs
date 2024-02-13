@@ -16,8 +16,12 @@ pub enum SceneResult {
 }
 
 pub trait Scene {
-    fn update(&mut self, inputs: &InputSnapshot, sounds: &mut SoundManager) -> SceneResult;
+    fn update(
+        &mut self,
+        context: &RenderContext,
+        inputs: &InputSnapshot,
+        sounds: &mut SoundManager,
+    ) -> SceneResult;
 
-    // TODO: It's unfortunate that draw has to be mutable for now.
-    fn draw(&mut self, context: &mut RenderContext, font: &Font);
+    fn draw(&self, context: &mut RenderContext, font: &Font);
 }

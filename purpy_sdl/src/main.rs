@@ -114,7 +114,11 @@ fn sdl_main(args: Args) -> Result<()> {
 
         let input_snapshot = input_manager.update(frame);
 
+        let (width, height) = canvas.logical_size();
+        let mut context = RenderContext::new(width, height, frame)?;
+
         if !stage_manager.update(
+            &context,
             &input_snapshot,
             &file_manager,
             &mut image_manager,
@@ -123,8 +127,6 @@ fn sdl_main(args: Args) -> Result<()> {
             break 'running;
         }
 
-        let (width, height) = canvas.logical_size();
-        let mut context = RenderContext::new(width, height, frame)?;
         context.clear();
         stage_manager.draw(&mut context, &font);
         image_manager.renderer().render(&mut canvas, &context)?;
