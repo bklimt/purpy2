@@ -440,6 +440,8 @@ enum BinaryInput {
     PlayerJumpDown,
     MenuDown,
     MenuUp,
+    MenuLeft,
+    MenuRight,
     MouseButtonLeft,
 }
 
@@ -461,6 +463,8 @@ fn all_binary_inputs() -> Vec<BinaryInput> {
         BinaryInput::PlayerJumpDown,
         BinaryInput::MenuDown,
         BinaryInput::MenuUp,
+        BinaryInput::MenuLeft,
+        BinaryInput::MenuRight,
         BinaryInput::MouseButtonLeft,
     ]
 }
@@ -561,6 +565,18 @@ fn create_input(input: BinaryInput) -> AnyOfInput {
             joystick_button_trigger(JoystickButton::Up),
             joystick_trigger(JoystickAxis::Vertical, Some(-0.5), None),
         ],
+        BinaryInput::MenuLeft => vec![
+            key_trigger(KeyboardKey::Left),
+            key_trigger(KeyboardKey::A),
+            joystick_button_trigger(JoystickButton::Left),
+            joystick_trigger(JoystickAxis::Horizontal, Some(-0.5), None),
+        ],
+        BinaryInput::MenuRight => vec![
+            key_trigger(KeyboardKey::D),
+            key_trigger(KeyboardKey::Right),
+            joystick_button_trigger(JoystickButton::Right),
+            joystick_trigger(JoystickAxis::Horizontal, None, Some(0.5)),
+        ],
         BinaryInput::MouseButtonLeft => vec![mouse_button_input(MouseButton::Left)],
     })
 }
@@ -577,6 +593,8 @@ pub struct InputSnapshot {
     pub player_jump_down: bool,
     pub menu_down_clicked: bool,
     pub menu_up_clicked: bool,
+    pub menu_left_clicked: bool,
+    pub menu_right_clicked: bool,
 
     pub mouse_button_left_down: bool,
 
@@ -625,6 +643,8 @@ impl InputSnapshot {
             player_jump_down: bin_to_bool(n, 6),
             menu_down_clicked: bin_to_bool(n, 7),
             menu_up_clicked: bin_to_bool(n, 8),
+            menu_left_clicked: false,
+            menu_right_clicked: false,
 
             mouse_button_left_down: false,
             mouse_position: Point::zero(),
@@ -799,6 +819,8 @@ impl InputManager {
             player_jump_down: self.is_on(BinaryInput::PlayerJumpDown),
             menu_down_clicked: self.is_on(BinaryInput::MenuDown),
             menu_up_clicked: self.is_on(BinaryInput::MenuUp),
+            menu_left_clicked: self.is_on(BinaryInput::MenuLeft),
+            menu_right_clicked: self.is_on(BinaryInput::MenuRight),
             mouse_button_left_down: self.is_on(BinaryInput::MouseButtonLeft),
             mouse_position: self.state.mouse_position,
         };

@@ -26,7 +26,7 @@ enum UiButtonState {
 }
 
 pub struct UiButton {
-    position: Rect<Subpixels>,
+    pub position: Rect<Subpixels>,
     sprite: SpriteSheet,
     state: UiButtonState,
     label: String,
