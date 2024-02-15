@@ -349,7 +349,8 @@ pub struct MapObjectProperties {
     // Warp zones
     pub warp: Option<String>,
     // UI elements
-    pub uibutton: Option<String>,
+    pub uibutton: bool,
+    pub action: Option<String>,
     pub label: String,
     _raw: PropertyMap,
 }
@@ -392,8 +393,9 @@ impl TryFrom<PropertyMap> for MapObjectProperties {
             dy: Pixels::new(properties.get_int("dy")?.unwrap_or(0)),
             facing_left: properties.get_bool("facing_left")?.unwrap_or(false),
             warp: properties.get_string("warp")?.map(str::to_string),
-            uibutton: properties.get_string("uibutton")?.map(str::to_string),
+            uibutton: properties.get_bool("uibutton")?.unwrap_or(false),
             label: properties.get_string("label")?.unwrap_or("").to_string(),
+            action: properties.get_string("action")?.map(str::to_string),
             _raw: properties,
         })
     }
@@ -476,6 +478,7 @@ impl TileSetList {
 pub struct TileMapProperties {
     pub dark: bool,
     pub gravity: Option<Subpixels>,
+    pub cancel_action: String,
 }
 
 impl TryFrom<PropertyMap> for TileMapProperties {
@@ -484,6 +487,10 @@ impl TryFrom<PropertyMap> for TileMapProperties {
         Ok(TileMapProperties {
             dark: properties.get_bool("is_dark")?.unwrap_or(false),
             gravity: properties.get_int("gravity")?.map(Subpixels::new),
+            cancel_action: properties
+                .get_string("cancel_action")?
+                .unwrap_or("pop")
+                .to_string(),
         })
     }
 }

@@ -47,7 +47,7 @@ impl UiButton {
             images.load_spritesheet(Path::new("assets/uibutton.png"), tile_width, tile_height)?;
         let state = UiButtonState::Normal;
         let label = object.properties.label.clone();
-        let action = object.properties.uibutton.clone();
+        let action = object.properties.action.clone();
         Ok(UiButton {
             position,
             sprite,

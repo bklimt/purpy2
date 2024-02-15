@@ -19,6 +19,7 @@ use crate::uibutton::UiButton;
 use crate::utils::Color;
 
 pub struct Menu {
+    cancel_action: String,
     reload_path: Option<PathBuf>,
     cursor: Cursor,
     tilemap: TileMap,
@@ -72,8 +73,10 @@ impl Menu {
         let mut buttons = Vec::new();
         let switches = SwitchState::new();
 
+        let cancel_action = tilemap.properties.cancel_action.clone();
+
         for obj in &tilemap.objects {
-            if obj.properties.uibutton.is_some() {
+            if obj.properties.uibutton {
                 buttons.push(UiButton::new(
                     obj,
                     tilemap.tilewidth,
@@ -100,6 +103,7 @@ impl Menu {
         let selected = vertical_button_order[0];
 
         Ok(Self {
+            cancel_action,
             reload_path,
             cursor,
             tilemap,
@@ -123,6 +127,38 @@ impl Menu {
         let new_pos = ((pos + order.len()) as i32 + delta) as usize % order.len();
         self.selected = order[new_pos];
     }
+
+    fn perform_action(&self, action: &str) -> Option<SceneResult> {
+        Some(if let Some(path) = action.strip_prefix("levelselect:") {
+            SceneResult::PushLevelSelect {
+                path: Path::new(path).to_owned(),
+            }
+        } else if let Some(path) = action.strip_prefix("level:") {
+            SceneResult::PushLevel {
+                path: Path::new(path).to_owned(),
+            }
+        } else if let Some(path) = action.strip_prefix("menu:") {
+            SceneResult::PushMenu {
+                path: Path::new(path).to_owned(),
+            }
+        } else if action == "pop" {
+            SceneResult::Pop
+        } else if action == "pop2" {
+            SceneResult::PopTwo
+        } else if action == "reload" {
+            if let Some(reload_path) = &self.reload_path {
+                SceneResult::ReloadLevel {
+                    path: reload_path.clone(),
+                }
+            } else {
+                error!("menu button triggered reload, but no reload_path set");
+                return None;
+            }
+        } else {
+            error!("invalid button action: {action}");
+            return None;
+        })
+    }
 }
 
 impl Scene for Menu {
@@ -133,7 +169,9 @@ impl Scene for Menu {
         sounds: &mut SoundManager,
     ) -> SceneResult {
         if inputs.cancel_clicked {
-            return SceneResult::Pop;
+            if let Some(result) = self.perform_action(&self.cancel_action) {
+                return result;
+            }
         }
 
         if inputs.menu_down_clicked {
@@ -151,36 +189,16 @@ impl Scene for Menu {
 
         self.cursor.update(inputs);
 
+        let mut clicked_action = None;
         for (i, button) in self.buttons.iter_mut().enumerate() {
             let selected = i == self.selected;
             if let Some(action) = button.update(selected, inputs, sounds) {
-                if let Some(path) = action.strip_prefix("levelselect:") {
-                    return SceneResult::PushLevelSelect {
-                        path: Path::new(path).to_owned(),
-                    };
-                } else if let Some(path) = action.strip_prefix("level:") {
-                    return SceneResult::PushLevel {
-                        path: Path::new(path).to_owned(),
-                    };
-                } else if let Some(path) = action.strip_prefix("menu:") {
-                    return SceneResult::PushMenu {
-                        path: Path::new(path).to_owned(),
-                    };
-                } else if action == "pop" {
-                    return SceneResult::Pop;
-                } else if action == "pop2" {
-                    return SceneResult::PopTwo;
-                } else if action == "reload" {
-                    if let Some(reload_path) = &self.reload_path {
-                        return SceneResult::ReloadLevel {
-                            path: reload_path.clone(),
-                        };
-                    } else {
-                        error!("menu button triggered reload, but no reload_path set");
-                    }
-                } else {
-                    error!("invalid button action: {action}");
-                }
+                clicked_action = Some(action);
+            }
+        }
+        if let Some(action) = clicked_action {
+            if let Some(result) = self.perform_action(&action) {
+                return result;
             }
         }
 
