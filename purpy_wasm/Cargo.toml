@@ -22,4 +22,6 @@ web-sys = { version = "0.3", features = [
     "Document",
     "Window",
     "Element",
+    "HtmlAudioElement",
 ]}
+base64 = "0.21.7"

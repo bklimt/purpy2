@@ -22,7 +22,7 @@ pub struct SoundManager {
 }
 
 impl SoundManager {
-    fn with_internal(internal: Box<dyn SoundPlayer>) -> SoundManager {
+    pub fn with_internal(internal: Box<dyn SoundPlayer>) -> SoundManager {
         Self { internal }
     }
 

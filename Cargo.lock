@@ -215,6 +215,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "base64"
+version = "0.21.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
+
+[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1514,6 +1520,7 @@ name = "purpy_wasm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "console_error_panic_hook",
  "console_log",
  "log",

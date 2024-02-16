@@ -1,5 +1,8 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+use websoundplayer::WebSoundPlayer;
+
+mod websoundplayer;
 
 use std::path::Path;
 
@@ -35,7 +38,8 @@ impl<'window> GameState<'window> {
         let mut images = ImageManager::new(renderer)?;
         let inputs = InputManager::with_options(RecordOption::None, &file_manager)?;
         let stage_manager = StageManager::new(&file_manager, &images)?;
-        let sounds = SoundManager::noop_manager();
+        let sounds = WebSoundPlayer::new(&file_manager)?;
+        let sounds = SoundManager::with_internal(Box::new(sounds));
 
         images.load_texture_atlas(
             Path::new("assets/textures.png"),

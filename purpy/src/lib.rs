@@ -34,7 +34,7 @@ pub use font::Font;
 pub use imagemanager::ImageManager;
 pub use inputmanager::{InputManager, RecordOption};
 pub use rendercontext::RenderContext;
-pub use soundmanager::SoundManager;
+pub use soundmanager::{Sound, SoundManager, SoundPlayer};
 pub use stagemanager::StageManager;
 
 #[cfg(feature = "sdl2")]
