@@ -58,10 +58,10 @@ impl FromStr for Color {
             let b = u8::from_str_radix(&s[4..6], 16)?;
             Ok(Color { r, g, b, a: 255 })
         } else if s.len() == 8 {
-            let r = u8::from_str_radix(&s[0..2], 16)?;
-            let g = u8::from_str_radix(&s[2..4], 16)?;
-            let b = u8::from_str_radix(&s[4..6], 16)?;
-            let a = u8::from_str_radix(&s[6..8], 16)?;
+            let a = u8::from_str_radix(&s[0..2], 16)?;
+            let r = u8::from_str_radix(&s[2..4], 16)?;
+            let g = u8::from_str_radix(&s[4..6], 16)?;
+            let b = u8::from_str_radix(&s[6..8], 16)?;
             Ok(Color { r, g, b, a })
         } else {
             Err(anyhow!("invalid color: {}", s))

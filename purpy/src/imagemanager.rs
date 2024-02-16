@@ -68,6 +68,7 @@ where
         index_path: &Path,
         files: &FileManager,
     ) -> Result<()> {
+        info!("loading texture atlas from {image_path:?} with index {index_path:?}");
         let base_path = index_path.parent().unwrap();
         let base_sprite = self.load_sprite(image_path)?;
 
@@ -99,7 +100,7 @@ where
             let sprite = base_sprite.subview(area);
 
             let path = base_path.join(parts[4]);
-            info!("loaded image from texture atlas: {:?}", path);
+            info!("loaded image from texture atlas: {:?} at {:?}", path, area);
 
             self.path_to_sprite.insert(path, sprite);
         }
@@ -137,6 +138,7 @@ where
     ) -> Result<SpriteSheet> {
         let sprite = self.load_sprite(path)?;
         SpriteSheet::new(sprite, sprite_width, sprite_height)
+            .map_err(|e| anyhow!("unable to create spritesheet {:?}: {}", path, e,))
     }
 
     fn load_animation(
@@ -147,5 +149,6 @@ where
     ) -> Result<Animation> {
         let sprite = self.load_sprite(path)?;
         Animation::new(sprite, sprite_width, sprite_height)
+            .map_err(|e| anyhow!("unable to create animation {:?}: {}", path, e,))
     }
 }

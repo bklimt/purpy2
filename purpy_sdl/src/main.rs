@@ -61,6 +61,7 @@ fn sdl_main(args: Args) -> Result<()> {
         window.fullscreen_desktop();
     }
     let window = window.resizable().build().expect("failed to build window");
+    sdl_context.mouse().show_cursor(false);
 
     // We get the canvas from which we can get the `TextureCreator`.
     let mut canvas: Canvas<Window> = window
@@ -76,17 +77,24 @@ fn sdl_main(args: Args) -> Result<()> {
     canvas.present();
 
     let mut image_manager = ImageManager::new(renderer)?;
-    let mut input_manager = InputManager::with_options(args.record_option()?, &file_manager)?;
-    let mut stage_manager = StageManager::new(&file_manager, &image_manager)?;
-    let mut sound_manager = SoundManager::with_sdl(&audio_subsystem)?;
-    let mut event_pump = sdl_context.event_pump().unwrap();
-
     image_manager.load_texture_atlas(
         Path::new("assets/textures.png"),
         Path::new("assets/textures_index.txt"),
         &file_manager,
     )?;
     let font = image_manager.load_font(&file_manager)?;
+
+    let mut input_manager = InputManager::with_options(
+        WINDOW_WIDTH as i32,
+        WINDOW_HEIGHT as i32,
+        false,
+        args.record_option()?,
+        &file_manager,
+    )?;
+
+    let mut stage_manager = StageManager::new(&file_manager, &mut image_manager)?;
+    let mut sound_manager = SoundManager::with_sdl(&audio_subsystem)?;
+    let mut event_pump = sdl_context.event_pump().unwrap();
 
     let mut frame = 0;
     let speed_test_start_time = Instant::now();

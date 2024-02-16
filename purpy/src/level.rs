@@ -258,9 +258,9 @@ impl Level {
 
         // Apply controller input.
         let mut target_dx = Subpixels::zero();
-        if inputs.player_left && !inputs.player_right {
+        if inputs.player_left_down && !inputs.player_right_down {
             target_dx = TARGET_WALK_SPEED * -1;
-        } else if inputs.player_right && !inputs.player_left {
+        } else if inputs.player_right_down && !inputs.player_left_down {
             target_dx = TARGET_WALK_SPEED;
         }
 
@@ -477,12 +477,12 @@ impl Level {
             if dx < Subpixels::zero() || (dx.is_zero() && !self.player.facing_right) {
                 // Moving left.
                 let move_result = self.move_and_check(Direction::Left, inc_player_x);
-                let pushing = inputs.player_left;
+                let pushing = inputs.player_left_down;
                 (move_result, pushing)
             } else {
                 // Moving right.
                 let move_result = self.move_and_check(Direction::Right, inc_player_x);
-                let pushing = inputs.player_right;
+                let pushing = inputs.player_right_down;
                 (move_result, pushing)
             };
 
@@ -645,8 +645,8 @@ impl Level {
             on_ground: y_result.on_ground,
             pushing_against_wall: x_result.pushing_against_wall,
             jump_down: inputs.player_jump_down,
-            jump_triggered: inputs.player_jump_trigger,
-            crouch_down: inputs.player_crouch,
+            jump_triggered: inputs.player_jump_clicked,
+            crouch_down: inputs.player_crouch_down,
             _stuck_in_wall: x_result.stuck_in_wall || y_result.stuck_in_wall,
             crushed_by_platform: x_result.crushed_by_platform || y_result.crushed_by_platform,
         }
@@ -860,8 +860,10 @@ impl Scene for Level {
         inputs: &InputSnapshot,
         sounds: &mut SoundManager,
     ) -> SceneResult {
-        if inputs.cancel {
-            return SceneResult::Pop;
+        if inputs.cancel_clicked {
+            return SceneResult::PushPause {
+                path: self.map_path.clone(),
+            };
         }
 
         for platform in self.platforms.iter_mut() {
@@ -941,7 +943,7 @@ impl Scene for Level {
         }
 
         if self.player.is_dead {
-            return SceneResult::SwitchToKillScreen {
+            return SceneResult::PushKillScreen {
                 path: self.map_path.clone(),
             };
         }
@@ -966,7 +968,7 @@ impl Scene for Level {
         SceneResult::Continue
     }
 
-    fn draw(&self, context: &mut RenderContext, font: &Font) {
+    fn draw(&self, context: &mut RenderContext, font: &Font, _previous: Option<&dyn Scene>) {
         let dest = context.logical_area_in_subpixels();
         let player_draw = self.player.position + self.map_offset;
 

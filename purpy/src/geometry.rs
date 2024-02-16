@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, ops};
+use std::{cmp::Ordering, fmt::Display, ops};
 
 use num_traits::Zero;
 
@@ -38,6 +38,12 @@ impl Zero for Pixels {
     #[inline]
     fn set_zero(&mut self) {
         self.0 = 0;
+    }
+}
+
+impl Display for Pixels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}px", self.0)
     }
 }
 
@@ -144,6 +150,12 @@ impl Zero for Subpixels {
     #[inline]
     fn set_zero(&mut self) {
         self.0 = 0;
+    }
+}
+
+impl Display for Subpixels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}spx", self.0)
     }
 }
 
@@ -370,6 +382,13 @@ where
             && self.bottom() >= other.top()
             && self.top() <= other.bottom()
     }
+
+    pub fn contains(&self, point: Point<T>) -> bool {
+        point.x >= self.left()
+            && point.x <= self.right()
+            && point.y >= self.top()
+            && point.y <= self.bottom()
+    }
 }
 
 impl<T> ops::Add<Point<T>> for Rect<T>
@@ -412,15 +431,22 @@ impl Rect<Subpixels> {
     }
 }
 
+impl Rect<Pixels> {
+    #[inline]
+    pub fn as_subpixels(&self) -> Rect<Subpixels> {
+        Rect {
+            x: self.x.as_subpixels(),
+            y: self.y.as_subpixels(),
+            w: self.w.as_subpixels(),
+            h: self.h.as_subpixels(),
+        }
+    }
+}
+
 impl From<Rect<Pixels>> for Rect<Subpixels> {
     #[inline]
     fn from(value: Rect<Pixels>) -> Self {
-        Self {
-            x: value.x.as_subpixels(),
-            y: value.y.as_subpixels(),
-            w: value.w.as_subpixels(),
-            h: value.h.as_subpixels(),
-        }
+        value.as_subpixels()
     }
 }
 

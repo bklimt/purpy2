@@ -68,16 +68,24 @@ impl<'window> GameState<'window> {
         renderer: WgpuRenderer<'window, Window>,
     ) -> Result<Self> {
         let mut images = ImageManager::new(renderer)?;
-        let inputs = InputManager::with_options(args.record_option()?, &file_manager)?;
-        let stage_manager = StageManager::new(&file_manager, &images)?;
-        let sounds = SoundManager::noop_manager();
-
         images.load_texture_atlas(
             Path::new("assets/textures.png"),
             Path::new("assets/textures_index.txt"),
             &file_manager,
         )?;
         let font = images.load_font(&file_manager)?;
+
+        let inputs = InputManager::with_options(
+            WINDOW_WIDTH as i32,
+            WINDOW_HEIGHT as i32,
+            true,
+            args.record_option()?,
+            &file_manager,
+        )?;
+
+        let stage_manager = StageManager::new(&file_manager, &mut images)?;
+        let sounds = SoundManager::noop_manager();
+
         let frame = 0;
         let start_time = Instant::now();
         let speed_test = args.speed_test;
@@ -143,6 +151,7 @@ pub async fn run(args: Args) -> Result<()> {
     let PhysicalSize { width, height } = window.inner_size();
     let width = if width == 0 { WINDOW_WIDTH } else { width };
     let height = if height == 0 { WINDOW_HEIGHT } else { height };
+    window.set_cursor_visible(false);
 
     let texture_atlas_path = Path::new("assets/textures.png");
     let vsync = !args.speed_test;
