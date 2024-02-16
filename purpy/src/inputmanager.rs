@@ -619,35 +619,46 @@ impl InputSnapshot {
     fn encode(&self) -> u64 {
         let mut result = 0;
         result |= bool_to_bin(self.ok_clicked, 0);
-        result |= bool_to_bin(self.cancel_clicked, 1);
-        result |= bool_to_bin(self.player_left_down, 2);
-        result |= bool_to_bin(self.player_right_down, 3);
-        result |= bool_to_bin(self.player_crouch_down, 4);
-        result |= bool_to_bin(self.player_jump_clicked, 5);
-        result |= bool_to_bin(self.player_jump_down, 6);
-        result |= bool_to_bin(self.menu_down_clicked, 7);
-        result |= bool_to_bin(self.menu_up_clicked, 8);
+        result |= bool_to_bin(self.ok_down, 1);
+        result |= bool_to_bin(self.cancel_clicked, 2);
+        result |= bool_to_bin(self.player_left_down, 3);
+        result |= bool_to_bin(self.player_right_down, 4);
+        result |= bool_to_bin(self.player_crouch_down, 5);
+        result |= bool_to_bin(self.player_jump_clicked, 6);
+        result |= bool_to_bin(self.player_jump_down, 7);
+        result |= bool_to_bin(self.menu_down_clicked, 8);
+        result |= bool_to_bin(self.menu_up_clicked, 9);
+        result |= bool_to_bin(self.menu_left_clicked, 10);
+        result |= bool_to_bin(self.menu_right_clicked, 11);
+        result |= bool_to_bin(self.mouse_button_left_down, 12);
+
+        let one_pixel = Pixels::new(1);
+        let mouse_x = self.mouse_position.x / one_pixel;
+        let mouse_y = self.mouse_position.y / one_pixel;
+        result |= ((mouse_x & 0x0000FFFF) as u64) << 32;
+        result |= ((mouse_y & 0x0000FFFF) as u64) << 48;
         result
     }
 
-    // TODO: Update this.
     fn decode(n: u64) -> InputSnapshot {
+        let mouse_x = Pixels::new(((n >> 32) & 0x0000FFFF) as i32);
+        let mouse_y = Pixels::new(((n >> 48) & 0x0000FFFF) as i32);
+
         InputSnapshot {
             ok_clicked: bin_to_bool(n, 0),
-            ok_down: false,
-            cancel_clicked: bin_to_bool(n, 1),
-            player_left_down: bin_to_bool(n, 2),
-            player_right_down: bin_to_bool(n, 3),
-            player_crouch_down: bin_to_bool(n, 4),
-            player_jump_clicked: bin_to_bool(n, 5),
-            player_jump_down: bin_to_bool(n, 6),
-            menu_down_clicked: bin_to_bool(n, 7),
-            menu_up_clicked: bin_to_bool(n, 8),
-            menu_left_clicked: false,
-            menu_right_clicked: false,
-
-            mouse_button_left_down: false,
-            mouse_position: Point::zero(),
+            ok_down: bin_to_bool(n, 1),
+            cancel_clicked: bin_to_bool(n, 2),
+            player_left_down: bin_to_bool(n, 3),
+            player_right_down: bin_to_bool(n, 4),
+            player_crouch_down: bin_to_bool(n, 5),
+            player_jump_clicked: bin_to_bool(n, 6),
+            player_jump_down: bin_to_bool(n, 7),
+            menu_down_clicked: bin_to_bool(n, 8),
+            menu_up_clicked: bin_to_bool(n, 9),
+            menu_left_clicked: bin_to_bool(n, 10),
+            menu_right_clicked: bin_to_bool(n, 11),
+            mouse_button_left_down: bin_to_bool(n, 12),
+            mouse_position: Point::new(mouse_x, mouse_y),
         }
     }
 }
