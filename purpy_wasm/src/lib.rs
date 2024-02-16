@@ -1,5 +1,8 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+use websoundplayer::WebSoundPlayer;
+
+mod websoundplayer;
 
 use std::path::Path;
 
@@ -48,7 +51,8 @@ impl<'window> GameState<'window> {
             &file_manager,
         )?;
         let stage_manager = StageManager::new(&file_manager, &mut images)?;
-        let sounds = SoundManager::noop_manager();
+        let sounds = WebSoundPlayer::new(&file_manager)?;
+        let sounds = SoundManager::with_internal(Box::new(sounds));
 
         let frame = 0;
 
