@@ -34,6 +34,14 @@ cargo run --bin create_texture_atlas -- \
   --try-all-pairs
 ```
 
+## Dependencies
+
+To install dependencies in debian linux:
+
+```
+sudo apt install libudev-dev libsdl2-dev libsdl2-image-dev
+```
+
 ## purpy_sdl
 
 This is a standalone implementation of the purpy game using only SDL for windowing and rendering.
@@ -85,3 +93,10 @@ Run a testing server with purpy:
 cd purpy_wasm
 python3 -m http.server
 ```
+
+To update the hosted version (from the repo root):
+```
+rm -r docs/purpy_wasm
+cp purpy_wasm/pkg docs/purpy_wasm
+```
+
