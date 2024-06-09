@@ -239,6 +239,9 @@ impl TileSet {
                     }
                     tile_properties.insert(id, props);
                 }
+                TileSetXmlField::Transformations(transformations_xml) => {
+                    info!("ignoring transformations: {:?}", transformations_xml);
+                }
                 _ => {}
             }
         }

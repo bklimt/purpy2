@@ -102,7 +102,6 @@ struct ObjectGroupXml {
 #[serde(rename_all = "lowercase")]
 enum TileMapXmlField {
     TileSet(TileSetSourceXml),
-    Properties(PropertiesXml),
     ObjectGroup(ObjectGroupXml),
     Layer(LayerXml),
     ImageLayer(ImageLayerXml),

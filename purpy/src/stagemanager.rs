@@ -15,24 +15,6 @@ use crate::{
     soundmanager::SoundManager,
 };
 
-// A placeholder to use when swapping out scenes.
-struct SceneTombstone(());
-
-impl Scene for SceneTombstone {
-    fn draw(&self, _context: &mut RenderContext, _font: &Font, _previous: Option<&dyn Scene>) {
-        unimplemented!()
-    }
-
-    fn update(
-        &mut self,
-        _context: &RenderContext,
-        _inputs: &InputSnapshot,
-        _sounds: &mut SoundManager,
-    ) -> SceneResult {
-        unimplemented!()
-    }
-}
-
 pub struct StageManager {
     current: Box<dyn Scene>,
     stack: Vec<Box<dyn Scene>>,
